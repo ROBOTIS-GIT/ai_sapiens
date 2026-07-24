@@ -31,9 +31,9 @@
       </geometry>
     </collision>
     <inertial>
-      <origin xyz="2.990236300e-02 -4.729033400e-04 7.998201000e-02"/>
-      <mass value="5.502976800e-01"/>
-      <inertia ixx="2.173484900e-03" ixy="3.966642100e-06" ixz="-4.271481800e-04" iyy="1.902348300e-03" iyz="7.214693700e-06" izz="1.574879600e-03"/>
+      <origin xyz="6.953003800e-03 3.242849800e-06 1.065532100e-01"/>
+      <mass value="7.279675100e-01"/>
+      <inertia ixx="2.638882900e-03" ixy="-1.118249400e-07" ixz="2.006416200e-04" iyy="2.937964300e-03" iyz="-3.616676400e-08" izz="1.817875800e-03"/>
     </inertial>
   </link>
   <link name="pelvis">
@@ -194,10 +194,65 @@
       </geometry>
       <material name="white"/>
     </visual>
-    <collision>
+    <!-- <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="package://ai_sapiens_description/meshes/k1_rev1/left_ankle_roll_link.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision> -->
+
+    <collision>
+      <origin rpy="0 0 0" xyz="-0.047 0.025 -0.06"/>
+      <geometry>
+        <sphere radius="0.005"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="-0.047 -0.025 -0.06"/>
+      <geometry>
+        <sphere radius="0.005"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.05 0.038 -0.06"/>
+      <geometry>
+        <sphere radius="0.005"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.05 -0.038 -0.06"/>
+      <geometry>
+        <sphere radius="0.005"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.112 0.027 -0.06"/>
+      <geometry>
+        <sphere radius="0.005"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.122 0.015 -0.05"/>
+      <geometry>
+        <sphere radius="0.005"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.125 0 -0.047"/>
+      <geometry>
+        <sphere radius="0.005"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.122 -0.015 -0.05"/>
+      <geometry>
+        <sphere radius="0.005"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.112 -0.027 -0.06"/>
+      <geometry>
+        <sphere radius="0.005"/>
       </geometry>
     </collision>
     <inertial>
@@ -350,10 +405,65 @@
       </geometry>
       <material name="white"/>
     </visual>
-    <collision>
+    <!-- <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
         <mesh filename="package://ai_sapiens_description/meshes/k1_rev1/right_ankle_roll_link.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision> -->
+
+    <collision>
+      <origin rpy="0 0 0" xyz="-0.047 0.025 -0.06"/>
+      <geometry>
+        <sphere radius="0.005"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="-0.047 -0.025 -0.06"/>
+      <geometry>
+        <sphere radius="0.005"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.05 0.038 -0.06"/>
+      <geometry>
+        <sphere radius="0.005"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.05 -0.038 -0.06"/>
+      <geometry>
+        <sphere radius="0.005"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.112 0.027 -0.06"/>
+      <geometry>
+        <sphere radius="0.005"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.122 0.015 -0.05"/>
+      <geometry>
+        <sphere radius="0.005"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.125 0 -0.047"/>
+      <geometry>
+        <sphere radius="0.005"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.122 -0.015 -0.05"/>
+      <geometry>
+        <sphere radius="0.005"/>
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.112 -0.027 -0.06"/>
+      <geometry>
+        <sphere radius="0.005"/>
       </geometry>
     </collision>
     <inertial>
@@ -403,7 +513,7 @@
     </inertial>
   </link>
   <joint name="head_joint" type="fixed">
-    <origin rpy="0 0 0" xyz="-0.0185 0 0.385"/>
+    <origin rpy="0 0 0" xyz="-0.02725 0 0.361"/>
     <parent link="torso_link"/>
     <child link="head_link"/>
   </joint>

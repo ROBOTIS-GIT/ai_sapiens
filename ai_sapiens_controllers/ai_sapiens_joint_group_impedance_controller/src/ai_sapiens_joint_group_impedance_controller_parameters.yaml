@@ -1,0 +1,10 @@
+ai_sapiens_joint_group_impedance_controller:
+  joints: {
+    type: string_array,
+    default_value: [],
+    read_only: true,
+    description: "Joint order used by the arrays published on ~/commands.",
+    validation: {
+      unique<>: null
+    }
+  }

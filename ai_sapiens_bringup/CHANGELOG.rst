@@ -2,6 +2,12 @@
 Changelog for package ai_sapiens_bringup
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.0 (2026-07-24)
+------------------
+* Added the K1 bringup launch and controller configuration: controller manager, joint impedance controller, and RC broadcaster.
+* Added HAT-backed RC status reporting and mock hardware support.
+* Contributors: Woojin Wie, Eunsung Kim, Wonho Yun
+
 0.0.3 (2026-07-20)
 ------------------
 * None

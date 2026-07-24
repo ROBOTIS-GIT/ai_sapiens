@@ -1,0 +1,13 @@
+#!/command/with-contenv sh
+# Agent service run script
+# This script starts the s6-agent FastAPI service
+
+set -e
+
+# Ensure socket directory exists
+mkdir -p /var/run/agent
+chmod 777 /var/run/agent
+
+# Start uvicorn with Unix Domain Socket
+# The agent is part of talos package
+exec uvicorn cyclo_manager.agent.s6_agent:app --uds /var/run/agent/s6_agent.sock --log-level info

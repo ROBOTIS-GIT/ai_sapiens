@@ -1,0 +1,7 @@
+std_msgs/Header header
+string active_mode
+string authority
+bool teleop_input_valid
+bool api_heartbeat_valid
+bool api_request_available
+string last_transition_reason

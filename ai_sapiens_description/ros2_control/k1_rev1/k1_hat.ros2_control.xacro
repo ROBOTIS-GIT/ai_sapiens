@@ -1,0 +1,104 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="k1_hat_system" params="use_mock_hardware:=^|false mock_sensor_commands:=^|false baud_rate:=^|6000000 id:=^|201">
+    <ros2_control name="k1_hat" type="system" is_async="true" rw_rate="100">
+      <properties>
+        <async scheduling_policy="synchronized" print_warnings="false"/>
+      </properties>
+      <hardware>
+        <xacro:if value="${use_mock_hardware}">
+          <plugin>mock_components/GenericSystem</plugin>
+          <param name="mock_sensor_commands">${mock_sensor_commands}</param>
+          <param name="state_following_offset">0.0</param>
+        </xacro:if>
+        <xacro:unless value="${use_mock_hardware}">
+          <plugin>dynamixel_hardware_interface/DynamixelHardware</plugin>
+          <param name="port_name">e2d2tcp:192.168.10.1:5006</param>
+          <param name="baud_rate">${baud_rate}</param>
+          <param name="error_timeout_ms">500</param>
+          <param name="optimized_sync_read_return_delay_us">0</param>
+          <param name="optimized_sync_read_timeout_margin_us">-200</param>
+          <param name="optimized_sync_read_rx_timeout_us">800</param>
+          <param name="optimized_sync_read_period_us">1000</param>
+          <param name="dynamixel_model_folder">/param/dxl_model</param>
+          <param name="number_of_joints">0</param>
+          <param name="number_of_transmissions">0</param>
+          <param name="disable_torque_at_init">true</param>
+          <param name="dynamixel_state_pub_msg_name">dxl_state</param>
+          <param name="get_dynamixel_data_srv_name">get_dxl_data</param>
+          <param name="set_dynamixel_data_srv_name">set_dxl_data</param>
+          <param name="reboot_dxl_srv_name">reboot_dxl</param>
+          <param name="set_dxl_torque_srv_name">set_dxl_torque</param>
+        </xacro:unless>
+      </hardware>
+
+      <sensor name="hat">
+        <state_interface name="Hardware Error Status"/>
+        <state_interface name="Realtime Tick"/>
+        <state_interface name="E-stop Active"/>
+        <state_interface name="BMS SOC"/>
+        <state_interface name="BMS Voltage"/>
+        <state_interface name="BMS Current"/>
+        <state_interface name="BMS Temperature"/>
+        <state_interface name="BMS Service Error Flags"/>
+        <state_interface name="BMS Remaining Energy"/>
+        <state_interface name="CRSF Failsafe"/>
+        <state_interface name="CRSF Link Quality"/>
+        <state_interface name="CRSF RSSI 1"/>
+        <state_interface name="CRSF Last Frame Age"/>
+        <state_interface name="RC Channel 1"/>
+        <state_interface name="RC Channel 2"/>
+        <state_interface name="RC Channel 3"/>
+        <state_interface name="RC Channel 4"/>
+        <state_interface name="RC Channel 5"/>
+        <state_interface name="RC Channel 6"/>
+        <state_interface name="RC Channel 7"/>
+        <state_interface name="RC Channel 8"/>
+        <state_interface name="RC Channel 9"/>
+        <state_interface name="RC Channel 10"/>
+        <state_interface name="RC Channel 11"/>
+        <state_interface name="RC Channel 12"/>
+        <state_interface name="RC Channel 13"/>
+        <state_interface name="RC Channel 14"/>
+        <state_interface name="RC Channel 15"/>
+        <state_interface name="RC Channel 16"/>
+      </sensor>
+
+      <xacro:unless value="${use_mock_hardware}">
+        <gpio name="hat">
+          <param name="type">sensor</param>
+          <param name="ID">${id}</param>
+          <state_interface name="Hardware Error Status"/>
+          <state_interface name="Realtime Tick"/>
+          <state_interface name="E-stop Active"/>
+          <state_interface name="BMS SOC"/>
+          <state_interface name="BMS Voltage"/>
+          <state_interface name="BMS Current"/>
+          <state_interface name="BMS Temperature"/>
+          <state_interface name="BMS Service Error Flags"/>
+          <state_interface name="BMS Remaining Energy"/>
+          <state_interface name="CRSF Failsafe"/>
+          <state_interface name="CRSF Link Quality"/>
+          <state_interface name="CRSF RSSI 1"/>
+          <state_interface name="CRSF Last Frame Age"/>
+          <state_interface name="RC Channel 1"/>
+          <state_interface name="RC Channel 2"/>
+          <state_interface name="RC Channel 3"/>
+          <state_interface name="RC Channel 4"/>
+          <state_interface name="RC Channel 5"/>
+          <state_interface name="RC Channel 6"/>
+          <state_interface name="RC Channel 7"/>
+          <state_interface name="RC Channel 8"/>
+          <state_interface name="RC Channel 9"/>
+          <state_interface name="RC Channel 10"/>
+          <state_interface name="RC Channel 11"/>
+          <state_interface name="RC Channel 12"/>
+          <state_interface name="RC Channel 13"/>
+          <state_interface name="RC Channel 14"/>
+          <state_interface name="RC Channel 15"/>
+          <state_interface name="RC Channel 16"/>
+        </gpio>
+      </xacro:unless>
+    </ros2_control>
+  </xacro:macro>
+</robot>

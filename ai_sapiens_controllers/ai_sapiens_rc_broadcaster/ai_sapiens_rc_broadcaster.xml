@@ -1,0 +1,10 @@
+<library path="ai_sapiens_rc_broadcaster">
+  <class
+    name="ai_sapiens_rc_broadcaster/AiSapiensRcBroadcaster"
+    type="ai_sapiens_rc_broadcaster::AiSapiensRcBroadcaster"
+    base_class_type="controller_interface::ControllerInterface">
+    <description>
+      Broadcasts RC Channel 1-16 as ROS input and status topics.
+    </description>
+  </class>
+</library>

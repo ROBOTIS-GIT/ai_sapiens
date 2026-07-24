@@ -1,0 +1,150 @@
+ai_sapiens_rc_broadcaster:
+  sensor_name:
+    type: string
+    default_value: "ai_sapiens_rc"
+    read_only: true
+    description: "Prefix of the RC state interfaces."
+    validation:
+      not_empty<>: null
+  topic_name:
+    type: string
+    default_value: "ai_sapiens_rc/input"
+    read_only: true
+    description: "Legacy alias for input_topic_name."
+    validation:
+      not_empty<>: null
+  input_topic_name:
+    type: string
+    default_value: ""
+    read_only: true
+    description: "Joy output topic. The legacy topic_name is used when this is empty."
+  state_topic_name:
+    type: string
+    default_value: "ai_sapiens_rc/status"
+    read_only: true
+    description: "Legacy alias for status_topic_name."
+  status_topic_name:
+    type: string
+    default_value: ""
+    read_only: true
+    description: "RC status output topic."
+  frame_id:
+    type: string
+    default_value: "ai_sapiens_rc"
+    read_only: true
+    description: "Frame ID used in published message headers."
+    validation:
+      not_empty<>: null
+  channels:
+    type: string_array
+    default_value:
+      - "RC Channel 1"
+      - "RC Channel 2"
+      - "RC Channel 3"
+      - "RC Channel 4"
+      - "RC Channel 5"
+      - "RC Channel 6"
+      - "RC Channel 7"
+      - "RC Channel 8"
+      - "RC Channel 9"
+      - "RC Channel 10"
+      - "RC Channel 11"
+      - "RC Channel 12"
+      - "RC Channel 13"
+      - "RC Channel 14"
+      - "RC Channel 15"
+      - "RC Channel 16"
+    read_only: true
+    description: "Ordered K1 HAT RC channel interface names."
+    validation:
+      fixed_size<>: [16]
+      unique<>: null
+  channel_names:
+    type: string_array
+    default_value:
+      - "Right Gimbal Vertical"
+      - "Right Gimbal Horizontal"
+      - "Left Gimbal Horizontal"
+      - "Left Gimbal Vertical"
+      - "SA"
+      - "SB"
+      - "SC"
+      - "SD"
+      - "SE"
+      - "SI"
+      - "Mode PWM"
+      - "RC Channel 12"
+      - "RC Channel 13"
+      - "RC Channel 14"
+      - "RC Channel 15"
+      - "RC Channel 16"
+    read_only: true
+    description: "Ordered display names for the 16 RC channels."
+    validation:
+      fixed_size<>: [16]
+      unique<>: null
+  status_interfaces:
+    type: string_array
+    default_value:
+      - "Hardware Error Status"
+      - "Realtime Tick"
+      - "E-stop Active"
+      - "CRSF Failsafe"
+      - "CRSF Link Quality"
+      - "CRSF RSSI 1"
+      - "CRSF Last Frame Age"
+    read_only: true
+    description: "K1 HAT interfaces used to derive RC health and safety status."
+    validation:
+      fixed_size<>: [7]
+      unique<>: null
+  normalize_axes:
+    type: bool
+    default_value: true
+    read_only: true
+    description: "Publish channel axes normalized to [-1, 1]."
+  deadzone:
+    type: double
+    default_value: 50.0
+    read_only: true
+    description: "Half-width of the PWM deadzone around 1500 microseconds."
+  publish_buttons:
+    type: bool
+    default_value: true
+    read_only: true
+    description: "Populate Joy and status button values."
+  button_threshold:
+    type: double
+    default_value: 1700.0
+    read_only: true
+    description: "PWM threshold at which a channel button is active."
+  publish_rate:
+    type: double
+    default_value: -1.0
+    read_only: true
+    description: "Legacy rate for both outputs. A value of -1 uses the per-topic rates."
+  input_publish_rate:
+    type: double
+    default_value: 100.0
+    read_only: true
+    description: "Maximum Joy publication rate in Hz. Zero publishes every update."
+  status_publish_rate:
+    type: double
+    default_value: 100.0
+    read_only: true
+    description: "Maximum RC status publication rate in Hz. Zero publishes every update."
+  watchdog_crsf_frame_timeout_ms:
+    type: double
+    default_value: 100.0
+    read_only: true
+    description: "Maximum acceptable age of the most recent CRSF frame in milliseconds."
+  watchdog_realtime_tick_timeout_ms:
+    type: double
+    default_value: 100.0
+    read_only: true
+    description: "Maximum time without a K1 HAT realtime tick change in milliseconds."
+  min_crsf_link_quality:
+    type: double
+    default_value: 1.0
+    read_only: true
+    description: "Minimum acceptable CRSF link quality in percent."

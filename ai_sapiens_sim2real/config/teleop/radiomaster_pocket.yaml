@@ -1,0 +1,40 @@
+topic: /ai_sapiens_rc/status
+axis_deadzone: 0.0
+switch_match_tolerance: 50
+
+velocity_command:
+  channels:
+    linear_x: {channel: CH2, invert: false}
+    linear_y: {channel: CH4, invert: true}
+    angular_z: {channel: CH1, invert: true}
+
+api_mode:
+  when:
+    CH8: 2000
+
+input_code:
+  channels:
+    CH7:
+      1000: 1
+      1500: 2
+      2000:
+        CH6:
+          1000: 3
+          1500: 0
+          2000: 4
+
+selector_code:
+  channel: CH11
+  tolerance: 30
+  required_for_input_codes: [4]
+  table:
+    1000: 200
+    1100: 201
+    1200: 202
+    1300: 203
+    1400: 204
+    1500: 205
+    1600: 206
+    1700: 207
+    1800: 208
+    1900: 209
