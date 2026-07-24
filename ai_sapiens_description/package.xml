@@ -5,7 +5,7 @@
   <version>0.1.0</version>
   <description>Robot description, mesh, MuJoCo, and ros2_control assets for AI Sapiens K1</description>
   <maintainer email="pyo@robotis.com">Pyo</maintainer>
-  <license>Apache 2.0</license>
+  <license>Apache-2.0</license>
   <author email="wwj@robotis.com">Woojin Wie</author>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

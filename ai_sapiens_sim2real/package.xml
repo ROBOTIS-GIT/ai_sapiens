@@ -5,7 +5,7 @@
   <version>0.1.0</version>
   <description>Real-time ONNX inference for sim-to-real policy deployment with ros2_control integration</description>
   <maintainer email="pyo@robotis.com">Pyo</maintainer>
-  <license>Apache 2.0</license>
+  <license>Apache-2.0</license>
   <author email="wwj@robotis.com">Woojin Wie</author>
   <author email="pkw@robotis.com">Kiwoong Park</author>
 
