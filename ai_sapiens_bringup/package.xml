@@ -5,7 +5,7 @@
   <version>0.1.0</version>
   <description>Launch and controller configuration for the AI Sapiens K1 robot stack</description>
   <maintainer email="pyo@robotis.com">Pyo</maintainer>
-  <license>Apache 2.0</license>
+  <license>Apache-2.0</license>
   <author email="wwj@robotis.com">Woojin Wie</author>
 
   <exec_depend>ai_sapiens_description</exec_depend>
