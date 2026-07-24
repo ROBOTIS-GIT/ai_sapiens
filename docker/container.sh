@@ -32,14 +32,6 @@ start_container() {
 
     echo "Starting ${CONTAINER_NAME} container..."
 
-    ## Copy udev rule for FTDI (U2D2)
-    # sudo cp "${SCRIPT_DIR}/99-u2d2.rules" /etc/udev/rules.d/99-u2d2.rules
-
-    # Reload udev rules
-    echo "Reloading udev rules..."
-    sudo udevadm control --reload-rules
-    sudo udevadm trigger
-
     ## Pull the latest images
     # docker compose -f "${SCRIPT_DIR}/docker-compose.yml" pull
 

@@ -191,7 +191,6 @@ venv.bak/
 
 # Policy bundles are managed outside git. Files already tracked remain tracked.
 ai_sapiens_sim2real/assets/*/locomotion/**
-ai_sapiens_sim2real/assets/*/motion_imitation/**
 ai_sapiens_sim2real/assets/*/mimic/**
 
 

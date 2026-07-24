@@ -1,0 +1,5 @@
+---
+bool success
+string[] modes
+string[] available_modes
+string message

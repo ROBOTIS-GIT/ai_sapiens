@@ -2,13 +2,20 @@
 Changelog for package ai_sapiens_rc_broadcaster
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.0 (2026-07-24)
+------------------
+* Added the RC broadcaster publishing HAT-backed RC status with channel
+  normalization and link health reporting.
+* Contributors: Woojin Wie, Eunsung Kim, Wonho Yun
+
 0.0.3 (2026-07-20)
 ------------------
-* None
+* Added K1 HAT-backed RC health and safety status reporting.
+* Moved the RC message definitions to ``ai_sapiens_interfaces``.
 
 0.0.2 (2026-07-15)
 ------------------
-* None
+* Added configurable RC channel normalization, button output, and publishing rates.
 
 0.0.1 (2026-06-25)
 ------------------

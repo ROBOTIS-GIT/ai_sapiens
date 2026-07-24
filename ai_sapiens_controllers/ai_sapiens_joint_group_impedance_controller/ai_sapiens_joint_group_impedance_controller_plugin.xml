@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<library path="ai_sapiens_joint_group_impedance_controller">
+  <class
+    name="ai_sapiens_joint_group_impedance_controller/AiSapiensJointGroupImpedanceController"
+    type="ai_sapiens_joint_group_impedance_controller::AiSapiensJointGroupImpedanceController"
+    base_class_type="controller_interface::ControllerInterface">
+    <description>
+      Joint group impedance controller forwarding position, feedforward, and gain commands.
+    </description>
+  </class>
+</library>

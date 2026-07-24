@@ -2,6 +2,14 @@
 Changelog for package ai_sapiens
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.0 (2026-07-24)
+------------------
+* First functional release of the AI Sapiens K1 stack: robot description,
+  bringup, ros2_control controllers, interfaces, and the ONNX sim2real runtime.
+* Added s6-managed robot services to the Docker deployment environment.
+* Added CI workflows for build, test, and lint.
+* Contributors: Woojin Wie, Kiwoong Park, Wonho Yun, Eunsung Kim, Youngho Cho
+
 0.0.3 (2026-07-20)
 ------------------
 * Updated the inertia values for the ankle

@@ -2,16 +2,23 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>ai_sapiens_bringup</name>
-  <version>0.0.3</version>
+  <version>0.1.0</version>
   <description>Launch and controller configuration for the AI Sapiens K1 robot stack</description>
   <maintainer email="pyo@robotis.com">Pyo</maintainer>
-  <license>Apache 2.0</license>
+  <license>Apache-2.0</license>
   <author email="wwj@robotis.com">Woojin Wie</author>
 
-  <test_depend>ament_copyright</test_depend>
-  <test_depend>ament_flake8</test_depend>
-  <test_depend>ament_pep257</test_depend>
-  <test_depend>python3-pytest</test_depend>
+  <exec_depend>ai_sapiens_description</exec_depend>
+  <exec_depend>ai_sapiens_joint_group_impedance_controller</exec_depend>
+  <exec_depend>ai_sapiens_rc_broadcaster</exec_depend>
+  <exec_depend>controller_manager</exec_depend>
+  <exec_depend>imu_sensor_broadcaster</exec_depend>
+  <exec_depend>joint_state_broadcaster</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>xacro</exec_depend>
 
   <export>
     <build_type>ament_python</build_type>

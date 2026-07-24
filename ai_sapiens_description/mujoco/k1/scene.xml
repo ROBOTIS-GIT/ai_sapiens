@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<mujoco model="AI Sapiens K1 scene">
+  <include file="k1.xml"/>
+
+  <statistic center="0 0 0.45" extent="1.4"/>
+
+  <asset>
+    <texture
+      name="skybox"
+      type="skybox"
+      builtin="gradient"
+      rgb1="0.30 0.42 0.55"
+      rgb2="0.04 0.05 0.07"
+      width="512"
+      height="3072"/>
+    <texture
+      name="ground"
+      type="2d"
+      builtin="checker"
+      rgb1="0.18 0.20 0.22"
+      rgb2="0.28 0.30 0.32"
+      mark="edge"
+      markrgb="0.8 0.8 0.8"
+      width="300"
+      height="300"/>
+    <material
+      name="ground"
+      texture="ground"
+      texuniform="true"
+      texrepeat="5 5"
+      reflectance="0.1"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 0 3" dir="0 0 -1" directional="true"/>
+    <geom
+      name="floor"
+      type="plane"
+      size="0 0 0.05"
+      material="ground"
+      condim="3"
+      friction="0.8 0.02 0.001"/>
+  </worldbody>
+</mujoco>

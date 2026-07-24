@@ -1,0 +1,109 @@
+/**:
+  controller_manager:
+    ros__parameters:
+      update_rate: 1000  # Hz
+      thread_priority: 80
+
+      joint_state_broadcaster:
+        type: joint_state_broadcaster/JointStateBroadcaster
+
+      joint_group_impedance_controller:
+        type: ai_sapiens_joint_group_impedance_controller/AiSapiensJointGroupImpedanceController
+
+      imu_sensor_broadcaster:
+        type: imu_sensor_broadcaster/IMUSensorBroadcaster
+
+      rc_broadcaster:
+        type: ai_sapiens_rc_broadcaster/AiSapiensRcBroadcaster
+
+
+  imu_sensor_broadcaster:
+    ros__parameters:
+      sensor_name: "imu"
+      frame_id: pelvis
+
+  rc_broadcaster:
+    ros__parameters:
+      sensor_name: "hat"
+      input_topic_name: /ai_sapiens_rc/input
+      status_topic_name: /ai_sapiens_rc/status
+      frame_id: hat
+      channels:
+        - RC Channel 1
+        - RC Channel 2
+        - RC Channel 3
+        - RC Channel 4
+        - RC Channel 5
+        - RC Channel 6
+        - RC Channel 7
+        - RC Channel 8
+        - RC Channel 9
+        - RC Channel 10
+        - RC Channel 11
+        - RC Channel 12
+        - RC Channel 13
+        - RC Channel 14
+        - RC Channel 15
+        - RC Channel 16
+      channel_names:
+        - Right Gimbal Vertical
+        - Right Gimbal Horizontal
+        - Left Gimbal Horizontal
+        - Left Gimbal Vertical
+        - SA
+        - SB
+        - SC
+        - SD
+        - SE
+        - SI
+        - Mode PWM
+        - RC Channel 12
+        - RC Channel 13
+        - RC Channel 14
+        - RC Channel 15
+        - RC Channel 16
+      status_interfaces:
+        - Hardware Error Status
+        - Realtime Tick
+        - E-stop Active
+        - CRSF Failsafe
+        - CRSF Link Quality
+        - CRSF RSSI 1
+        - CRSF Last Frame Age
+      normalize_axes: true
+      deadzone: 50.0
+      publish_buttons: true
+      button_threshold: 1700.0
+      input_publish_rate: 100.0
+      status_publish_rate: 100.0
+      watchdog_crsf_frame_timeout_ms: 100.0
+      watchdog_realtime_tick_timeout_ms: 100.0
+      min_crsf_link_quality: 1.0
+
+  joint_group_impedance_controller:
+    ros__parameters:
+      # === Command array order (~/commands JointImpedanceCommand) ===
+      joints:
+        - left_hip_pitch_joint
+        - left_hip_roll_joint
+        - left_hip_yaw_joint
+        - left_knee_joint
+        - left_ankle_pitch_joint
+        - left_ankle_roll_joint
+        - right_hip_pitch_joint
+        - right_hip_roll_joint
+        - right_hip_yaw_joint
+        - right_knee_joint
+        - right_ankle_pitch_joint
+        - right_ankle_roll_joint
+        - waist_yaw_joint
+        - left_shoulder_pitch_joint
+        - left_shoulder_roll_joint
+        - left_shoulder_yaw_joint
+        - left_elbow_joint
+        - left_wrist_roll_joint
+        - right_shoulder_pitch_joint
+        - right_shoulder_roll_joint
+        - right_shoulder_yaw_joint
+        - right_elbow_joint
+        - right_wrist_roll_joint

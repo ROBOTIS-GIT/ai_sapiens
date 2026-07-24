@@ -2,18 +2,19 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>ai_sapiens</name>
-  <version>0.0.3</version>
+  <version>0.1.0</version>
   <description>Meta package for AI Sapiens ROS 2 packages</description>
   <maintainer email="pyo@robotis.com">Pyo</maintainer>
-  <license>Apache 2.0</license>
+  <license>Apache-2.0</license>
   <author email="wwj@robotis.com">Woojin Wie</author>
+  <author email="pkw@robotis.com">Kiwoong Park</author>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <exec_depend>ai_sapiens_bringup</exec_depend>
-  <exec_depend>ai_sapiens_controller_msgs</exec_depend>
+  <exec_depend>ai_sapiens_interfaces</exec_depend>
   <exec_depend>ai_sapiens_description</exec_depend>
-  <exec_depend>ai_sapiens_joint_group_position_controller</exec_depend>
+  <exec_depend>ai_sapiens_joint_group_impedance_controller</exec_depend>
   <exec_depend>ai_sapiens_rc_broadcaster</exec_depend>
   <exec_depend>ai_sapiens_sim2real</exec_depend>
 

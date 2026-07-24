@@ -1,0 +1,204 @@
+robot_joint_order:  # Corresponds to ai_sapiens_bringup/config/k1_rev1/k1_rev1_controllers.yaml.
+- left_hip_pitch_joint
+- left_hip_roll_joint
+- left_hip_yaw_joint
+- left_knee_joint
+- left_ankle_pitch_joint
+- left_ankle_roll_joint
+- right_hip_pitch_joint
+- right_hip_roll_joint
+- right_hip_yaw_joint
+- right_knee_joint
+- right_ankle_pitch_joint
+- right_ankle_roll_joint
+- waist_yaw_joint
+- left_shoulder_pitch_joint
+- left_shoulder_roll_joint
+- left_shoulder_yaw_joint
+- left_elbow_joint
+- left_wrist_roll_joint
+- right_shoulder_pitch_joint
+- right_shoulder_roll_joint
+- right_shoulder_yaw_joint
+- right_elbow_joint
+- right_wrist_roll_joint
+
+policy_asset_roots:
+  - ../assets/k1
+
+mimic_defaults:
+  fps: 50
+  time_start: 0.0
+  time_end: auto
+  on_complete: Velocity
+
+authority:
+  api_entry:
+    warmup_duration: 3.0
+    velocity_neutral_threshold: 0.05
+    allowed_from_states:
+      - Damping
+      - ReadyPose
+      - Velocity
+  default_velocity_state: Velocity
+
+teleop_input:
+  plugin: ai_sapiens_sim2real/RadiomasterPocketTeleopInputPlugin
+  config: teleop/radiomaster_pocket.yaml
+  timeout: 0.2
+
+teleop_conditions:
+  DampingRequested:
+    input_code: 1
+  ReadyPoseRequested:
+    input_code: 2
+  VelocityRequested:
+    input_code: 3
+  MimicRequested:
+    input_code: 4
+
+selectors:
+  mimic_selector:
+    table:
+      200: MimicSquat
+      201: MimicDance1
+      202: MimicDance2
+      # 203:
+      # 204:
+      # 205:
+      # 206:
+      # 207:
+      # 208:
+      # 209:
+
+state_machine:
+  initial: Damping
+  states:
+    Damping:
+      run: damping
+      transitions:
+        - when: ReadyPoseRequested
+          to: ReadyPose
+    ReadyPose:
+      run: ready_pose
+      transitions:
+        - when: DampingRequested
+          to: Damping
+        - when: VelocityRequested
+          to: Velocity
+        - when: MimicRequested
+          select: mimic_selector
+    ZeroPose:
+      run: posture_zero_pose
+      transitions:
+        - when: DampingRequested
+          to: Damping
+        - when: ReadyPoseRequested
+          to: ReadyPose
+        - when: VelocityRequested
+          to: Velocity
+        - when: MimicRequested
+          select: mimic_selector
+    Velocity:
+      run: velocity_policy
+      transitions:
+        - when: DampingRequested
+          to: Damping
+        - when: ReadyPoseRequested
+          to: ReadyPose
+        - when: MimicRequested
+          trigger: edge
+          select: mimic_selector
+    Mimic:
+      abstract: true
+      transitions:
+        - when: DampingRequested
+          to: Damping
+        - when: ReadyPoseRequested
+          to: ReadyPose
+        - when: VelocityRequested
+          to: Velocity
+    MimicSquat:
+      parent: Mimic
+      run: mimic_squat
+    MimicDance1:
+      parent: Mimic
+      run: mimic_dance1
+    MimicDance2:
+      parent: Mimic
+      run: mimic_dance2
+
+state_behaviors:
+  damping:
+    kind: damping
+    damping:
+      values:
+      - [3.0, 3.0, 3.0, 3.0, 3.0, 3.0] # left leg
+      - [3.0, 3.0, 3.0, 3.0, 3.0, 3.0] # right leg
+      - [3.0] # waist
+      - [3.0, 3.0, 3.0, 3.0, 3.0] # left arm
+      - [3.0, 3.0, 3.0, 3.0, 3.0] # right arm
+  ready_pose:
+    kind: posture
+    duration: 3.0
+    stiffness:
+      values:
+      - [100.0, 100.0, 100.0, 150.0, 40.0, 40.0] # left leg
+      - [100.0, 100.0, 100.0, 150.0, 40.0, 40.0] # right leg
+      - [200.0] # waist
+      - [40.0, 40.0, 40.0, 40.0, 40.0] # left arm
+      - [40.0, 40.0, 40.0, 40.0, 40.0] # right arm
+    damping:
+      values:
+      - [2.0, 2.0, 2.0, 4.0, 2.0, 2.0] # left leg
+      - [2.0, 2.0, 2.0, 4.0, 2.0, 2.0] # right leg
+      - [5.0] # waist
+      - [10.0, 10.0, 10.0, 10.0, 10.0] # left arm
+      - [10.0, 10.0, 10.0, 10.0, 10.0] # right arm
+    target_position:
+      values:
+      - [-0.18, 0.0, 0.0, 0.36, -0.18, 0.0] # left leg
+      - [-0.18, 0.0, 0.0, 0.36, -0.18, 0.0] # right leg
+      - [0.0] # waist
+      - [0.2, 0.25, 0.0, 0.95, 0.15] # left arm
+      - [0.2, -0.25, 0.0, 0.95, -0.15] # right arm
+  posture_zero_pose:
+    kind: posture
+    duration: 3.0
+    stiffness:
+      values:
+      - [100.0, 100.0, 100.0, 150.0, 40.0, 40.0] # left leg
+      - [100.0, 100.0, 100.0, 150.0, 40.0, 40.0] # right leg
+      - [200.0] # waist
+      - [40.0, 40.0, 40.0, 40.0, 40.0] # left arm
+      - [40.0, 40.0, 40.0, 40.0, 40.0] # right arm
+    damping:
+      values:
+      - [2.0, 2.0, 2.0, 4.0, 2.0, 2.0] # left leg
+      - [2.0, 2.0, 2.0, 4.0, 2.0, 2.0] # right leg
+      - [5.0] # waist
+      - [10.0, 10.0, 10.0, 10.0, 10.0] # left arm
+      - [10.0, 10.0, 10.0, 10.0, 10.0] # right arm
+    target_position:
+      values:
+      - [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] # left leg
+      - [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] # right leg
+      - [0.0] # waist
+      - [0.0, 0.0, 0.0, 0.0, 0.0] # left arm
+      - [0.0, 0.0, 0.0, 0.0, 0.0] # right arm
+  velocity_policy:
+    kind: policy
+    asset: locomotion/velocity/walk_default
+
+  mimic_squat:
+    kind: mimic
+    asset: mimic/squat
+    motion: squat.csv
+  mimic_dance1:
+    kind: mimic
+    asset: mimic/dance1
+    motion: dance1.csv
+  mimic_dance2:
+    kind: mimic
+    asset: mimic/dance2
+    motion: dance2.csv

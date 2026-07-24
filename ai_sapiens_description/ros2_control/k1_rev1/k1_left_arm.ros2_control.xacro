@@ -1,0 +1,179 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="k1_left_arm_system" params="use_mock_hardware:=^|false mock_sensor_commands:=^|false">
+    <ros2_control name="k1_left_arm" type="system" is_async="true">
+      <properties>
+        <async scheduling_policy="synchronized" print_warnings="false"/>
+      </properties>
+      <hardware>
+        <xacro:if value="${use_mock_hardware}">
+          <plugin>mock_components/GenericSystem</plugin>
+          <param name="mock_sensor_commands">${mock_sensor_commands}</param>
+          <param name="state_following_offset">0.0</param>
+        </xacro:if>
+        <xacro:unless value="${use_mock_hardware}">
+          <plugin>dynamixel_hardware_interface/DynamixelHardware</plugin>
+          <param name="port_name">e2d2udp:192.168.10.1:5002</param>
+          <param name="baud_rate">6000000</param>
+          <param name="error_timeout_ms">500</param>
+          <param name="optimized_sync_read_return_delay_us">0</param>
+          <param name="optimized_sync_read_timeout_margin_us">-200</param>
+          <param name="optimized_sync_read_rx_timeout_us">800</param>
+          <param name="optimized_sync_read_period_us">1000</param>
+          <param name="dynamixel_model_folder">/param/dxl_model</param>
+          <param name="number_of_joints">5</param>
+          <param name="number_of_transmissions">5</param>
+          <param name="disable_torque_at_init">true</param>
+          <param name="dynamixel_state_pub_msg_name">k1_left_arm/dxl_state</param>
+          <param name="get_dynamixel_data_srv_name">k1_left_arm/get_dxl_data</param>
+          <param name="set_dynamixel_data_srv_name">k1_left_arm/set_dxl_data</param>
+          <param name="reboot_dxl_srv_name">k1_left_arm/reboot_dxl</param>
+          <param name="set_dxl_torque_srv_name">k1_left_arm/set_dxl_torque</param>
+        </xacro:unless>
+      </hardware>
+
+      <!-- Left arm joints -->
+      <joint name="left_shoulder_pitch_joint">
+        <command_interface name="position"/>
+        <command_interface name="feedforward"/>
+        <command_interface name="proportional"/>
+        <command_interface name="derivative"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+        <state_interface name="effort"/>
+      </joint>
+      <joint name="left_shoulder_roll_joint">
+        <command_interface name="position"/>
+        <command_interface name="feedforward"/>
+        <command_interface name="proportional"/>
+        <command_interface name="derivative"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+        <state_interface name="effort"/>
+      </joint>
+      <joint name="left_shoulder_yaw_joint">
+        <command_interface name="position"/>
+        <command_interface name="feedforward"/>
+        <command_interface name="proportional"/>
+        <command_interface name="derivative"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+        <state_interface name="effort"/>
+      </joint>
+      <joint name="left_elbow_joint">
+        <command_interface name="position"/>
+        <command_interface name="feedforward"/>
+        <command_interface name="proportional"/>
+        <command_interface name="derivative"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+        <state_interface name="effort"/>
+      </joint>
+      <joint name="left_wrist_roll_joint">
+        <command_interface name="position"/>
+        <command_interface name="feedforward"/>
+        <command_interface name="proportional"/>
+        <command_interface name="derivative"/>
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+        <state_interface name="effort"/>
+      </joint>
+
+      <gpio name="dxl11">
+        <param name="type">dxl</param>
+        <param name="ID">11</param>
+        <param name="Drive Mode">64</param>
+        <param name="Operating Mode">6</param>
+        <command_interface name="Goal Position"/>
+        <command_interface name="Current Offset"/>
+        <command_interface name="MIT P Gain"/>
+        <command_interface name="MIT D Gain"/>
+        <state_interface name="Present Position"/>
+        <state_interface name="Present Velocity"/>
+        <state_interface name="Present Current"/>
+        <state_interface name="Error Code"/>
+        <param name="Return Delay Time">0</param>
+        <param name="MIT P Gain">0</param>
+        <param name="MIT D Gain">0</param>
+        <param name="Torque Enable">1</param>
+        <param name="Torque Constant">1653</param>
+      </gpio>
+      <gpio name="dxl12">
+        <param name="type">dxl</param>
+        <param name="ID">12</param>
+        <param name="Drive Mode">64</param>
+        <param name="Operating Mode">6</param>
+        <command_interface name="Goal Position"/>
+        <command_interface name="Current Offset"/>
+        <command_interface name="MIT P Gain"/>
+        <command_interface name="MIT D Gain"/>
+        <state_interface name="Present Position"/>
+        <state_interface name="Present Velocity"/>
+        <state_interface name="Present Current"/>
+        <state_interface name="Error Code"/>
+        <param name="Return Delay Time">0</param>
+        <param name="MIT P Gain">0</param>
+        <param name="MIT D Gain">0</param>
+        <param name="Torque Enable">1</param>
+        <param name="Torque Constant">1653</param>
+      </gpio>
+      <gpio name="dxl13">
+        <param name="type">dxl</param>
+        <param name="ID">13</param>
+        <param name="Drive Mode">65</param>
+        <param name="Operating Mode">6</param>
+        <command_interface name="Goal Position"/>
+        <command_interface name="Current Offset"/>
+        <command_interface name="MIT P Gain"/>
+        <command_interface name="MIT D Gain"/>
+        <state_interface name="Present Position"/>
+        <state_interface name="Present Velocity"/>
+        <state_interface name="Present Current"/>
+        <state_interface name="Error Code"/>
+        <param name="Return Delay Time">0</param>
+        <param name="MIT P Gain">0</param>
+        <param name="MIT D Gain">0</param>
+        <param name="Torque Enable">1</param>
+        <param name="Torque Constant">1653</param>
+      </gpio>
+      <gpio name="dxl14">
+        <param name="type">dxl</param>
+        <param name="ID">14</param>
+        <param name="Drive Mode">64</param>
+        <param name="Operating Mode">6</param>
+        <command_interface name="Goal Position"/>
+        <command_interface name="Current Offset"/>
+        <command_interface name="MIT P Gain"/>
+        <command_interface name="MIT D Gain"/>
+        <state_interface name="Present Position"/>
+        <state_interface name="Present Velocity"/>
+        <state_interface name="Present Current"/>
+        <state_interface name="Error Code"/>
+        <param name="Return Delay Time">0</param>
+        <param name="MIT P Gain">0</param>
+        <param name="MIT D Gain">0</param>
+        <param name="Torque Enable">1</param>
+        <param name="Torque Constant">1653</param>
+      </gpio>
+      <gpio name="dxl15">
+        <param name="type">dxl</param>
+        <param name="ID">15</param>
+        <param name="Drive Mode">64</param>
+        <param name="Operating Mode">6</param>
+        <command_interface name="Goal Position"/>
+        <command_interface name="Current Offset"/>
+        <command_interface name="MIT P Gain"/>
+        <command_interface name="MIT D Gain"/>
+        <state_interface name="Present Position"/>
+        <state_interface name="Present Velocity"/>
+        <state_interface name="Present Current"/>
+        <state_interface name="Error Code"/>
+        <param name="Return Delay Time">0</param>
+        <param name="MIT P Gain">0</param>
+        <param name="MIT D Gain">0</param>
+        <param name="Torque Enable">1</param>
+        <param name="Torque Constant">1653</param>
+      </gpio>
+    </ros2_control>
+  </xacro:macro>
+</robot>

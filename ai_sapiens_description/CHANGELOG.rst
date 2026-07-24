@@ -2,6 +2,13 @@
 Changelog for package ai_sapiens_description
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.0 (2026-07-24)
+------------------
+* Added the K1 rev1 ros2_control configuration: DYNAMIXEL limb buses over UDP, the HAT over TCP, and mock hardware support.
+* Added the K1 MuJoCo model.
+* Updated the K1 meshes, model parameters, and foot collision geometry.
+* Contributors: Wonho Yun, Kiwoong Park, Woojin Wie
+
 0.0.3 (2026-07-20)
 ------------------
 * Updated the inertia values for the ankle
