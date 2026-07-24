@@ -61,6 +61,22 @@ jobs:
             exit 1
           fi
 
+      - name: Install ONNX Runtime
+        shell: bash
+        run: |
+          set -e
+          apt-get update && apt-get install -y curl ca-certificates
+          ORT_VERSION=1.23.2
+          case "$(uname -m)" in
+            aarch64) ORT_ARCH=aarch64 ;;
+            *) ORT_ARCH=x64 ;;
+          esac
+          curl -sL "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-linux-${ORT_ARCH}-${ORT_VERSION}.tgz" | tar -xz -C /tmp
+          mkdir -p /usr/local/include/onnxruntime
+          cp -r "/tmp/onnxruntime-linux-${ORT_ARCH}-${ORT_VERSION}/include/." /usr/local/include/onnxruntime/
+          cp -r "/tmp/onnxruntime-linux-${ORT_ARCH}-${ORT_VERSION}/lib/." /usr/local/lib/
+          ldconfig
+
       - name: Build and Test
         uses: ros-tooling/action-ros-ci@v0.3
         with:
