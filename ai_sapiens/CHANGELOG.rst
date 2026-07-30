@@ -2,6 +2,12 @@
 Changelog for package ai_sapiens
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.1 (2026-07-30)
+------------------
+* Updated the port name for the E2D2 UDP communication
+* Modified the RadioMaster channel labels to match the actual channels
+* Contributors: Wonho Yun, Eunsung Kim
+
 0.1.0 (2026-07-24)
 ------------------
 * First functional release of the AI Sapiens K1 stack: robot description,

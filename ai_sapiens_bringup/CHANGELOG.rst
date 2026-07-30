@@ -2,6 +2,11 @@
 Changelog for package ai_sapiens_bringup
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.1 (2026-07-30)
+------------------
+* Modified the RadioMaster channel labels to match the actual channels
+* Contributors: Eunsung Kim
+
 0.1.0 (2026-07-24)
 ------------------
 * Added the K1 bringup launch and controller configuration: controller manager, joint impedance controller, and RC broadcaster.
