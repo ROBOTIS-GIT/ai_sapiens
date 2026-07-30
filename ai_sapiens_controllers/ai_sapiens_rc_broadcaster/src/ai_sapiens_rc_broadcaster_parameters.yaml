@@ -62,10 +62,10 @@ ai_sapiens_rc_broadcaster:
   channel_names:
     type: string_array
     default_value:
-      - "Right Gimbal Vertical"
       - "Right Gimbal Horizontal"
-      - "Left Gimbal Horizontal"
+      - "Right Gimbal Vertical"
       - "Left Gimbal Vertical"
+      - "Left Gimbal Horizontal"
       - "SA"
       - "SB"
       - "SC"
@@ -73,7 +73,7 @@ ai_sapiens_rc_broadcaster:
       - "SE"
       - "SI"
       - "Mode PWM"
-      - "RC Channel 12"
+      - "E-stop PWM"
       - "RC Channel 13"
       - "RC Channel 14"
       - "RC Channel 15"
