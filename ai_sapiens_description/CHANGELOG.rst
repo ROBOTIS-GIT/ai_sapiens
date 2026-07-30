@@ -2,6 +2,11 @@
 Changelog for package ai_sapiens_description
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.1 (2026-07-30)
+------------------
+* Updated the port name for the E2D2 UDP communication
+* Contributors: Wonho Yun
+
 0.1.0 (2026-07-24)
 ------------------
 * Added the K1 rev1 ros2_control configuration: DYNAMIXEL limb buses over UDP, the HAT over TCP, and mock hardware support.

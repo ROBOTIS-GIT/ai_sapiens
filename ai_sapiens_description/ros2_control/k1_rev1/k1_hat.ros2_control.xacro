@@ -13,7 +13,7 @@
         </xacro:if>
         <xacro:unless value="${use_mock_hardware}">
           <plugin>dynamixel_hardware_interface/DynamixelHardware</plugin>
-          <param name="port_name">e2d2tcp:192.168.10.1:5006</param>
+          <param name="port_name">e2d2udp:192.168.10.1:5006</param>
           <param name="baud_rate">${baud_rate}</param>
           <param name="error_timeout_ms">500</param>
           <param name="optimized_sync_read_return_delay_us">0</param>

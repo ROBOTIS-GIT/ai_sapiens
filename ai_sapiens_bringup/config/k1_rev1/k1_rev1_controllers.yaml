@@ -46,10 +46,10 @@
         - RC Channel 15
         - RC Channel 16
       channel_names:
-        - Right Gimbal Vertical
         - Right Gimbal Horizontal
-        - Left Gimbal Horizontal
+        - Right Gimbal Vertical
         - Left Gimbal Vertical
+        - Left Gimbal Horizontal
         - SA
         - SB
         - SC
@@ -57,7 +57,7 @@
         - SE
         - SI
         - Mode PWM
-        - RC Channel 12
+        - E-stop PWM
         - RC Channel 13
         - RC Channel 14
         - RC Channel 15

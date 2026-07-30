@@ -2,6 +2,10 @@
 Changelog for package ai_sapiens_joint_group_impedance_controller
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.1 (2026-07-30)
+------------------
+* None
+
 0.1.0 (2026-07-24)
 ------------------
 * Added the joint group impedance controller applying position, feedforward,

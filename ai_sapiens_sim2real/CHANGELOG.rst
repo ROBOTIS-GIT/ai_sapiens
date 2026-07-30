@@ -2,6 +2,10 @@
 Changelog for package ai_sapiens_sim2real
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.1 (2026-07-30)
+------------------
+* None
+
 0.1.0 (2026-07-24)
 ------------------
 * Added the realtime control loop running ONNX policies and publishing joint impedance commands.
