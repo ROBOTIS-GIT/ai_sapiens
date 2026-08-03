@@ -58,6 +58,7 @@
     <body name="pelvis" pos="0 0 0.7955">
       <freejoint name="floating_base_joint"/>
       <inertial mass="3.611882200e+00" fullinertia="1.310639100e-02 9.174952600e-03 7.736608000e-03 -2.328809400e-07 5.514559000e-05 0.000000000e+00" pos="-2.926489100e-03 1.127755300e-06 -5.031535600e-02"/>
+      <site name="imu" pos="0 0 0" quat="1 0 0 0" size="0.01" group="4"/>
       <geom class="visual" type="mesh" mesh="pelvis" material="white"/>
       <body name="left_hip_pitch_link" pos="0.0 0.040 -0.081">
         <inertial mass="1.134347800e+00" fullinertia="1.413286200e-03 1.011148100e-03 1.066244600e-03 1.518924500e-05 -1.201272000e-05 1.525829600e-04" pos="-1.141670400e-03 7.948432600e-02 -2.579805100e-02"/>
@@ -237,6 +238,11 @@
     <motor name="right_elbow_joint_motor" joint="right_elbow_joint" class="qc060"/>
     <motor name="right_wrist_roll_joint_motor" joint="right_wrist_roll_joint" class="qc060"/>
   </actuator>
+  <sensor>
+    <framequat name="imu_quat" objtype="site" objname="imu"/>
+    <gyro name="imu_gyro" site="imu"/>
+    <accelerometer name="imu_acc" site="imu"/>
+  </sensor>
   <custom>
     <numeric name="qc060_max_speed_rad_s" data="20.943951"/>
     <numeric name="qc080_max_speed_rad_s" data="11.519173"/>
