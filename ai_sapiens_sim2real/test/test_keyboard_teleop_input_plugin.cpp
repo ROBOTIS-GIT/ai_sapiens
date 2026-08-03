@@ -110,6 +110,18 @@ TEST_F(KeyboardTeleopInputPluginTest, MapsValidKeyboardInput)
   EXPECT_EQ(plugin_->topic_name(), "/test/keyboard");
 }
 
+TEST_F(KeyboardTeleopInputPluginTest, AcceptsNeutralInputToRearmEdgeTrigger)
+{
+  auto message = valid_message(1);
+  message.input_code = 0;
+  plugin_->inject(message);
+
+  TeleopInputCommand command;
+  ASSERT_TRUE(plugin_->read_latest_accepted_command(command));
+  EXPECT_EQ(command.input_code, 0);
+  EXPECT_EQ(command.selector_code, 201);
+}
+
 TEST_F(KeyboardTeleopInputPluginTest, RejectsStaleSequenceAndAcceptsRollover)
 {
   plugin_->inject(valid_message(std::numeric_limits<uint32_t>::max()));

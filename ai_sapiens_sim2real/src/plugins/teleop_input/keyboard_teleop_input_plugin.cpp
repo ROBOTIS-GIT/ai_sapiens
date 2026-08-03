@@ -128,6 +128,7 @@ void KeyboardTeleopInputPlugin::on_message_accepted(const KeyboardInput & messag
 bool KeyboardTeleopInputPlugin::is_known_input_code(uint16_t code) const
 {
   return
+    code == 0 ||
     code == config_.damping_code ||
     code == config_.ready_pose_code ||
     code == config_.velocity_code ||
