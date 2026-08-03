@@ -88,7 +88,9 @@ public:
   ai_sapiens_interfaces::msg::KeyboardInput take_message(uint32_t sequence);
   bool mimic_request_pending() const;
   std::string status_line() const;
+  std::string dashboard(std::string_view last_action, bool use_color) const;
 
+  static std::string action_description(KeyboardAction action);
   static std::string key_map();
 
 private:

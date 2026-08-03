@@ -31,6 +31,42 @@ namespace
 {
 
 constexpr uint8_t kMimicRequestSampleCount = 2;
+constexpr int kAxisBarHalfWidth = 10;
+
+constexpr const char * kAnsiReset = "\033[0m";
+constexpr const char * kAnsiBoldCyan = "\033[1;36m";
+constexpr const char * kAnsiBoldGreen = "\033[1;32m";
+constexpr const char * kAnsiBoldYellow = "\033[1;33m";
+constexpr const char * kAnsiBoldMagenta = "\033[1;35m";
+constexpr const char * kAnsiDim = "\033[2m";
+
+std::string paint(
+  const std::string & value, const char * color, bool use_color)
+{
+  if (!use_color) {
+    return value;
+  }
+  return std::string(color) + value + kAnsiReset;
+}
+
+std::string axis_bar(float value)
+{
+  const float clamped = std::clamp(value, -1.0F, 1.0F);
+  const int marker = static_cast<int>(
+    std::lround((clamped + 1.0F) * kAxisBarHalfWidth));
+  std::string bar(static_cast<std::size_t>(2 * kAxisBarHalfWidth + 1), '-');
+  bar[static_cast<std::size_t>(kAxisBarHalfWidth)] = '|';
+  bar[static_cast<std::size_t>(marker)] = 'o';
+  return '[' + bar + ']';
+}
+
+std::string format_axis(float value)
+{
+  std::ostringstream output;
+  output << std::showpos << std::fixed << std::setprecision(2) << value
+         << ' ' << axis_bar(value);
+  return output.str();
+}
 
 uint16_t read_input_code(
   const YAML::Node & input_codes, const std::string & name, uint16_t fallback)
@@ -317,12 +353,110 @@ std::string KeyboardTeleopState::status_line() const
   return status.str();
 }
 
+std::string KeyboardTeleopState::dashboard(
+  std::string_view last_action, bool use_color) const
+{
+  const auto & selector = config_.selector_options[selector_index_];
+  const uint16_t displayed_input_code =
+    mimic_request_pending() ? config_.mimic_code : input_code_;
+  const std::string displayed_input_label =
+    mimic_request_pending() ? "Mimic" : input_label_;
+
+  const char * request_color = kAnsiBoldYellow;
+  if (displayed_input_code == config_.damping_code) {
+    request_color = kAnsiBoldMagenta;
+  } else if (displayed_input_code == config_.velocity_code) {
+    request_color = kAnsiBoldGreen;
+  }
+
+  std::ostringstream request;
+  request << displayed_input_label << " (" << displayed_input_code << ')';
+  if (mimic_request_pending()) {
+    request << "  sending trigger";
+  } else if (displayed_input_code == 0) {
+    request << "  ready for next command";
+  }
+
+  std::ostringstream motion;
+  motion << '[' << selector_index_ + 1 << '/' << config_.selector_options.size()
+         << "]  " << selector.label << " (" << selector.code << ')';
+
+  std::ostringstream dashboard;
+  dashboard
+    << paint("AI SAPIENS  /  KEYBOARD TELEOP", kAnsiBoldCyan, use_color) << '\n'
+    << "======================================================================\n"
+    << paint("CONTROL STATE", kAnsiBoldCyan, use_color) << '\n'
+    << "  Authority    "
+    << paint(
+      api_mode_ ? "API" : "MANUAL",
+      api_mode_ ? kAnsiBoldCyan : kAnsiBoldGreen, use_color) << '\n'
+    << "  Request      "
+    << paint(request.str(), request_color, use_color) << '\n'
+    << "  Motion       <  "
+    << paint(motion.str(), kAnsiBoldYellow, use_color) << "  >\n"
+    << '\n'
+    << paint("VELOCITY  (normalized -1.0 ... +1.0)", kAnsiBoldCyan, use_color) << '\n'
+    << "  X   forward / back    " << format_axis(linear_x_) << '\n'
+    << "  Y   left / right      " << format_axis(linear_y_) << '\n'
+    << "  Yaw left / right      " << format_axis(angular_z_) << '\n'
+    << '\n'
+    << paint("KEYS", kAnsiBoldCyan, use_color) << '\n'
+    << key_map() << '\n'
+    << "----------------------------------------------------------------------\n"
+    << "  Last input   "
+    << paint(
+      last_action.empty() ? "Waiting for a key..." : std::string(last_action),
+      kAnsiDim, use_color)
+    << '\n';
+  return dashboard.str();
+}
+
+std::string KeyboardTeleopState::action_description(KeyboardAction action)
+{
+  switch (action) {
+    case KeyboardAction::kDamping:
+      return "Request Damping";
+    case KeyboardAction::kReadyPose:
+      return "Request Ready Pose";
+    case KeyboardAction::kVelocity:
+      return "Request Velocity";
+    case KeyboardAction::kMimic:
+      return "Run selected motion";
+    case KeyboardAction::kForward:
+      return "Increase forward velocity";
+    case KeyboardAction::kBackward:
+      return "Increase backward velocity";
+    case KeyboardAction::kLeft:
+      return "Increase left velocity";
+    case KeyboardAction::kRight:
+      return "Increase right velocity";
+    case KeyboardAction::kYawLeft:
+      return "Increase left yaw";
+    case KeyboardAction::kYawRight:
+      return "Increase right yaw";
+    case KeyboardAction::kStop:
+      return "Stop: velocity set to zero";
+    case KeyboardAction::kPreviousSelector:
+      return "Select previous motion";
+    case KeyboardAction::kNextSelector:
+      return "Select next motion";
+    case KeyboardAction::kToggleApi:
+      return "Toggle MANUAL / API authority";
+    case KeyboardAction::kHelp:
+      return "Refresh keyboard guide";
+    case KeyboardAction::kUnknown:
+    default:
+      return "Unknown key ignored";
+  }
+}
+
 std::string KeyboardTeleopState::key_map()
 {
   return
-    "1:Damping | 2:ReadyPose | 3:Velocity | 4:run selected mimic | "
-    "W/S:forward/back | A/D:left/right | Q/E:yaw | Space:stop | "
-    "Left/Right:select mimic | P:API/MANUAL | H:help | Ctrl-C:quit";
+    "  MODE      [1] Damping   [2] Ready Pose   [3] Velocity   [4] Run motion\n"
+    "  MOVE      [W/S] Forward/back   [A/D] Left/right   [Q/E] Turn\n"
+    "  MOTION    [Left/Right] Select motion     [Space] Stop velocity\n"
+    "  SYSTEM    [P] Manual/API   [H] Refresh guide   [Ctrl-C] Quit";
 }
 
 void KeyboardTeleopState::select_previous()
