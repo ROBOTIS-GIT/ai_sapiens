@@ -52,6 +52,15 @@ void MujocoSimulation::load(
     if (aid < 0) {
       throw std::runtime_error("Actuator '" + name + "_motor' not found in MuJoCo model");
     }
+
+    // Represent impedance feedback as an affine actuator instead of baking it
+    // into ctrl as an explicit torque. MuJoCo can then integrate the velocity
+    // bias implicitly while still applying the actuator force limit to the
+    // complete feedforward + PD effort.
+    model_->actuator_biastype[aid] = mjBIAS_AFFINE;
+    model_->actuator_ctrllimited[aid] = 0;
+    mju_zero(model_->actuator_biasprm + aid * mjNBIAS, mjNBIAS);
+
     qpos_adr_.push_back(model_->jnt_qposadr[jid]);
     qvel_adr_.push_back(model_->jnt_dofadr[jid]);
     act_id_.push_back(aid);
@@ -148,9 +157,14 @@ void MujocoSimulation::apply_control()
 {
   for (std::size_t i = 0; i < commands_.size(); ++i) {
     const auto & c = commands_[i];
-    const double q = data_->qpos[qpos_adr_[i]];
-    const double qd = data_->qvel[qvel_adr_[i]];
-    data_->ctrl[act_id_[i]] = c.feedforward + c.kp * (c.position - q) - c.kd * qd;
+    const int actuator_id = act_id_[i];
+    mjtNum * bias = model_->actuator_biasprm + actuator_id * mjNBIAS;
+    bias[1] = -c.kp;
+    bias[2] = -c.kd;
+
+    // With fixed gain 1 and affine bias, actuator force is:
+    // ctrl - kp*q - kd*qd = feedforward + kp*(position-q) - kd*qd.
+    data_->ctrl[actuator_id] = c.feedforward + c.kp * c.position;
   }
 }
 

@@ -97,6 +97,57 @@ TEST(MujocoSimulation, MitImpedanceHoldsJointAtTarget)
   EXPECT_NE(sim.joint_state(knee).effort, 0.0);
 }
 
+TEST(MujocoSimulation, ReadyPoseArmGainsRemainStable)
+{
+  MujocoSimulation sim;
+  sim.load(scene("scene_gantry.xml"), kJoints);
+  sim.set_hang_height(0.90);
+
+  const std::size_t left_wrist = 17;
+  const std::size_t right_wrist = 22;
+  JointCommand left_command;
+  left_command.position = 0.15;
+  left_command.kp = 40.0;
+  left_command.kd = 10.0;
+  JointCommand right_command = left_command;
+  right_command.position = -0.15;
+  sim.set_command(left_wrist, left_command);
+  sim.set_command(right_wrist, right_command);
+
+  double max_abs_wrist_velocity = 0.0;
+  for (int step = 0; step < 3000; ++step) {
+    sim.advance(0.001);
+    max_abs_wrist_velocity = std::max(
+      max_abs_wrist_velocity,
+      std::max(
+        std::abs(sim.joint_state(left_wrist).velocity),
+        std::abs(sim.joint_state(right_wrist).velocity)));
+  }
+
+  EXPECT_LT(max_abs_wrist_velocity, 5.0);
+  EXPECT_NEAR(sim.joint_state(left_wrist).position, left_command.position, 0.02);
+  EXPECT_NEAR(sim.joint_state(right_wrist).position, right_command.position, 0.02);
+}
+
+TEST(MujocoSimulation, AffineImpedanceRespectsActuatorForceLimit)
+{
+  MujocoSimulation sim;
+  sim.load(scene("scene_gantry.xml"), kJoints);
+  sim.set_hang_height(0.90);
+
+  const std::size_t left_wrist = 17;
+  JointCommand command;
+  command.position = 3.0;
+  command.feedforward = 100.0;
+  command.kp = 1000.0;
+  command.kd = 10.0;
+  sim.set_command(left_wrist, command);
+
+  sim.advance(0.002);
+
+  EXPECT_LE(std::abs(sim.joint_state(left_wrist).effort), 47.277 + 1e-9);
+}
+
 TEST(MujocoSimulation, DampingCommandDoesNotExciteLowInertiaJoints)
 {
   MujocoSimulation sim;
