@@ -35,6 +35,13 @@ def generate_launch_description():
                               description='Enable mock sensor commands.'),
         DeclareLaunchArgument('model', default_value='k1_rev1',
                               description='Model name.'),
+        DeclareLaunchArgument('sim_mujoco', default_value='false',
+                              description='Run against the MuJoCo simulation instead of '
+                                          'real hardware.'),
+        DeclareLaunchArgument('mujoco_viewer', default_value='true',
+                              description='Show the MuJoCo viewer window (sim_mujoco only).'),
+        DeclareLaunchArgument('mujoco_gantry', default_value='true',
+                              description='Spawn hanging from the gantry (sim_mujoco only).'),
     ]
 
     start_rviz = LaunchConfiguration('start_rviz')
@@ -54,6 +61,12 @@ def generate_launch_description():
         'mock_sensor_commands:=', mock_sensor_commands,
         ' ',
         'model:=', model,
+        ' ',
+        'sim_mujoco:=', LaunchConfiguration('sim_mujoco'),
+        ' ',
+        'mujoco_viewer:=', LaunchConfiguration('mujoco_viewer'),
+        ' ',
+        'mujoco_gantry:=', LaunchConfiguration('mujoco_gantry'),
     ])
 
     controller_manager_config = PathJoinSubstitution([

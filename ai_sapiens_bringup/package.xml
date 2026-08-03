@@ -10,6 +10,7 @@
 
   <exec_depend>ai_sapiens_description</exec_depend>
   <exec_depend>ai_sapiens_joint_group_impedance_controller</exec_depend>
+  <exec_depend>ai_sapiens_mujoco</exec_depend>
   <exec_depend>ai_sapiens_rc_broadcaster</exec_depend>
   <exec_depend>controller_manager</exec_depend>
   <exec_depend>imu_sensor_broadcaster</exec_depend>
@@ -19,6 +20,12 @@
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>rviz2</exec_depend>
   <exec_depend>xacro</exec_depend>
+
+  <test_depend>ai_sapiens_description</test_depend>
+  <test_depend>ai_sapiens_interfaces</test_depend>
+  <test_depend>controller_manager_msgs</test_depend>
+  <test_depend>launch_testing</test_depend>
+  <test_depend>launch_testing_ros</test_depend>
 
   <export>
     <build_type>ament_python</build_type>

@@ -15,6 +15,7 @@
   <exec_depend>ai_sapiens_interfaces</exec_depend>
   <exec_depend>ai_sapiens_description</exec_depend>
   <exec_depend>ai_sapiens_joint_group_impedance_controller</exec_depend>
+  <exec_depend>ai_sapiens_mujoco</exec_depend>
   <exec_depend>ai_sapiens_rc_broadcaster</exec_depend>
   <exec_depend>ai_sapiens_sim2real</exec_depend>
 
