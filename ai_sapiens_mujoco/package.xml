@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>ai_sapiens_mujoco</name>
+  <version>0.1.1</version>
+  <description>MuJoCo sim2sim hardware interface for AI Sapiens robots</description>
+  <maintainer email="abrahamola80@gmail.com">Kiwoong Park</maintainer>
+  <license>Apache 2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>hardware_interface</depend>
+  <depend>pluginlib</depend>
+  <depend>rclcpp</depend>
+  <depend>rclcpp_lifecycle</depend>
+  <depend>std_srvs</depend>
+  <depend>ai_sapiens_interfaces</depend>
+  <depend>ament_index_cpp</depend>
+
+  <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>ai_sapiens_description</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
