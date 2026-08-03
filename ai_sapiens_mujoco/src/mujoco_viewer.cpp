@@ -19,6 +19,8 @@
 #include <GLFW/glfw3.h>
 
 #include <algorithm>
+#include <array>
+#include <chrono>
 #include <cstdio>
 #include <memory>
 #include <mutex>
@@ -38,6 +40,23 @@ constexpr int kGantryControlWidth = 170;
 constexpr int kGantryControlHeight = 36;
 constexpr int kGantryControlMargin = 12;
 constexpr int kGantryControlGap = 6;
+constexpr int kViewerControlWidth = 210;
+constexpr int kViewerControlHeight = 32;
+constexpr int kViewerControlMargin = 12;
+constexpr int kViewerControlGap = 6;
+
+struct VisualizationControl
+{
+  int flag;
+  const char * label;
+};
+
+constexpr std::array<VisualizationControl, 4> kVisualizationControls{{
+  {mjVIS_CONTACTPOINT, "Contact points  [C]"},
+  {mjVIS_CONTACTFORCE, "Contact forces  [F]"},
+  {mjVIS_INERTIA, "Inertia boxes  [I]"},
+  {mjVIS_COM, "Center of mass  [M]"},
+}};
 
 rclcpp::Logger viewer_logger()
 {
@@ -57,8 +76,14 @@ MujocoViewer::MujocoViewer(std::shared_ptr<MujocoSimulation> sim)
 {
   mjv_defaultCamera(&cam_);
   mjv_defaultOption(&opt_);
+  mjv_defaultPerturb(&pert_);
   mjv_defaultScene(&scn_);
   mjr_defaultContext(&con_);
+
+  // Always draw the selected point and mouse-spring force while perturbing.
+  opt_.flags[mjVIS_PERTFORCE] = 1;
+  opt_.flags[mjVIS_PERTOBJ] = 1;
+  opt_.flags[mjVIS_SELECT] = 1;
 }
 
 MujocoViewer::~MujocoViewer()
@@ -115,20 +140,26 @@ void MujocoViewer::run()
   glfwSetCursorPosCallback(window, &MujocoViewer::cursor_pos_callback);
   glfwSetScrollCallback(window, &MujocoViewer::scroll_callback);
 
+  fps_sample_start_ = std::chrono::steady_clock::now();
   while (!glfwWindowShouldClose(window) && running_) {
     {
       std::lock_guard<std::mutex> lock(sim_->mutex());
+      apply_external_force_locked();
+      contact_count_ = sim_->data()->ncon;
       mjv_updateScene(
-        sim_->model(), sim_->data(), &opt_, nullptr, &cam_, mjCAT_ALL, &scn_);
+        sim_->model(), sim_->data(), &opt_, &pert_, &cam_, mjCAT_ALL, &scn_);
     }
     mjrRect viewport{0, 0, 0, 0};
     glfwGetFramebufferSize(window, &viewport.width, &viewport.height);
     mjr_render(viewport, &scn_, &con_);
+    render_visualization_controls(viewport.width, viewport.height);
     render_gantry_controls(viewport.width, viewport.height);
     glfwSwapBuffers(window);
     glfwPollEvents();
+    update_frame_rate();
   }
 
+  end_external_force_drag();
   mjv_freeScene(&scn_);
   mjr_freeContext(&con_);
   glfwDestroyWindow(window);
@@ -192,6 +223,26 @@ void MujocoViewer::handle_key(int key, int action)
         sim_->gantry_release();
       }
       break;
+    case GLFW_KEY_C:
+      if (action == GLFW_PRESS) {
+        toggle_visualization_flag(mjVIS_CONTACTPOINT);
+      }
+      break;
+    case GLFW_KEY_F:
+      if (action == GLFW_PRESS) {
+        toggle_visualization_flag(mjVIS_CONTACTFORCE);
+      }
+      break;
+    case GLFW_KEY_I:
+      if (action == GLFW_PRESS) {
+        toggle_visualization_flag(mjVIS_INERTIA);
+      }
+      break;
+    case GLFW_KEY_M:
+      if (action == GLFW_PRESS) {
+        toggle_visualization_flag(mjVIS_COM);
+      }
+      break;
     default:
       break;
   }
@@ -200,45 +251,16 @@ void MujocoViewer::handle_key(int key, int action)
 // Canonical mouse handlers from MuJoCo's basic.cc sample.
 void MujocoViewer::handle_mouse_button(GLFWwindow * window, int button, int action)
 {
-  if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && sim_->gantry_present()) {
-    double cursor_x = 0.0;
-    double cursor_y = 0.0;
-    int window_width = 0;
-    int window_height = 0;
-    int framebuffer_width = 0;
-    int framebuffer_height = 0;
-    glfwGetCursorPos(window, &cursor_x, &cursor_y);
-    glfwGetWindowSize(window, &window_width, &window_height);
-    glfwGetFramebufferSize(window, &framebuffer_width, &framebuffer_height);
+  if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS &&
+    handle_overlay_click(window))
+  {
+    button_left_ = false;
+    return;
+  }
 
-    if (window_width > 0 && window_height > 0) {
-      update_gantry_control_layout(framebuffer_width, framebuffer_height);
-      const int x = static_cast<int>(
-        cursor_x * static_cast<double>(framebuffer_width) / window_width);
-      const int y = static_cast<int>(
-        (window_height - cursor_y) * static_cast<double>(framebuffer_height) / window_height);
-
-      if (contains(gantry_raise_rect_, x, y)) {
-        nudge_gantry(kGantryNudgeMeters);
-        button_left_ = false;
-        return;
-      }
-      if (contains(gantry_lower_rect_, x, y)) {
-        nudge_gantry(-kGantryNudgeMeters);
-        button_left_ = false;
-        return;
-      }
-      if (contains(gantry_attach_rect_, x, y)) {
-        sim_->gantry_attach();
-        button_left_ = false;
-        return;
-      }
-      if (contains(gantry_release_rect_, x, y)) {
-        sim_->gantry_release();
-        button_left_ = false;
-        return;
-      }
-    }
+  if (handle_external_force_button(window, button, action)) {
+    button_right_ = false;
+    return;
   }
 
   // Update button state.
@@ -256,7 +278,9 @@ void MujocoViewer::handle_mouse_button(GLFWwindow * window, int button, int acti
 void MujocoViewer::handle_cursor_pos(GLFWwindow * window, double xpos, double ypos)
 {
   // No buttons down: nothing to do.
-  if (!button_left_ && !button_middle_ && !button_right_) {
+  if (!button_left_ && !button_middle_ && !button_right_ &&
+    !external_force_dragging_)
+  {
     return;
   }
 
@@ -271,6 +295,11 @@ void MujocoViewer::handle_cursor_pos(GLFWwindow * window, double xpos, double yp
   int height = 0;
   glfwGetWindowSize(window, &width, &height);
   if (height <= 0) {
+    return;
+  }
+
+  if (external_force_dragging_) {
+    update_external_force_drag(window, dx, dy, height);
     return;
   }
 
@@ -298,6 +327,255 @@ void MujocoViewer::handle_scroll(double yoffset)
 {
   // Emulate vertical mouse motion = 5% of window height.
   mjv_moveCamera(sim_->model(), mjMOUSE_ZOOM, 0.0, -0.05 * yoffset, &scn_, &cam_);
+}
+
+bool MujocoViewer::handle_overlay_click(GLFWwindow * window)
+{
+  double cursor_x = 0.0;
+  double cursor_y = 0.0;
+  int window_width = 0;
+  int window_height = 0;
+  int framebuffer_width = 0;
+  int framebuffer_height = 0;
+  glfwGetCursorPos(window, &cursor_x, &cursor_y);
+  glfwGetWindowSize(window, &window_width, &window_height);
+  glfwGetFramebufferSize(window, &framebuffer_width, &framebuffer_height);
+
+  if (window_width <= 0 || window_height <= 0) {
+    return false;
+  }
+
+  const int x = static_cast<int>(
+    cursor_x * static_cast<double>(framebuffer_width) / window_width);
+  const int y = static_cast<int>(
+    (window_height - cursor_y) * static_cast<double>(framebuffer_height) / window_height);
+
+  update_visualization_control_layout(framebuffer_width, framebuffer_height);
+  if (handle_visualization_control_click(x, y)) {
+    return true;
+  }
+
+  if (!sim_->gantry_present()) {
+    return false;
+  }
+  update_gantry_control_layout(framebuffer_width, framebuffer_height);
+  return handle_gantry_control_click(x, y);
+}
+
+bool MujocoViewer::handle_visualization_control_click(int x, int y)
+{
+  for (std::size_t i = 0; i < kVisualizationControls.size(); ++i) {
+    if (contains(visualization_control_rects_[i], x, y)) {
+      toggle_visualization_flag(kVisualizationControls[i].flag);
+      return true;
+    }
+  }
+  return false;
+}
+
+bool MujocoViewer::handle_gantry_control_click(int x, int y)
+{
+  if (contains(gantry_raise_rect_, x, y)) {
+    nudge_gantry(kGantryNudgeMeters);
+    return true;
+  }
+  if (contains(gantry_lower_rect_, x, y)) {
+    nudge_gantry(-kGantryNudgeMeters);
+    return true;
+  }
+  if (contains(gantry_attach_rect_, x, y)) {
+    sim_->gantry_attach();
+    return true;
+  }
+  if (contains(gantry_release_rect_, x, y)) {
+    sim_->gantry_release();
+    return true;
+  }
+  return false;
+}
+
+bool MujocoViewer::handle_external_force_button(
+  GLFWwindow * window, int button, int action)
+{
+  if (button != GLFW_MOUSE_BUTTON_RIGHT) {
+    return false;
+  }
+
+  if (action == GLFW_RELEASE && external_force_dragging_) {
+    end_external_force_drag();
+    return true;
+  }
+
+  const bool control_pressed =
+    glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS ||
+    glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS;
+  if (action == GLFW_PRESS && control_pressed) {
+    return begin_external_force_drag(window);
+  }
+  return false;
+}
+
+bool MujocoViewer::begin_external_force_drag(GLFWwindow * window)
+{
+  double cursor_x = 0.0;
+  double cursor_y = 0.0;
+  int width = 0;
+  int height = 0;
+  glfwGetCursorPos(window, &cursor_x, &cursor_y);
+  glfwGetWindowSize(window, &width, &height);
+  if (width <= 0 || height <= 0) {
+    return false;
+  }
+
+  const mjtNum relative_x = cursor_x / static_cast<mjtNum>(width);
+  const mjtNum relative_y = (height - cursor_y) / static_cast<mjtNum>(height);
+  const mjtNum aspect_ratio = static_cast<mjtNum>(width) / height;
+  mjtNum selection_point[3]{};
+  int geom_id = -1;
+  int flex_id = -1;
+  int skin_id = -1;
+
+  std::lock_guard<std::mutex> lock(sim_->mutex());
+  const int body_id = mjv_select(
+    sim_->model(), sim_->data(), &opt_, aspect_ratio, relative_x, relative_y,
+    &scn_, selection_point, &geom_id, &flex_id, &skin_id);
+  if (body_id <= 0) {
+    return false;
+  }
+
+  pert_.select = body_id;
+  pert_.flexselect = flex_id;
+  pert_.skinselect = skin_id;
+  mjtNum offset[3]{};
+  mju_sub3(offset, selection_point, sim_->data()->xpos + 3 * body_id);
+  mju_mulMatTVec(
+    pert_.localpos, sim_->data()->xmat + 9 * body_id, offset, 3, 3);
+  pert_.active = mjPERT_TRANSLATE;
+  mjv_initPerturb(sim_->model(), sim_->data(), &scn_, &pert_);
+
+  external_force_body_id_ = body_id;
+  external_force_dragging_ = true;
+  lastx_ = cursor_x;
+  lasty_ = cursor_y;
+  const char * body_name = mj_id2name(sim_->model(), mjOBJ_BODY, body_id);
+  RCLCPP_INFO(
+    viewer_logger(), "External force selected body: %s",
+    body_name ? body_name : "(unnamed body)");
+  return true;
+}
+
+void MujocoViewer::update_external_force_drag(
+  GLFWwindow * window, double dx, double dy, int height)
+{
+  const bool shift_pressed =
+    glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||
+    glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
+  const mjtMouse mouse_action =
+    shift_pressed ? mjMOUSE_MOVE_H : mjMOUSE_MOVE_V;
+
+  std::lock_guard<std::mutex> lock(sim_->mutex());
+  mjv_movePerturb(
+    sim_->model(), sim_->data(), mouse_action, dx / height, dy / height,
+    &scn_, &pert_);
+}
+
+void MujocoViewer::end_external_force_drag()
+{
+  if (!external_force_dragging_) {
+    return;
+  }
+
+  std::lock_guard<std::mutex> lock(sim_->mutex());
+  if (external_force_body_id_ > 0 && external_force_body_id_ < sim_->model()->nbody) {
+    mju_zero(sim_->data()->xfrc_applied + 6 * external_force_body_id_, 6);
+  }
+  pert_.active = 0;
+  external_force_dragging_ = false;
+  external_force_body_id_ = 0;
+}
+
+void MujocoViewer::apply_external_force_locked()
+{
+  if (external_force_dragging_) {
+    mjv_applyPerturbForce(sim_->model(), sim_->data(), &pert_);
+  }
+}
+
+void MujocoViewer::toggle_visualization_flag(int flag)
+{
+  if (flag >= 0 && flag < mjNVISFLAG) {
+    opt_.flags[flag] = !opt_.flags[flag];
+  }
+}
+
+void MujocoViewer::update_frame_rate()
+{
+  ++fps_sample_frames_;
+  const auto now = std::chrono::steady_clock::now();
+  const double elapsed =
+    std::chrono::duration<double>(now - fps_sample_start_).count();
+  if (elapsed >= 0.5) {
+    frames_per_second_ = fps_sample_frames_ / elapsed;
+    fps_sample_frames_ = 0;
+    fps_sample_start_ = now;
+  }
+}
+
+void MujocoViewer::update_visualization_control_layout(
+  int /*framebuffer_width*/, int framebuffer_height)
+{
+  const int left = kViewerControlMargin;
+  int bottom = std::max(
+    0, framebuffer_height - kViewerControlMargin - kViewerControlHeight);
+
+  viewer_status_rect_ = {left, bottom, kViewerControlWidth, kViewerControlHeight};
+  bottom = std::max(0, bottom - kViewerControlGap - kViewerControlHeight);
+  external_force_help_rect_ = {left, bottom, kViewerControlWidth, kViewerControlHeight};
+  for (auto & rect : visualization_control_rects_) {
+    bottom = std::max(0, bottom - kViewerControlGap - kViewerControlHeight);
+    rect = {left, bottom, kViewerControlWidth, kViewerControlHeight};
+  }
+}
+
+void MujocoViewer::render_visualization_controls(
+  int framebuffer_width, int framebuffer_height)
+{
+  update_visualization_control_layout(framebuffer_width, framebuffer_height);
+
+  char status[80];
+  std::snprintf(
+    status, sizeof(status), "FPS  %5.1f    Contacts  %d",
+    frames_per_second_, contact_count_);
+  mjr_label(
+    viewer_status_rect_, mjFONT_NORMAL, status,
+    0.12f, 0.12f, 0.12f, 0.90f, 0.95f, 0.95f, 0.95f, &con_);
+
+  char force_help[96];
+  if (external_force_dragging_ && external_force_body_id_ > 0) {
+    const char * body_name =
+      mj_id2name(sim_->model(), mjOBJ_BODY, external_force_body_id_);
+    std::snprintf(
+      force_help, sizeof(force_help), "Pushing: %s",
+      body_name ? body_name : "(unnamed body)");
+  } else {
+    std::snprintf(force_help, sizeof(force_help), "Ctrl + right drag: push body");
+  }
+  mjr_label(
+    external_force_help_rect_, mjFONT_NORMAL, force_help,
+    0.10f, 0.24f, 0.44f, 0.90f, 0.95f, 0.95f, 0.95f, &con_);
+
+  for (std::size_t i = 0; i < kVisualizationControls.size(); ++i) {
+    const bool active = opt_.flags[kVisualizationControls[i].flag] != 0;
+    char label[64];
+    std::snprintf(
+      label, sizeof(label), "[%c]  %s",
+      active ? 'x' : ' ', kVisualizationControls[i].label);
+    const float brightness = active ? 1.0f : 0.55f;
+    mjr_label(
+      visualization_control_rects_[i], mjFONT_NORMAL, label,
+      0.10f * brightness, 0.34f * brightness, 0.20f * brightness, 0.90f,
+      0.95f * brightness, 0.95f * brightness, 0.95f * brightness, &con_);
+  }
 }
 
 void MujocoViewer::update_gantry_control_layout(
