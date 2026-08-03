@@ -100,7 +100,7 @@ provide motion and attach/release buttons:
 | `Attach robot` / `Release robot` | Toggle the gantry weld with the on-screen buttons. |
 | `Up` / `Down` | Nudge the gantry hook target ±0.02 m. |
 | `A` / `R` | Attach or release the gantry (same as the corresponding services). |
-| `C` / `F` | Toggle contact point / contact force visualization. |
+| `C` / `F` | Toggle contact points / one normal-force arrow per contact point. |
 | `I` / `M` | Toggle equivalent inertia boxes / center-of-mass visualization. |
 | Left mouse drag | Orbit the camera. |
 | Right mouse drag | Pan the camera. |
