@@ -25,6 +25,7 @@ add_library(${PROJECT_NAME} SHARED
   src/mujoco_system.cpp
   src/mujoco_viewer.cpp
   src/mujoco_viewer_ui.cpp
+  src/viewer_scene_styling.cpp
 )
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -56,6 +57,10 @@ if(BUILD_TESTING)
   ament_add_gtest(
     test_contact_force_visualizer test/test_contact_force_visualizer.cpp)
   target_link_libraries(test_contact_force_visualizer ${PROJECT_NAME})
+
+  ament_add_gtest(
+    test_viewer_scene_styling test/test_viewer_scene_styling.cpp)
+  target_link_libraries(test_viewer_scene_styling ${PROJECT_NAME})
 endif()
 
 ament_export_libraries(${PROJECT_NAME})

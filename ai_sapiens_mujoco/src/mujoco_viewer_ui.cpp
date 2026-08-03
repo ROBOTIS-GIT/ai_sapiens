@@ -21,6 +21,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "ai_sapiens_mujoco/viewer_scene_styling.hpp"
+
 namespace ai_sapiens_mujoco
 {
 
@@ -80,6 +82,14 @@ void MujocoViewerUi::initialize(mjvOption * option, bool gantry_present)
 
     {mjITEM_SECTION, "Visualization", mjSECT_OPEN, nullptr, "", 0},
     {
+      mjITEM_CHECKBYTE, "Visual meshes", 1,
+      option->geomgroup + kVisualGeomGroup, " V", 0
+    },
+    {
+      mjITEM_CHECKBYTE, "Collision", 1,
+      option->geomgroup + kCollisionGeomGroup, " G", 0
+    },
+    {
       mjITEM_CHECKBYTE, "Contact points", 1,
       option->flags + mjVIS_CONTACTPOINT, " C", 0
     },
@@ -92,7 +102,7 @@ void MujocoViewerUi::initialize(mjvOption * option, bool gantry_present)
       option->flags + mjVIS_INERTIA, " I", 0
     },
     {
-      mjITEM_CHECKBYTE, "Center of mass", 1,
+      mjITEM_CHECKBYTE, "CoM marker", 1,
       option->flags + mjVIS_COM, " M", 0
     },
     {mjITEM_END, "", 0, nullptr, "", 0}
