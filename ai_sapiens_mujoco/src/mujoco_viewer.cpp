@@ -182,6 +182,11 @@ void MujocoViewer::handle_key(int key, int action)
     case GLFW_KEY_DOWN:
       nudge_gantry(-kGantryNudgeMeters);
       break;
+    case GLFW_KEY_A:
+      if (action == GLFW_PRESS) {
+        sim_->gantry_attach();
+      }
+      break;
     case GLFW_KEY_R:
       if (action == GLFW_PRESS) {
         sim_->gantry_release();
@@ -220,6 +225,16 @@ void MujocoViewer::handle_mouse_button(GLFWwindow * window, int button, int acti
       }
       if (contains(gantry_lower_rect_, x, y)) {
         nudge_gantry(-kGantryNudgeMeters);
+        button_left_ = false;
+        return;
+      }
+      if (contains(gantry_attach_rect_, x, y)) {
+        sim_->gantry_attach();
+        button_left_ = false;
+        return;
+      }
+      if (contains(gantry_release_rect_, x, y)) {
+        sim_->gantry_release();
         button_left_ = false;
         return;
       }
@@ -297,6 +312,10 @@ void MujocoViewer::update_gantry_control_layout(
   gantry_raise_rect_ = {left, bottom, kGantryControlWidth, kGantryControlHeight};
   bottom = std::max(0, bottom - kGantryControlGap - kGantryControlHeight);
   gantry_lower_rect_ = {left, bottom, kGantryControlWidth, kGantryControlHeight};
+  bottom = std::max(0, bottom - kGantryControlGap - kGantryControlHeight);
+  gantry_attach_rect_ = {left, bottom, kGantryControlWidth, kGantryControlHeight};
+  bottom = std::max(0, bottom - kGantryControlGap - kGantryControlHeight);
+  gantry_release_rect_ = {left, bottom, kGantryControlWidth, kGantryControlHeight};
 }
 
 void MujocoViewer::render_gantry_controls(
@@ -319,15 +338,27 @@ void MujocoViewer::render_gantry_controls(
     gantry_status_rect_, mjFONT_NORMAL, status,
     0.12f, 0.12f, 0.12f, 0.90f, 0.95f, 0.95f, 0.95f, &con_);
 
-  const float active = attached ? 1.0f : 0.35f;
+  const float motion_active = attached ? 1.0f : 0.35f;
   mjr_label(
     gantry_raise_rect_, mjFONT_NORMAL, "Raise  +2 cm",
-    0.10f * active, 0.38f * active, 0.18f * active, 0.90f,
-    0.95f * active, 0.95f * active, 0.95f * active, &con_);
+    0.10f * motion_active, 0.38f * motion_active, 0.18f * motion_active, 0.90f,
+    0.95f * motion_active, 0.95f * motion_active, 0.95f * motion_active, &con_);
   mjr_label(
     gantry_lower_rect_, mjFONT_NORMAL, "Lower  -2 cm",
-    0.38f * active, 0.20f * active, 0.10f * active, 0.90f,
-    0.95f * active, 0.95f * active, 0.95f * active, &con_);
+    0.38f * motion_active, 0.20f * motion_active, 0.10f * motion_active, 0.90f,
+    0.95f * motion_active, 0.95f * motion_active, 0.95f * motion_active, &con_);
+
+  const float attach_active = attached ? 0.35f : 1.0f;
+  mjr_label(
+    gantry_attach_rect_, mjFONT_NORMAL, "Attach robot  [A]",
+    0.10f * attach_active, 0.26f * attach_active, 0.52f * attach_active, 0.90f,
+    0.95f * attach_active, 0.95f * attach_active, 0.95f * attach_active, &con_);
+
+  const float release_active = attached ? 1.0f : 0.35f;
+  mjr_label(
+    gantry_release_rect_, mjFONT_NORMAL, "Release robot  [R]",
+    0.52f * release_active, 0.12f * release_active, 0.12f * release_active, 0.90f,
+    0.95f * release_active, 0.95f * release_active, 0.95f * release_active, &con_);
 }
 
 void MujocoViewer::nudge_gantry(double delta_m)

@@ -33,8 +33,8 @@ namespace ai_sapiens_mujoco
 /// Interactive GLFW viewer running in its own thread.
 ///
 /// The on-screen Raise/Lower buttons and Up/Down keys nudge the gantry target
-/// height by +/-0.02 m at 0.2 m/s. R releases the gantry. Mouse: left drag
-/// rotates, right drag pans, scroll zooms (canonical MuJoCo sample handlers).
+/// height by +/-0.02 m at 0.2 m/s. Attach/Release buttons and A/R keys toggle
+/// the weld. Mouse: left drag rotates, right drag pans, scroll zooms.
 class MujocoViewer
 {
 public:
@@ -74,6 +74,8 @@ private:
   mjrRect gantry_status_rect_{};
   mjrRect gantry_raise_rect_{};
   mjrRect gantry_lower_rect_{};
+  mjrRect gantry_attach_rect_{};
+  mjrRect gantry_release_rect_{};
 
   // Mouse interaction state (viewer thread only).
   bool button_left_{false};

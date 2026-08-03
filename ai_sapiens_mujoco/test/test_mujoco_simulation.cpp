@@ -90,7 +90,9 @@ TEST(MujocoSimulation, MitImpedanceHoldsJointAtTarget)
   cmd.kp = 120.0;
   cmd.kd = 3.0;
   sim.set_command(knee, cmd);
-  for (int i = 0; i < 2000; ++i) {sim.advance(0.001);}  // 2 s
+  for (int i = 0; i < 2000; ++i) {
+    sim.advance(0.001);
+  }  // 2 s
   EXPECT_NEAR(sim.joint_state(knee).position, 0.8, 0.05);
   EXPECT_NE(sim.joint_state(knee).effort, 0.0);
 }
@@ -123,7 +125,9 @@ TEST(MujocoSimulation, ImuStateIsSane)
   MujocoSimulation sim;
   sim.load(scene("scene_gantry.xml"), kJoints);
   sim.set_hang_height(0.90);
-  for (int i = 0; i < 500; ++i) {sim.advance(0.001);}
+  for (int i = 0; i < 500; ++i) {
+    sim.advance(0.001);
+  }
   const auto imu = sim.imu_state();
   const double norm = std::sqrt(
     imu.quat[0] * imu.quat[0] + imu.quat[1] * imu.quat[1] +
@@ -140,23 +144,41 @@ TEST(MujocoSimulationGantry, LowerBringsRobotDown)
   ASSERT_TRUE(sim.gantry_attached());
   const double start_z = sim.data()->qpos[2];
   ASSERT_TRUE(sim.gantry_set_target(sim.gantry_height() - 0.10, 0.2));
-  for (int i = 0; i < 1500; ++i) {sim.advance(0.001);}
+  for (int i = 0; i < 1500; ++i) {
+    sim.advance(0.001);
+  }
   EXPECT_LT(sim.data()->qpos[2], start_z - 0.05);
 }
 
-TEST(MujocoSimulationGantry, ReleaseDetachesRobot)
+TEST(MujocoSimulationGantry, ReleaseAndAttachToggleWeld)
 {
   MujocoSimulation sim;
   sim.load(scene("scene_gantry.xml"), kJoints);
   sim.set_hang_height(0.90);
+  EXPECT_FALSE(sim.gantry_attach());
   ASSERT_TRUE(sim.gantry_release());
   EXPECT_FALSE(sim.gantry_attached());
-  // Commands after release must fail, and further gantry motion must not move the robot.
+  // Motion commands fail while released, and the robot falls freely.
   EXPECT_FALSE(sim.gantry_set_target(1.5, 0.2));
   EXPECT_FALSE(sim.gantry_release());
   const double z_before = sim.data()->qpos[2];
-  for (int i = 0; i < 500; ++i) {sim.advance(0.001);}
+  for (int i = 0; i < 500; ++i) {
+    sim.advance(0.001);
+  }
   EXPECT_LT(sim.data()->qpos[2], z_before);  // free fall: robot drops
+
+  // Reattach at the robot's current pose instead of snapping it to the old hook pose.
+  const double z_before_attach = sim.data()->qpos[2];
+  ASSERT_TRUE(sim.gantry_attach());
+  EXPECT_TRUE(sim.gantry_attached());
+  EXPECT_NEAR(sim.data()->qpos[2], z_before_attach, 1e-12);
+  EXPECT_FALSE(sim.gantry_attach());
+  EXPECT_TRUE(sim.gantry_set_target(sim.gantry_height() + 0.02, 0.2));
+  for (int i = 0; i < 20; ++i) {
+    sim.advance(0.001);
+  }
+  EXPECT_LT(std::abs(sim.data()->qpos[2] - z_before_attach), 0.05);
+  EXPECT_TRUE(sim.gantry_release());
 }
 
 TEST(MujocoSimulationGantry, PlainSceneHasNoGantry)
@@ -165,6 +187,7 @@ TEST(MujocoSimulationGantry, PlainSceneHasNoGantry)
   sim.load(scene("scene.xml"), kJoints);
   EXPECT_FALSE(sim.gantry_present());
   EXPECT_FALSE(sim.gantry_set_target(1.0, 0.1));
+  EXPECT_FALSE(sim.gantry_attach());
   EXPECT_FALSE(sim.gantry_release());
 }
 

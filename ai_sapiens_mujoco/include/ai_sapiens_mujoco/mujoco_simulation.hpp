@@ -82,6 +82,7 @@ public:
   bool gantry_present() const;
   bool gantry_attached() const;
   bool gantry_set_target(double height_m, double speed_mps);
+  bool gantry_attach();
   bool gantry_release();
   double gantry_height() const;
 
@@ -96,10 +97,11 @@ private:
   std::vector<int> qpos_adr_, qvel_adr_, act_id_;
   std::vector<JointCommand> commands_;
   int imu_quat_adr_{-1}, imu_gyro_adr_{-1}, imu_acc_adr_{-1};
-  // gantry members (used from Task 5)
-  int gantry_body_{-1}, gantry_mocap_{-1}, gantry_eq_{-1};
+  int gantry_body_{-1}, gantry_mocap_{-1}, gantry_eq_{-1}, gantry_robot_body_{-1};
   bool gantry_released_{false};
   double gantry_target_z_{0.0}, gantry_speed_{0.0};
+  std::array<mjtNum, 3> gantry_to_robot_pos_{};
+  std::array<mjtNum, 4> gantry_to_robot_quat_{1.0, 0.0, 0.0, 0.0};
 };
 
 }  // namespace ai_sapiens_mujoco
