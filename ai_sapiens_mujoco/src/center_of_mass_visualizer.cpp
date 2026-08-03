@@ -16,9 +16,6 @@
 
 #include "ai_sapiens_mujoco/center_of_mass_visualizer.hpp"
 
-#include <algorithm>
-#include <cmath>
-
 namespace ai_sapiens_mujoco
 {
 namespace
@@ -55,7 +52,7 @@ bool is_descendant_of(
 
 bool append_sphere(
   const mjtNum * position, float radius,
-  const std::array<float, 4> & color,
+  const float * color,
   int object_type, int object_id, mjvScene * scene)
 {
   if (scene->ngeom >= scene->maxgeom) {
@@ -65,26 +62,22 @@ bool append_sphere(
   const mjtNum size[3]{radius, radius, radius};
   mjvGeom & marker = scene->geoms[scene->ngeom++];
   mjv_initGeom(
-    &marker, mjGEOM_SPHERE, size, position, nullptr, color.data());
+    &marker, mjGEOM_SPHERE, size, position, nullptr, color);
   marker.category = mjCAT_DECOR;
   marker.objtype = object_type;
   marker.objid = object_id;
-  marker.emission = 0.25F;
   marker.transparent = color[3] < 1.0F;
   return true;
 }
 
 }  // namespace
 
-float link_center_of_mass_radius(mjtNum body_mass)
+float center_of_mass_marker_radius(const mjModel * model)
 {
-  const float mass_ratio =
-    static_cast<float>(body_mass) / kLinkCenterOfMassReferenceMass;
-  const float radius =
-    kLinkCenterOfMassReferenceRadius * std::cbrt(mass_ratio);
-  return std::clamp(
-    radius, kLinkCenterOfMassMinimumRadius,
-    kLinkCenterOfMassMaximumRadius);
+  if (!model) {
+    return 0.0F;
+  }
+  return static_cast<float>(model->stat.meansize) * model->vis.scale.com;
 }
 
 int append_center_of_mass_markers(
@@ -100,10 +93,11 @@ int append_center_of_mass_markers(
     return 0;
   }
 
+  const float marker_radius = center_of_mass_marker_radius(model);
   int appended = 0;
   if (append_sphere(
       data->subtree_com + 3 * root_body_id,
-      kRobotCenterOfMassRadius, kRobotCenterOfMassColor,
+      marker_radius, model->vis.rgba.com,
       mjOBJ_UNKNOWN, -1, scene))
   {
     ++appended;
@@ -121,8 +115,8 @@ int append_center_of_mass_markers(
     }
     if (append_sphere(
         data->xipos + 3 * body_id,
-        link_center_of_mass_radius(model->body_mass[body_id]),
-        kLinkCenterOfMassColor,
+        marker_radius,
+        kLinkCenterOfMassColor.data(),
         mjOBJ_BODY, body_id, scene))
     {
       ++appended;
