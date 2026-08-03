@@ -32,9 +32,9 @@ namespace ai_sapiens_mujoco
 
 /// Interactive GLFW viewer running in its own thread.
 ///
-/// Key bindings: Up/Down nudge the gantry target height by +/-0.02 m at
-/// 0.2 m/s, R releases the gantry. Mouse: left drag rotates, right drag
-/// pans, scroll zooms (canonical MuJoCo sample handlers).
+/// The on-screen Raise/Lower buttons and Up/Down keys nudge the gantry target
+/// height by +/-0.02 m at 0.2 m/s. R releases the gantry. Mouse: left drag
+/// rotates, right drag pans, scroll zooms (canonical MuJoCo sample handlers).
 class MujocoViewer
 {
 public:
@@ -56,9 +56,12 @@ private:
   static void scroll_callback(GLFWwindow * window, double xoffset, double yoffset);
 
   void handle_key(int key, int action);
-  void handle_mouse_button(GLFWwindow * window);
+  void handle_mouse_button(GLFWwindow * window, int button, int action);
   void handle_cursor_pos(GLFWwindow * window, double xpos, double ypos);
   void handle_scroll(double yoffset);
+  void update_gantry_control_layout(int framebuffer_width, int framebuffer_height);
+  void render_gantry_controls(int framebuffer_width, int framebuffer_height);
+  void nudge_gantry(double delta_m);
 
   std::shared_ptr<MujocoSimulation> sim_;
   std::thread thread_;
@@ -68,6 +71,9 @@ private:
   mjvOption opt_;
   mjvScene scn_;
   mjrContext con_;
+  mjrRect gantry_status_rect_{};
+  mjrRect gantry_raise_rect_{};
+  mjrRect gantry_lower_rect_{};
 
   // Mouse interaction state (viewer thread only).
   bool button_left_{false};

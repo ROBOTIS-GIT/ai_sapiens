@@ -18,6 +18,8 @@
 
 #include <GLFW/glfw3.h>
 
+#include <algorithm>
+#include <cstdio>
 #include <memory>
 #include <mutex>
 #include <utility>
@@ -30,9 +32,22 @@ namespace ai_sapiens_mujoco
 namespace
 {
 
+constexpr double kGantryNudgeMeters = 0.02;
+constexpr double kGantrySpeedMetersPerSecond = 0.2;
+constexpr int kGantryControlWidth = 170;
+constexpr int kGantryControlHeight = 36;
+constexpr int kGantryControlMargin = 12;
+constexpr int kGantryControlGap = 6;
+
 rclcpp::Logger viewer_logger()
 {
   return rclcpp::get_logger("mujoco_viewer");
+}
+
+bool contains(const mjrRect & rect, int x, int y)
+{
+  return x >= rect.left && x < rect.left + rect.width &&
+         y >= rect.bottom && y < rect.bottom + rect.height;
 }
 
 }  // namespace
@@ -109,6 +124,7 @@ void MujocoViewer::run()
     mjrRect viewport{0, 0, 0, 0};
     glfwGetFramebufferSize(window, &viewport.width, &viewport.height);
     mjr_render(viewport, &scn_, &con_);
+    render_gantry_controls(viewport.width, viewport.height);
     glfwSwapBuffers(window);
     glfwPollEvents();
   }
@@ -129,11 +145,11 @@ void MujocoViewer::key_callback(
 }
 
 void MujocoViewer::mouse_button_callback(
-  GLFWwindow * window, int /*button*/, int /*action*/, int /*mods*/)
+  GLFWwindow * window, int button, int action, int /*mods*/)
 {
   auto * viewer = static_cast<MujocoViewer *>(glfwGetWindowUserPointer(window));
   if (viewer) {
-    viewer->handle_mouse_button(window);
+    viewer->handle_mouse_button(window, button, action);
   }
 }
 
@@ -161,10 +177,10 @@ void MujocoViewer::handle_key(int key, int action)
   }
   switch (key) {
     case GLFW_KEY_UP:
-      sim_->gantry_set_target(sim_->gantry_height() + 0.02, 0.2);
+      nudge_gantry(kGantryNudgeMeters);
       break;
     case GLFW_KEY_DOWN:
-      sim_->gantry_set_target(sim_->gantry_height() - 0.02, 0.2);
+      nudge_gantry(-kGantryNudgeMeters);
       break;
     case GLFW_KEY_R:
       if (action == GLFW_PRESS) {
@@ -177,8 +193,39 @@ void MujocoViewer::handle_key(int key, int action)
 }
 
 // Canonical mouse handlers from MuJoCo's basic.cc sample.
-void MujocoViewer::handle_mouse_button(GLFWwindow * window)
+void MujocoViewer::handle_mouse_button(GLFWwindow * window, int button, int action)
 {
+  if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && sim_->gantry_present()) {
+    double cursor_x = 0.0;
+    double cursor_y = 0.0;
+    int window_width = 0;
+    int window_height = 0;
+    int framebuffer_width = 0;
+    int framebuffer_height = 0;
+    glfwGetCursorPos(window, &cursor_x, &cursor_y);
+    glfwGetWindowSize(window, &window_width, &window_height);
+    glfwGetFramebufferSize(window, &framebuffer_width, &framebuffer_height);
+
+    if (window_width > 0 && window_height > 0) {
+      update_gantry_control_layout(framebuffer_width, framebuffer_height);
+      const int x = static_cast<int>(
+        cursor_x * static_cast<double>(framebuffer_width) / window_width);
+      const int y = static_cast<int>(
+        (window_height - cursor_y) * static_cast<double>(framebuffer_height) / window_height);
+
+      if (contains(gantry_raise_rect_, x, y)) {
+        nudge_gantry(kGantryNudgeMeters);
+        button_left_ = false;
+        return;
+      }
+      if (contains(gantry_lower_rect_, x, y)) {
+        nudge_gantry(-kGantryNudgeMeters);
+        button_left_ = false;
+        return;
+      }
+    }
+  }
+
   // Update button state.
   button_left_ =
     glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
@@ -236,6 +283,57 @@ void MujocoViewer::handle_scroll(double yoffset)
 {
   // Emulate vertical mouse motion = 5% of window height.
   mjv_moveCamera(sim_->model(), mjMOUSE_ZOOM, 0.0, -0.05 * yoffset, &scn_, &cam_);
+}
+
+void MujocoViewer::update_gantry_control_layout(
+  int framebuffer_width, int framebuffer_height)
+{
+  const int left = std::max(0, framebuffer_width - kGantryControlWidth - kGantryControlMargin);
+  int bottom = std::max(
+    0, framebuffer_height - kGantryControlMargin - kGantryControlHeight);
+
+  gantry_status_rect_ = {left, bottom, kGantryControlWidth, kGantryControlHeight};
+  bottom = std::max(0, bottom - kGantryControlGap - kGantryControlHeight);
+  gantry_raise_rect_ = {left, bottom, kGantryControlWidth, kGantryControlHeight};
+  bottom = std::max(0, bottom - kGantryControlGap - kGantryControlHeight);
+  gantry_lower_rect_ = {left, bottom, kGantryControlWidth, kGantryControlHeight};
+}
+
+void MujocoViewer::render_gantry_controls(
+  int framebuffer_width, int framebuffer_height)
+{
+  if (!sim_->gantry_present()) {
+    return;
+  }
+
+  update_gantry_control_layout(framebuffer_width, framebuffer_height);
+  const bool attached = sim_->gantry_attached();
+  char status[64];
+  if (attached) {
+    std::snprintf(status, sizeof(status), "Gantry  %.3f m", sim_->gantry_height());
+  } else {
+    std::snprintf(status, sizeof(status), "Gantry  released");
+  }
+
+  mjr_label(
+    gantry_status_rect_, mjFONT_NORMAL, status,
+    0.12f, 0.12f, 0.12f, 0.90f, 0.95f, 0.95f, 0.95f, &con_);
+
+  const float active = attached ? 1.0f : 0.35f;
+  mjr_label(
+    gantry_raise_rect_, mjFONT_NORMAL, "Raise  +2 cm",
+    0.10f * active, 0.38f * active, 0.18f * active, 0.90f,
+    0.95f * active, 0.95f * active, 0.95f * active, &con_);
+  mjr_label(
+    gantry_lower_rect_, mjFONT_NORMAL, "Lower  -2 cm",
+    0.38f * active, 0.20f * active, 0.10f * active, 0.90f,
+    0.95f * active, 0.95f * active, 0.95f * active, &con_);
+}
+
+void MujocoViewer::nudge_gantry(double delta_m)
+{
+  sim_->gantry_set_target(
+    sim_->gantry_height() + delta_m, kGantrySpeedMetersPerSecond);
 }
 
 }  // namespace ai_sapiens_mujoco
