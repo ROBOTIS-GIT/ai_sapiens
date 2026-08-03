@@ -19,7 +19,9 @@
 
 #include <mujoco/mujoco.h>
 
+#include <array>
 #include <atomic>
+#include <chrono>
 #include <memory>
 #include <thread>
 
@@ -34,7 +36,9 @@ namespace ai_sapiens_mujoco
 ///
 /// The on-screen Raise/Lower buttons and Up/Down keys nudge the gantry target
 /// height by +/-0.02 m at 0.2 m/s. Attach/Release buttons and A/R keys toggle
-/// the weld. Mouse: left drag rotates, right drag pans, scroll zooms.
+/// the weld. The diagnostics overlay exposes contact points/forces, inertia
+/// boxes, center of mass, and FPS. Mouse: left drag rotates, right drag pans,
+/// Ctrl+right drag applies an external force, and scroll zooms.
 class MujocoViewer
 {
 public:
@@ -59,6 +63,20 @@ private:
   void handle_mouse_button(GLFWwindow * window, int button, int action);
   void handle_cursor_pos(GLFWwindow * window, double xpos, double ypos);
   void handle_scroll(double yoffset);
+  bool handle_overlay_click(GLFWwindow * window);
+  bool handle_visualization_control_click(int x, int y);
+  bool handle_gantry_control_click(int x, int y);
+  bool handle_external_force_button(GLFWwindow * window, int button, int action);
+  bool begin_external_force_drag(GLFWwindow * window);
+  void update_external_force_drag(GLFWwindow * window, double dx, double dy, int height);
+  void end_external_force_drag();
+  void apply_external_force_locked();
+  void toggle_visualization_flag(int flag);
+  void update_frame_rate();
+  void update_visualization_control_layout(
+    int framebuffer_width, int framebuffer_height);
+  void render_visualization_controls(
+    int framebuffer_width, int framebuffer_height);
   void update_gantry_control_layout(int framebuffer_width, int framebuffer_height);
   void render_gantry_controls(int framebuffer_width, int framebuffer_height);
   void nudge_gantry(double delta_m);
@@ -69,8 +87,12 @@ private:
 
   mjvCamera cam_;
   mjvOption opt_;
+  mjvPerturb pert_;
   mjvScene scn_;
   mjrContext con_;
+  mjrRect viewer_status_rect_{};
+  mjrRect external_force_help_rect_{};
+  std::array<mjrRect, 4> visualization_control_rects_{};
   mjrRect gantry_status_rect_{};
   mjrRect gantry_raise_rect_{};
   mjrRect gantry_lower_rect_{};
@@ -81,8 +103,16 @@ private:
   bool button_left_{false};
   bool button_middle_{false};
   bool button_right_{false};
+  bool external_force_dragging_{false};
+  int external_force_body_id_{0};
   double lastx_{0.0};
   double lasty_{0.0};
+
+  // Render diagnostics (viewer thread only).
+  std::chrono::steady_clock::time_point fps_sample_start_{};
+  int fps_sample_frames_{0};
+  double frames_per_second_{0.0};
+  int contact_count_{0};
 };
 
 }  // namespace ai_sapiens_mujoco

@@ -87,7 +87,10 @@ ros2 service call /mujoco_sim/gantry/attach std_srvs/srv/Trigger
 
 ## Viewer
 
-The viewer window (enabled by default) renders the scene at ~60 Hz. When the
+The viewer window (enabled by default) renders the scene at ~60 Hz. The
+top-left diagnostics overlay always shows the measured render FPS and current
+contact count. Its buttons expose the most useful MuJoCo visualization flags:
+contact points, contact forces, inertia boxes, and center of mass. When the
 gantry scene is active, the top-right controls show its current state and
 provide motion and attach/release buttons:
 
@@ -97,9 +100,17 @@ provide motion and attach/release buttons:
 | `Attach robot` / `Release robot` | Toggle the gantry weld with the on-screen buttons. |
 | `Up` / `Down` | Nudge the gantry hook target ±0.02 m. |
 | `A` / `R` | Attach or release the gantry (same as the corresponding services). |
+| `C` / `F` | Toggle contact point / contact force visualization. |
+| `I` / `M` | Toggle equivalent inertia boxes / center-of-mass visualization. |
 | Left mouse drag | Orbit the camera. |
 | Right mouse drag | Pan the camera. |
+| `Ctrl` + right mouse drag | Select a body and apply an external mouse-spring force. |
+| `Ctrl` + `Shift` + right mouse drag | Apply the force in the horizontal plane. |
 | Scroll | Zoom. |
+
+The selected body and perturbation-force vector are highlighted while an
+external force is active. Releasing the right mouse button immediately clears
+the applied force so it cannot remain latched in `xfrc_applied`.
 
 Closing the window stops rendering only; the simulation and controllers keep
 running.
