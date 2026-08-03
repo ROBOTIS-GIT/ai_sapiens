@@ -103,10 +103,21 @@ add_library(radiomaster_pocket_teleop_input_plugin SHARED
   src/plugins/teleop_input/radiomaster_pocket_teleop_input_plugin.cpp
 )
 
+add_library(dualsense_teleop_input_plugin SHARED
+  src/plugins/teleop_input/dualsense_teleop_input_plugin.cpp
+)
+
 ament_target_dependencies(radiomaster_pocket_teleop_input_plugin
   rclcpp
   realtime_tools
   ai_sapiens_interfaces
+  pluginlib
+)
+
+ament_target_dependencies(dualsense_teleop_input_plugin
+  rclcpp
+  realtime_tools
+  sensor_msgs
   pluginlib
 )
 
@@ -115,8 +126,13 @@ target_link_libraries(radiomaster_pocket_teleop_input_plugin
   Eigen3::Eigen
 )
 
+target_link_libraries(dualsense_teleop_input_plugin
+  yaml-cpp
+  Eigen3::Eigen
+)
 
 pluginlib_export_plugin_description_file(${PROJECT_NAME} plugins/teleop_input_plugins.xml)
+pluginlib_export_plugin_description_file(${PROJECT_NAME} plugins/dualsense_teleop_input_plugin.xml)
 
 # ============================================================================
 # Install
@@ -124,6 +140,7 @@ pluginlib_export_plugin_description_file(${PROJECT_NAME} plugins/teleop_input_pl
 install(TARGETS
   ai_sapiens_sim2real_node
   radiomaster_pocket_teleop_input_plugin
+  dualsense_teleop_input_plugin
   RUNTIME DESTINATION lib/${PROJECT_NAME}
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
@@ -220,6 +237,18 @@ if(BUILD_TESTING)
 
   # AxisRange: zero-preserving normalize/scale/clamp helpers (header-only).
   ament_add_gtest(test_axis_range test/test_axis_range.cpp)
+
+  ament_add_gtest(
+    test_dualsense_teleop_input_plugin
+    test/test_dualsense_teleop_input_plugin.cpp)
+  target_link_libraries(
+    test_dualsense_teleop_input_plugin
+    dualsense_teleop_input_plugin
+    yaml-cpp)
+  ament_target_dependencies(
+    test_dualsense_teleop_input_plugin
+    rclcpp
+    sensor_msgs)
 endif()
 
 ament_package()

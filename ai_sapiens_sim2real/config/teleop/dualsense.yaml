@@ -1,0 +1,28 @@
+topic: /joy
+deadzone: 0.08
+
+velocity_command:
+  axes:
+    linear_x: {index: 1, invert: true}
+    linear_y: {index: 0, invert: true}
+    angular_z: {index: 2, invert: true}
+
+api_mode:
+  when:
+    button: 5
+    pressed: true
+
+input_code:
+  buttons:
+    - {button: 1, code: 1}
+    - {button: 0, code: 2}
+    - {button: 3, code: 3}
+    - {button: 2, code: 4}
+
+selector_code:
+  buttons:
+    - {button: 9, code: 200}
+    - {button: 10, code: 201}
+  axes:
+    - {axis: 4, minimum: 0.5, code: 202}
+    - {axis: 5, minimum: 0.5, code: 203}
