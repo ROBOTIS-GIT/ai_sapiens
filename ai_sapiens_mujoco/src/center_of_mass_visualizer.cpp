@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace ai_sapiens_mujoco
 {
@@ -75,15 +76,30 @@ bool append_sphere(
 
 }  // namespace
 
-float link_center_of_mass_radius(mjtNum body_mass)
+float link_center_of_mass_radius(
+  mjtNum body_mass, mjtNum minimum_body_mass, mjtNum maximum_body_mass)
 {
-  const float mass_ratio =
-    static_cast<float>(body_mass) / kLinkCenterOfMassReferenceMass;
-  const float radius =
-    kLinkCenterOfMassReferenceRadius * std::cbrt(mass_ratio);
-  return std::clamp(
-    radius, kLinkCenterOfMassMinimumRadius,
-    kLinkCenterOfMassMaximumRadius);
+  if (body_mass <= 0.0 || minimum_body_mass <= 0.0 ||
+    maximum_body_mass < minimum_body_mass)
+  {
+    return kLinkCenterOfMassMinimumRadius;
+  }
+
+  const float minimum_mass_scale =
+    std::cbrt(static_cast<float>(minimum_body_mass));
+  const float maximum_mass_scale =
+    std::cbrt(static_cast<float>(maximum_body_mass));
+  const float mass_scale = std::cbrt(static_cast<float>(body_mass));
+  const float scale_range = maximum_mass_scale - minimum_mass_scale;
+  const float normalized_mass =
+    scale_range > std::numeric_limits<float>::epsilon() ?
+    std::clamp(
+      (mass_scale - minimum_mass_scale) / scale_range, 0.0F, 1.0F) :
+    0.5F;
+  return
+    kLinkCenterOfMassMinimumRadius +
+    normalized_mass *
+    (kLinkCenterOfMassMaximumRadius - kLinkCenterOfMassMinimumRadius);
 }
 
 int append_center_of_mass_markers(
@@ -97,6 +113,19 @@ int append_center_of_mass_markers(
   const int root_body_id = find_free_root_body(model);
   if (root_body_id < 0 || model->body_mass[root_body_id] <= 0.0) {
     return 0;
+  }
+
+  mjtNum minimum_body_mass = std::numeric_limits<mjtNum>::max();
+  mjtNum maximum_body_mass = 0.0;
+  for (int body_id = root_body_id; body_id < model->nbody; ++body_id) {
+    if (model->body_mass[body_id] > 0.0 &&
+      is_descendant_of(model, body_id, root_body_id))
+    {
+      minimum_body_mass =
+        std::min(minimum_body_mass, model->body_mass[body_id]);
+      maximum_body_mass =
+        std::max(maximum_body_mass, model->body_mass[body_id]);
+    }
   }
 
   int appended = 0;
@@ -120,7 +149,8 @@ int append_center_of_mass_markers(
     }
     if (append_sphere(
         data->xipos + 3 * body_id,
-        link_center_of_mass_radius(model->body_mass[body_id]),
+        link_center_of_mass_radius(
+          model->body_mass[body_id], minimum_body_mass, maximum_body_mass),
         kLinkCenterOfMassColor.data(),
         mjOBJ_BODY, body_id, scene))
     {

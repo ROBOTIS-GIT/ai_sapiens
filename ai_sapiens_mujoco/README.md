@@ -102,9 +102,9 @@ the active mouse-force target. `Visualization` provides native checkboxes for
 visual meshes, collision geometry, contact points, contact forces, inertia
 boxes, and center of mass. The CoM view shows the whole-robot CoM as a solid
 red sphere and each link's own CoM as a smaller, translucent light-blue sphere.
-The whole-robot marker has a 35 mm radius. Link marker volume is proportional
-to link mass; K1's 0.369–7.719 kg link range produces approximately 5.7–15.8 mm
-radii, making mass differences visible without obscuring the robot.
+The whole-robot marker has a 40 mm radius. Link radii span 8–28 mm by mapping
+relative cube-root mass across the robot subtree, so the lightest and heaviest
+links remain visibly different without making every marker oversized.
 When the gantry scene is active, the `Gantry`
 section shows its state and provides motion and attach/release buttons:
 
