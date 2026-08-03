@@ -87,12 +87,13 @@ ros2 service call /mujoco_sim/gantry/attach std_srvs/srv/Trigger
 
 ## Viewer
 
-The viewer window (enabled by default) renders the scene at ~60 Hz. The
-top-left diagnostics overlay always shows the measured render FPS and current
-contact count. Its buttons expose the most useful MuJoCo visualization flags:
+The viewer window (enabled by default) renders the scene at ~60 Hz. A
+MuJoCo-native side panel keeps diagnostics and controls out of the 3D viewport.
+The `Diagnostics` section shows measured render FPS, current contact count, and
+the active mouse-force target. `Visualization` provides native checkboxes for
 contact points, contact forces, inertia boxes, and center of mass. When the
-gantry scene is active, the top-right controls show its current state and
-provide motion and attach/release buttons:
+gantry scene is active, the `Gantry` section shows its state and provides
+motion and attach/release buttons:
 
 | Input | Action |
 | --- | --- |

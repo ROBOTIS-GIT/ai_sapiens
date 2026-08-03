@@ -19,13 +19,13 @@
 
 #include <mujoco/mujoco.h>
 
-#include <array>
 #include <atomic>
 #include <chrono>
 #include <memory>
 #include <thread>
 
 #include "ai_sapiens_mujoco/mujoco_simulation.hpp"
+#include "ai_sapiens_mujoco/mujoco_viewer_ui.hpp"
 
 struct GLFWwindow;
 
@@ -34,9 +34,9 @@ namespace ai_sapiens_mujoco
 
 /// Interactive GLFW viewer running in its own thread.
 ///
-/// The on-screen Raise/Lower buttons and Up/Down keys nudge the gantry target
+/// The native side-panel Raise/Lower buttons and Up/Down keys nudge the gantry target
 /// height by +/-0.02 m at 0.2 m/s. Attach/Release buttons and A/R keys toggle
-/// the weld. The diagnostics overlay exposes contact points/forces, inertia
+/// the weld. The diagnostics panel exposes contact points/forces, inertia
 /// boxes, center of mass, and FPS. Mouse: left drag rotates, right drag pans,
 /// Ctrl+right drag applies an external force, and scroll zooms.
 class MujocoViewer
@@ -59,26 +59,20 @@ private:
   static void cursor_pos_callback(GLFWwindow * window, double xpos, double ypos);
   static void scroll_callback(GLFWwindow * window, double xoffset, double yoffset);
 
-  void handle_key(int key, int action);
+  void handle_key(GLFWwindow * window, int key, int action);
   void handle_mouse_button(GLFWwindow * window, int button, int action);
   void handle_cursor_pos(GLFWwindow * window, double xpos, double ypos);
-  void handle_scroll(double yoffset);
-  bool handle_overlay_click(GLFWwindow * window);
-  bool handle_visualization_control_click(int x, int y);
-  bool handle_gantry_control_click(int x, int y);
+  void handle_scroll(GLFWwindow * window, double xoffset, double yoffset);
+  ViewerUiEvent make_pointer_event(
+    GLFWwindow * window, int event_type, int button,
+    double xpos, double ypos, double xoffset = 0.0, double yoffset = 0.0) const;
+  void apply_ui_action(ViewerUiAction action);
   bool handle_external_force_button(GLFWwindow * window, int button, int action);
   bool begin_external_force_drag(GLFWwindow * window);
   void update_external_force_drag(GLFWwindow * window, double dx, double dy, int height);
   void end_external_force_drag();
   void apply_external_force_locked();
-  void toggle_visualization_flag(int flag);
   void update_frame_rate();
-  void update_visualization_control_layout(
-    int framebuffer_width, int framebuffer_height);
-  void render_visualization_controls(
-    int framebuffer_width, int framebuffer_height);
-  void update_gantry_control_layout(int framebuffer_width, int framebuffer_height);
-  void render_gantry_controls(int framebuffer_width, int framebuffer_height);
   void nudge_gantry(double delta_m);
 
   std::shared_ptr<MujocoSimulation> sim_;
@@ -90,14 +84,7 @@ private:
   mjvPerturb pert_;
   mjvScene scn_;
   mjrContext con_;
-  mjrRect viewer_status_rect_{};
-  mjrRect external_force_help_rect_{};
-  std::array<mjrRect, 4> visualization_control_rects_{};
-  mjrRect gantry_status_rect_{};
-  mjrRect gantry_raise_rect_{};
-  mjrRect gantry_lower_rect_{};
-  mjrRect gantry_attach_rect_{};
-  mjrRect gantry_release_rect_{};
+  MujocoViewerUi ui_;
 
   // Mouse interaction state (viewer thread only).
   bool button_left_{false};
