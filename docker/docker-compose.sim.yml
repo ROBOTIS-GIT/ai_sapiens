@@ -18,6 +18,10 @@ services:
       dockerfile: docker/Dockerfile
     pull_policy: build
     restart: 'no'
+    gpus: all
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=graphics,display,utility
     volumes:
       - ai_sapiens_sim_build:/root/ros2_ws/build
       - ai_sapiens_sim_install:/root/ros2_ws/install
