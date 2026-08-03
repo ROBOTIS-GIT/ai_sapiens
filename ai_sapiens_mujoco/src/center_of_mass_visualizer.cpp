@@ -16,6 +16,9 @@
 
 #include "ai_sapiens_mujoco/center_of_mass_visualizer.hpp"
 
+#include <algorithm>
+#include <cmath>
+
 namespace ai_sapiens_mujoco
 {
 namespace
@@ -73,6 +76,17 @@ bool append_sphere(
 
 }  // namespace
 
+float link_center_of_mass_radius(mjtNum body_mass)
+{
+  const float mass_ratio =
+    static_cast<float>(body_mass) / kLinkCenterOfMassReferenceMass;
+  const float radius =
+    kLinkCenterOfMassReferenceRadius * std::cbrt(mass_ratio);
+  return std::clamp(
+    radius, kLinkCenterOfMassMinimumRadius,
+    kLinkCenterOfMassMaximumRadius);
+}
+
 int append_center_of_mass_markers(
   const mjModel * model, const mjData * data,
   const mjvOption & option, mjvScene * scene)
@@ -107,7 +121,8 @@ int append_center_of_mass_markers(
     }
     if (append_sphere(
         data->xipos + 3 * body_id,
-        kLinkCenterOfMassRadius, kLinkCenterOfMassColor,
+        link_center_of_mass_radius(model->body_mass[body_id]),
+        kLinkCenterOfMassColor,
         mjOBJ_BODY, body_id, scene))
     {
       ++appended;

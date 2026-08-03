@@ -102,6 +102,8 @@ the active mouse-force target. `Visualization` provides native checkboxes for
 visual meshes, collision geometry, contact points, contact forces, inertia
 boxes, and center of mass. The CoM view shows the whole-robot CoM as a solid
 red sphere and each link's own CoM as a smaller, translucent light-blue sphere.
+Link marker volume is proportional to link mass, with radius clamped to keep
+both light and heavy links legible.
 When the gantry scene is active, the `Gantry`
 section shows its state and provides motion and attach/release buttons:
 
