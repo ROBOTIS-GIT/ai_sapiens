@@ -78,7 +78,7 @@ public:
   const mjModel * model() const;
   mjData * data();
 
-  // Gantry (stubs until Task 5).
+  // Gantry control (only meaningful when the scene contains a gantry).
   bool gantry_present() const;
   bool gantry_attached() const;
   bool gantry_set_target(double height_m, double speed_mps);
@@ -87,7 +87,7 @@ public:
 
 private:
   void apply_control();   // caller holds mutex_
-  void update_gantry();   // caller holds mutex_ (no-op until Task 5)
+  void update_gantry();   // caller holds mutex_
 
   mjModel * model_{nullptr};
   mjData * data_{nullptr};
