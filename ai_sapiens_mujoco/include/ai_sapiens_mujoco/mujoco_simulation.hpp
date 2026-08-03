@@ -101,7 +101,7 @@ private:
   bool gantry_released_{false};
   double gantry_target_z_{0.0}, gantry_speed_{0.0};
   std::array<mjtNum, 3> gantry_to_robot_pos_{};
-  std::array<mjtNum, 4> gantry_to_robot_quat_{1.0, 0.0, 0.0, 0.0};
+  std::array<mjtNum, 4> gantry_upright_quat_{1.0, 0.0, 0.0, 0.0};
 };
 
 }  // namespace ai_sapiens_mujoco
