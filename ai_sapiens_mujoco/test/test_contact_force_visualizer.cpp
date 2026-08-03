@@ -83,33 +83,37 @@ protected:
   std::unique_ptr<mjData, DataDeleter> data_;
 };
 
-TEST_F(ContactForceVisualizerTest, ComputesUpwardNormalForceAtEachGroundContact)
+TEST_F(ContactForceVisualizerTest, ComputesUpwardNormalForceLineAtEachGroundContact)
 {
-  ai_sapiens_mujoco::ContactNormalForceArrow arrow;
-  ASSERT_TRUE(ai_sapiens_mujoco::compute_contact_normal_force_arrow(
-      model_.get(), data_.get(), 0, &arrow));
+  ai_sapiens_mujoco::ContactNormalForceLine line;
+  ASSERT_TRUE(ai_sapiens_mujoco::compute_contact_normal_force_line(
+      model_.get(), data_.get(), 0, &line));
 
-  EXPECT_GT(arrow.magnitude, 0.0);
-  EXPECT_NEAR(arrow.end[0], arrow.start[0], 1.0e-9);
-  EXPECT_NEAR(arrow.end[1], arrow.start[1], 1.0e-9);
-  EXPECT_GT(arrow.end[2], arrow.start[2]);
+  EXPECT_GT(line.magnitude, 0.0);
+  EXPECT_NEAR(line.end[0], line.start[0], 1.0e-9);
+  EXPECT_NEAR(line.end[1], line.start[1], 1.0e-9);
+  EXPECT_GT(line.end[2], line.start[2]);
 }
 
-TEST_F(ContactForceVisualizerTest, AppendsOneArrowGeomPerActiveContact)
+TEST_F(ContactForceVisualizerTest, AppendsOneLimeLinePerActiveContact)
 {
   mjvScene scene;
   mjv_defaultScene(&scene);
   mjv_makeScene(model_.get(), &scene, 32);
 
   const int initial_geoms = scene.ngeom;
-  const int appended = ai_sapiens_mujoco::append_contact_normal_force_arrows(
+  const int appended = ai_sapiens_mujoco::append_contact_normal_force_lines(
     model_.get(), data_.get(), &scene);
 
   ASSERT_EQ(appended, data_->ncon);
   ASSERT_EQ(scene.ngeom, initial_geoms + appended);
   for (int geom_id = initial_geoms; geom_id < scene.ngeom; ++geom_id) {
-    EXPECT_EQ(scene.geoms[geom_id].type, mjGEOM_ARROW);
+    EXPECT_EQ(scene.geoms[geom_id].type, mjGEOM_LINE);
     EXPECT_EQ(scene.geoms[geom_id].category, mjCAT_DECOR);
+    EXPECT_FLOAT_EQ(scene.geoms[geom_id].rgba[0], 0.55f);
+    EXPECT_FLOAT_EQ(scene.geoms[geom_id].rgba[1], 1.0f);
+    EXPECT_FLOAT_EQ(scene.geoms[geom_id].rgba[2], 0.15f);
+    EXPECT_FLOAT_EQ(scene.geoms[geom_id].rgba[3], 1.0f);
   }
 
   mjv_freeScene(&scene);
@@ -117,10 +121,10 @@ TEST_F(ContactForceVisualizerTest, AppendsOneArrowGeomPerActiveContact)
 
 TEST(ContactForceVisualizer, RejectsInvalidInput)
 {
-  ai_sapiens_mujoco::ContactNormalForceArrow arrow;
-  EXPECT_FALSE(ai_sapiens_mujoco::compute_contact_normal_force_arrow(
-      nullptr, nullptr, 0, &arrow));
-  EXPECT_EQ(ai_sapiens_mujoco::append_contact_normal_force_arrows(
+  ai_sapiens_mujoco::ContactNormalForceLine line;
+  EXPECT_FALSE(ai_sapiens_mujoco::compute_contact_normal_force_line(
+      nullptr, nullptr, 0, &line));
+  EXPECT_EQ(ai_sapiens_mujoco::append_contact_normal_force_lines(
       nullptr, nullptr, nullptr), 0);
 }
 
