@@ -62,8 +62,8 @@ teleop_input:
 #   button 3: triangle -> VelocityRequested
 #   button 2: square   -> MimicRequested
 #   button 5: PS       -> API authority switch
-#   button 9/10: L1/R1 -> mimic selector codes 200/201
-#   axis 4/5: L2/R2    -> mimic selector codes 202/203 at >= 0.5
+#   button 13/14: D-pad Left/Right -> cycle persistent mimic selector
+#     200: MimicSquat, 201: MimicDance1, 202: MimicDance2
 teleop_conditions:
   DampingRequested:
     input_code: 1

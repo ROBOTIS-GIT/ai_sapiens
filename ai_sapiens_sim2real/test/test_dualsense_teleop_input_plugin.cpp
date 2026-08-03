@@ -58,6 +58,30 @@ selector_code:
     - {axis: 5, minimum: 0.5, code: 203}
 )";
 
+constexpr char kSelectorNavigation[] =
+  R"(
+previous_button: 13
+next_button: 14
+initial_code: 200
+options:
+  - {code: 200, label: MimicSquat}
+  - {code: 201, label: MimicDance1}
+  - {code: 202, label: MimicDance2}
+)";
+
+YAML::Node navigation_config()
+{
+  auto config = YAML::Load(kConfig);
+  config.remove("selector_code");
+  config["selector_navigation"] = YAML::Load(kSelectorNavigation);
+  config["input_guide"] = YAML::Load(
+    R"(
+- "D-pad Left/Right: select mimic"
+- "Square: run selected mimic"
+)");
+  return config;
+}
+
 class TestableDualSensePlugin : public DualSenseTeleopInputPlugin
 {
 public:
@@ -129,6 +153,66 @@ TEST_F(DualSenseTeleopInputPluginTest, MapsTriggerAxesToSelectors)
   TeleopInputCommand command;
   ASSERT_TRUE(plugin_->read_latest_accepted_command(command));
   EXPECT_EQ(command.selector_code, 202);
+}
+
+TEST_F(DualSenseTeleopInputPluginTest, CyclesAndLatchesSelectorWithDpadEdges)
+{
+  auto plugin = std::make_shared<TestableDualSensePlugin>();
+  plugin->configure(node_, navigation_config());
+
+  auto msg = valid_message();
+  plugin->inject(msg);
+
+  TeleopInputCommand command;
+  ASSERT_TRUE(plugin->read_latest_accepted_command(command));
+  EXPECT_EQ(command.selector_code, 200);
+
+  msg.buttons[14] = 1;  // D-pad Right
+  plugin->inject(msg);
+  ASSERT_TRUE(plugin->read_latest_accepted_command(command));
+  EXPECT_EQ(command.selector_code, 201);
+
+  // A held button does not repeat.
+  plugin->inject(msg);
+  ASSERT_TRUE(plugin->read_latest_accepted_command(command));
+  EXPECT_EQ(command.selector_code, 201);
+
+  msg.buttons[14] = 0;
+  plugin->inject(msg);
+  msg.buttons[14] = 1;
+  plugin->inject(msg);
+  ASSERT_TRUE(plugin->read_latest_accepted_command(command));
+  EXPECT_EQ(command.selector_code, 202);
+
+  msg.buttons[14] = 0;
+  plugin->inject(msg);
+  msg.buttons[14] = 1;
+  plugin->inject(msg);
+  ASSERT_TRUE(plugin->read_latest_accepted_command(command));
+  EXPECT_EQ(command.selector_code, 200);
+
+  msg.buttons[14] = 0;
+  plugin->inject(msg);
+  msg.buttons[13] = 1;  // D-pad Left
+  plugin->inject(msg);
+  ASSERT_TRUE(plugin->read_latest_accepted_command(command));
+  EXPECT_EQ(command.selector_code, 202);
+}
+
+TEST_F(DualSenseTeleopInputPluginTest, RejectsAmbiguousSelectorNavigation)
+{
+  auto config = navigation_config();
+  config["selector_navigation"]["next_button"] = 13;
+  DualSenseTeleopInputPlugin plugin;
+  EXPECT_THROW(plugin.configure(node_, config), std::runtime_error);
+
+  config = navigation_config();
+  config["selector_code"] = YAML::Load(
+    R"(
+buttons:
+  - {button: 9, code: 200}
+)");
+  EXPECT_THROW(plugin.configure(node_, config), std::runtime_error);
 }
 
 TEST_F(DualSenseTeleopInputPluginTest, AppliesDeadzoneAndDefaultsButtonsToInactive)

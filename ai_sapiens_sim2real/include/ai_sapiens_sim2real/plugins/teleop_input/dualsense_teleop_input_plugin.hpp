@@ -71,7 +71,15 @@ private:
     uint16_t code{0};
   };
 
+  struct SelectorOption
+  {
+    uint16_t code{0};
+    std::string label;
+  };
+
   void read_config(const YAML::Node & config);
+  void read_selector_navigation(const YAML::Node & node);
+  void read_input_guide(const YAML::Node & node);
   static AxisConfig read_axis_config(const YAML::Node & axes, const std::string & name);
   static std::vector<ButtonCondition> read_button_conditions(const YAML::Node & node);
   static std::vector<ButtonCode> read_button_codes(
@@ -85,6 +93,7 @@ private:
   bool is_message_valid(const sensor_msgs::msg::Joy & msg) const override;
   bool is_message_fresh(const sensor_msgs::msg::Joy & msg) const override;
   TeleopInputCommand make_command_from_message(const sensor_msgs::msg::Joy & msg) const override;
+  void on_message_accepted(const sensor_msgs::msg::Joy & msg) override;
 
   bool has_configured_axes(const sensor_msgs::msg::Joy & msg) const;
   bool has_finite_axes(const sensor_msgs::msg::Joy & msg) const;
@@ -96,6 +105,17 @@ private:
   float axis_value(const sensor_msgs::msg::Joy & msg, const AxisConfig & axis) const;
   uint16_t select_input_code(const sensor_msgs::msg::Joy & msg) const;
   uint16_t select_selector_code(const sensor_msgs::msg::Joy & msg) const;
+
+  // Persistent selector navigation is kept separate from command conversion.
+  bool is_button_rising_edge(
+    const sensor_msgs::msg::Joy & msg,
+    std::size_t button) const;
+  bool has_any_button_rising_edge(const sensor_msgs::msg::Joy & msg) const;
+  int selector_navigation_step(const sensor_msgs::msg::Joy & msg) const;
+  std::size_t selected_index_after_input(const sensor_msgs::msg::Joy & msg) const;
+  void apply_selector_navigation(const sensor_msgs::msg::Joy & msg);
+  void remember_button_state(const sensor_msgs::msg::Joy & msg);
+  void log_input_guide() const;
 
   rclcpp::Node::SharedPtr node_;
   std::string topic_;
@@ -109,6 +129,14 @@ private:
   std::vector<ButtonCode> input_codes_;
   std::vector<ButtonCode> selector_codes_;
   std::vector<AxisCode> selector_axis_codes_;
+
+  bool selector_navigation_enabled_{false};
+  std::size_t selector_previous_button_{0};
+  std::size_t selector_next_button_{0};
+  std::size_t selected_selector_index_{0};
+  std::vector<SelectorOption> selector_options_;
+  std::vector<int32_t> previous_buttons_;
+  std::vector<std::string> input_guide_;
 
   rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr subscription_;
 };
