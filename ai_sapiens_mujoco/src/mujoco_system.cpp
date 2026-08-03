@@ -56,7 +56,8 @@ double finite_or_zero(double value)
 
 MujocoSystem::~MujocoSystem()
 {
-  // on_deactivate may never run (e.g. hard shutdown); stop the thread here too.
+  // on_deactivate may never run (e.g. hard shutdown); stop the threads here too.
+  stop_viewer();
   stop_gantry_services();
 }
 
@@ -171,7 +172,10 @@ hardware_interface::CallbackReturn MujocoSystem::on_configure(
 hardware_interface::CallbackReturn MujocoSystem::on_activate(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  // Task 8 starts the viewer here.
+  if (viewer_enabled_) {
+    viewer_ = std::make_unique<MujocoViewer>(sim_);
+    viewer_->start();
+  }
   if (sim_->gantry_present() && rclcpp::ok()) {
     gantry_node_ = std::make_shared<GantryServiceNode>(sim_);
     gantry_executor_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
@@ -184,6 +188,7 @@ hardware_interface::CallbackReturn MujocoSystem::on_activate(
 hardware_interface::CallbackReturn MujocoSystem::on_deactivate(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
+  stop_viewer();
   stop_gantry_services();
   return hardware_interface::CallbackReturn::SUCCESS;
 }
@@ -235,6 +240,14 @@ void MujocoSystem::publish_states()
   // [0, 32767].
   set_state(
     "hat/Realtime Tick", std::fmod(std::floor(sim_->sim_time() * 1000.0), 32768.0));
+}
+
+void MujocoSystem::stop_viewer()
+{
+  if (viewer_) {
+    viewer_->stop();
+    viewer_.reset();
+  }
 }
 
 void MujocoSystem::stop_gantry_services()

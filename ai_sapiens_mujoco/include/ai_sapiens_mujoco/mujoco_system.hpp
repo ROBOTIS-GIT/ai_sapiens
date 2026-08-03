@@ -28,6 +28,7 @@
 
 #include "ai_sapiens_mujoco/gantry_service_node.hpp"
 #include "ai_sapiens_mujoco/mujoco_simulation.hpp"
+#include "ai_sapiens_mujoco/mujoco_viewer.hpp"
 
 namespace ai_sapiens_mujoco
 {
@@ -57,6 +58,9 @@ private:
   /// Stop the gantry service executor thread and drop the node.
   void stop_gantry_services();
 
+  /// Stop the viewer render thread and drop the viewer.
+  void stop_viewer();
+
   std::shared_ptr<MujocoSimulation> sim_;
   std::vector<std::string> joint_names_;
   std::vector<double> rc_defaults_;   // 16 values
@@ -70,7 +74,8 @@ private:
   std::shared_ptr<GantryServiceNode> gantry_node_;
   std::shared_ptr<rclcpp::executors::SingleThreadedExecutor> gantry_executor_;
   std::thread gantry_thread_;
-  // Task 8 adds: viewer.
+  // Interactive viewer (started in on_activate when viewer_enabled_).
+  std::unique_ptr<MujocoViewer> viewer_;
 };
 
 }  // namespace ai_sapiens_mujoco
