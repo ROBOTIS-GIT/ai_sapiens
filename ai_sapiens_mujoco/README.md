@@ -82,11 +82,13 @@ ros2 service call /mujoco_sim/gantry/release std_srvs/srv/Trigger
 
 ## Viewer
 
-The viewer window (enabled by default) renders the scene at ~60 Hz and adds
-gantry hotkeys:
+The viewer window (enabled by default) renders the scene at ~60 Hz. When the
+gantry scene is active, the top-right controls show its current height and
+provide Raise/Lower buttons:
 
 | Input | Action |
 | --- | --- |
+| `Raise +2 cm` / `Lower -2 cm` | Nudge the gantry hook target with the on-screen buttons. |
 | `Up` / `Down` | Nudge the gantry hook target ±0.02 m. |
 | `R` | Release the gantry (same as the release service). |
 | Left mouse drag | Orbit the camera. |
