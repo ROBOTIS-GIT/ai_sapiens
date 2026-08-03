@@ -36,9 +36,9 @@ topic: /test/joy
 deadzone: 0.08
 velocity_command:
   axes:
-    linear_x: {index: 1, invert: true}
-    linear_y: {index: 0, invert: true}
-    angular_z: {index: 2, invert: true}
+    linear_x: {index: 1, invert: false}
+    linear_y: {index: 0, invert: false}
+    angular_z: {index: 2, invert: false}
 api_mode:
   when:
     button: 5
@@ -114,9 +114,9 @@ TEST_F(DualSenseTeleopInputPluginTest, MapsAxesButtonsAndAuthority)
   EXPECT_TRUE(command.api_mode);
   EXPECT_EQ(command.input_code, 2);
   EXPECT_EQ(command.selector_code, 201);
-  EXPECT_FLOAT_EQ(command.velocity.x(), -0.75f);
-  EXPECT_FLOAT_EQ(command.velocity.y(), -0.25f);
-  EXPECT_FLOAT_EQ(command.velocity.z(), 0.5f);
+  EXPECT_NEAR(command.velocity.x(), 0.72826087f, 1e-6f);
+  EXPECT_NEAR(command.velocity.y(), 0.18478261f, 1e-6f);
+  EXPECT_NEAR(command.velocity.z(), -0.45652174f, 1e-6f);
   EXPECT_EQ(plugin_->topic_name(), "/test/joy");
 }
 
@@ -144,7 +144,20 @@ TEST_F(DualSenseTeleopInputPluginTest, AppliesDeadzoneAndDefaultsButtonsToInacti
   EXPECT_EQ(command.selector_code, 0);
   EXPECT_FLOAT_EQ(command.velocity.x(), 0.0f);
   EXPECT_FLOAT_EQ(command.velocity.y(), 0.0f);
-  EXPECT_FLOAT_EQ(command.velocity.z(), -0.5f);
+  EXPECT_NEAR(command.velocity.z(), 0.45652174f, 1e-6f);
+}
+
+TEST_F(DualSenseTeleopInputPluginTest, RenormalizesDeadzoneAndClampsToUnitRange)
+{
+  auto msg = valid_message();
+  msg.axes = {-2.0f, 2.0f, 0.54f, 0.0f, 0.0f, 0.0f};
+  plugin_->inject(msg);
+
+  TeleopInputCommand command;
+  ASSERT_TRUE(plugin_->read_latest_accepted_command(command));
+  EXPECT_FLOAT_EQ(command.velocity.x(), 1.0f);
+  EXPECT_FLOAT_EQ(command.velocity.y(), -1.0f);
+  EXPECT_NEAR(command.velocity.z(), 0.5f, 1e-6f);
 }
 
 TEST_F(DualSenseTeleopInputPluginTest, RejectsIncompleteAndNonFiniteMessages)

@@ -25,7 +25,7 @@ tmux split-window -v -t "$SESSION_NAME" -- "$(hold_cmd 'sleep 6; ros2 launch ai_
 
 # Select top-right and split down: bottom-right — publish DualSense Joy input
 tmux select-pane -t "$SESSION_NAME":0.2
-tmux split-window -v -t "$SESSION_NAME" -- "$(hold_cmd 'sleep 3; ros2 run joy joy_node --ros-args -p device_id:=0')"
+tmux split-window -v -t "$SESSION_NAME" -- "$(hold_cmd 'sleep 3; ros2 run joy joy_node --ros-args -p device_id:=0 -p deadzone:=0.0')"
 
 # Optional: balance pane sizes and attach
 tmux select-layout -t "$SESSION_NAME" tiled

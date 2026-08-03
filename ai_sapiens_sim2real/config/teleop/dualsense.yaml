@@ -1,11 +1,13 @@
 topic: /joy
+# joy_node is launched with deadzone=0.0; this plugin applies the deadzone and
+# renormalizes the remaining stick travel back to [-1, 1].
 deadzone: 0.08
 
 velocity_command:
   axes:
-    linear_x: {index: 1, invert: true}
-    linear_y: {index: 0, invert: true}
-    angular_z: {index: 2, invert: true}
+    linear_x: {index: 1, invert: false}
+    linear_y: {index: 0, invert: false}
+    angular_z: {index: 2, invert: false}
 
 api_mode:
   when:
