@@ -149,8 +149,10 @@ sections:
 | `mimic_defaults` | Optional shared defaults for mimic playback. |
 
 The reference configuration is
-[`config/k1_config.yaml`](config/k1_config.yaml), and its Radiomaster mapping
-is [`config/teleop/radiomaster_pocket.yaml`](config/teleop/radiomaster_pocket.yaml).
+[`config/k1_config.yaml`](config/k1_config.yaml), and its DualSense mapping is
+[`config/teleop/dualsense.yaml`](config/teleop/dualsense.yaml). A Radiomaster
+mapping remains available at
+[`config/teleop/radiomaster_pocket.yaml`](config/teleop/radiomaster_pocket.yaml).
 
 ### Policy assets
 
@@ -204,6 +206,18 @@ source install/setup.bash
 
 ## Run
 
+Start the ROS joystick driver and verify the controller's actual axis/button
+indices before enabling command output:
+
+```bash
+ros2 run joy joy_node
+ros2 topic echo /joy
+```
+
+Linux mappings can vary with the driver and USB/Bluetooth connection mode. If
+they differ from the mapping documented in `config/k1_config.yaml`, update
+`config/teleop/dualsense.yaml`.
+
 Start with command output disabled when validating a new configuration:
 
 ```bash
@@ -254,7 +268,7 @@ Default runtime interfaces are:
 | --- | --- | --- |
 | Input | `/imu_sensor_broadcaster/imu` | `sensor_msgs/msg/Imu` |
 | Input | `/joint_states` | `sensor_msgs/msg/JointState` |
-| Input | `/ai_sapiens_rc/status` | `ai_sapiens_interfaces/msg/RcStatus` |
+| Input | `/joy` | `sensor_msgs/msg/Joy` |
 | Input | `/ai_sapiens/api_heartbeat` | `ai_sapiens_interfaces/msg/ApiHeartbeat` |
 | Input | `/cmd_vel` | `geometry_msgs/msg/Twist` |
 | Output | `/joint_group_impedance_controller/commands` | `ai_sapiens_interfaces/msg/JointImpedanceCommand` |
