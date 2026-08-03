@@ -210,13 +210,15 @@ Start the ROS joystick driver and verify the controller's actual axis/button
 indices before enabling command output:
 
 ```bash
-ros2 run joy joy_node
+ros2 run joy joy_node --ros-args -p device_id:=0 -p deadzone:=0.0
 ros2 topic echo /joy
 ```
 
 Linux mappings can vary with the driver and USB/Bluetooth connection mode. If
 they differ from the mapping documented in `config/k1_config.yaml`, update
-`config/teleop/dualsense.yaml`.
+`config/teleop/dualsense.yaml`. The Joy driver deadzone is disabled because the
+DualSense plugin applies its configured deadzone once and renormalizes the
+remaining stick travel to `[-1, 1]`.
 
 Start with command output disabled when validating a new configuration:
 

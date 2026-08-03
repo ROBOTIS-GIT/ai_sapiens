@@ -339,11 +339,15 @@ float DualSenseTeleopInputPlugin::axis_value(
   const sensor_msgs::msg::Joy & msg,
   const AxisConfig & axis) const
 {
-  float value = msg.axes[axis.index];
-  if (std::abs(value) <= deadzone_) {
-    value = 0.0f;
+  float value = std::clamp(msg.axes[axis.index], -1.0f, 1.0f);
+  const float magnitude = std::abs(value);
+  const float deadzone = static_cast<float>(deadzone_);
+  if (magnitude <= deadzone) {
+    return 0.0f;
   }
-  value = std::clamp(value, -1.0f, 1.0f);
+
+  // Remove the deadzone continuously, then use the full remaining stick travel.
+  value = std::copysign((magnitude - deadzone) / (1.0f - deadzone), value);
   if (axis.invert) {
     value *= -1.0f;
   }
