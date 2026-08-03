@@ -17,13 +17,21 @@ pose without snapping it back to its initial pose.
 
 The simulation needs the MuJoCo and GLFW libraries that `docker/Dockerfile`
 installs, so it runs in a locally built image rather than the published arm64
-image used on the robot. Start it with the `--sim` flag:
+image used on the robot. The simulation overlay also requests the NVIDIA
+graphics and display capabilities so the viewer uses hardware OpenGL instead
+of Mesa software rendering. The host therefore needs the NVIDIA Container
+Toolkit configured for Docker. Start it with the `--sim` flag:
 
 ```bash
 ./docker/container.sh start --sim   # build the sim image and start the container
 ./docker/container.sh enter         # open a shell inside it
 ./docker/container.sh stop --sim    # stop and remove it
 ```
+
+Inside the simulation container, `nvidia-smi` should report the host GPU. If it
+does not, recreate the container with `./docker/container.sh start --sim`;
+adding GPU settings to an already-running container does not update its device
+request or driver-library mounts.
 
 Inside the container, build the workspace once (`cb`, then `sb`), then bring the
 stack up. `run_k1_tmux.sh` takes the same flag and starts the Zenoh router, the
