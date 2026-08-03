@@ -102,7 +102,7 @@ void MujocoViewerUi::initialize(mjvOption * option, bool gantry_present)
       option->flags + mjVIS_INERTIA, " I", 0
     },
     {
-      mjITEM_CHECKBYTE, "Robot + link CoM", 1,
+      mjITEM_CHECKBYTE, "CoM markers", 1,
       option->flags + mjVIS_COM, " M", 0
     },
     {mjITEM_END, "", 0, nullptr, "", 0}
