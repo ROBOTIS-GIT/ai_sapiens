@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <cstdio>
 #include <memory>
 #include <string>
@@ -23,6 +24,9 @@
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <hardware_interface/resource_manager.hpp>
 #include <rclcpp/rclcpp.hpp>
+
+#include <ai_sapiens_interfaces/srv/set_gantry_height.hpp>
+#include <std_srvs/srv/trigger.hpp>
 
 namespace
 {
@@ -83,6 +87,43 @@ TEST_F(MujocoSystemTest, FullCycleThroughResourceManager)
   EXPECT_NEAR(pos_state.get_optional().value(), 0.8, 0.05);
   EXPECT_NE(tick_state.get_optional().value(), tick_before);   // watchdog tick advances
   EXPECT_DOUBLE_EQ(ch7_state.get_optional().value(), 2000.0);  // default -> input_code 0
+}
+
+TEST_F(MujocoSystemTest, GantryServices)
+{
+  rclcpp::Node node("test_gantry_services");
+  hardware_interface::ResourceManager rm(
+    run_xacro(), node.get_node_clock_interface(), node.get_node_logging_interface(),
+    true, 1000);  // activates components -> service node spins
+
+  auto client_node = std::make_shared<rclcpp::Node>("gantry_client");
+  auto set_h = client_node->create_client<ai_sapiens_interfaces::srv::SetGantryHeight>(
+    "/mujoco_sim/gantry/set_height");
+  auto release = client_node->create_client<std_srvs::srv::Trigger>(
+    "/mujoco_sim/gantry/release");
+  ASSERT_TRUE(set_h->wait_for_service(std::chrono::seconds(5)));
+
+  auto req = std::make_shared<ai_sapiens_interfaces::srv::SetGantryHeight::Request>();
+  req->height = 1.45;
+  req->speed = 0.2;
+  auto fut = set_h->async_send_request(req);
+  ASSERT_EQ(
+    rclcpp::spin_until_future_complete(client_node, fut, std::chrono::seconds(5)),
+    rclcpp::FutureReturnCode::SUCCESS);
+  EXPECT_TRUE(fut.get()->success);
+
+  auto rel_fut = release->async_send_request(std::make_shared<std_srvs::srv::Trigger::Request>());
+  ASSERT_EQ(
+    rclcpp::spin_until_future_complete(client_node, rel_fut, std::chrono::seconds(5)),
+    rclcpp::FutureReturnCode::SUCCESS);
+  EXPECT_TRUE(rel_fut.get()->success);
+
+  // After release, set_height must report failure.
+  auto fut2 = set_h->async_send_request(req);
+  ASSERT_EQ(
+    rclcpp::spin_until_future_complete(client_node, fut2, std::chrono::seconds(5)),
+    rclcpp::FutureReturnCode::SUCCESS);
+  EXPECT_FALSE(fut2.get()->success);
 }
 
 int main(int argc, char ** argv)

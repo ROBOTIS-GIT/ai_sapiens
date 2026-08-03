@@ -19,6 +19,7 @@ find_library(MUJOCO_LIBRARY mujoco REQUIRED)
 find_path(MUJOCO_INCLUDE_DIR mujoco/mujoco.h REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED
+  src/gantry_service_node.cpp
   src/mujoco_simulation.cpp
   src/mujoco_system.cpp
 )
@@ -46,7 +47,8 @@ if(BUILD_TESTING)
 
   ament_add_gtest(test_mujoco_system test/test_mujoco_system.cpp)
   target_link_libraries(test_mujoco_system ${PROJECT_NAME})
-  ament_target_dependencies(test_mujoco_system ament_index_cpp hardware_interface rclcpp)
+  ament_target_dependencies(test_mujoco_system
+    ament_index_cpp hardware_interface rclcpp std_srvs ai_sapiens_interfaces)
 endif()
 
 ament_export_libraries(${PROJECT_NAME})

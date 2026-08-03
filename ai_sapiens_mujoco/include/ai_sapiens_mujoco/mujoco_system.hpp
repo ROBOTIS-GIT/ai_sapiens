@@ -19,11 +19,14 @@
 
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "hardware_interface/system_interface.hpp"
+#include "rclcpp/executors/single_threaded_executor.hpp"
 #include "rclcpp_lifecycle/state.hpp"
 
+#include "ai_sapiens_mujoco/gantry_service_node.hpp"
 #include "ai_sapiens_mujoco/mujoco_simulation.hpp"
 
 namespace ai_sapiens_mujoco
@@ -32,6 +35,8 @@ namespace ai_sapiens_mujoco
 class MujocoSystem : public hardware_interface::SystemInterface
 {
 public:
+  ~MujocoSystem() override;
+
   hardware_interface::CallbackReturn on_init(
     const hardware_interface::HardwareComponentInterfaceParams & params) override;
   hardware_interface::CallbackReturn on_configure(
@@ -49,6 +54,9 @@ private:
   /// Publish joint, IMU, and Realtime Tick states from the simulation.
   void publish_states();
 
+  /// Stop the gantry service executor thread and drop the node.
+  void stop_gantry_services();
+
   std::shared_ptr<MujocoSimulation> sim_;
   std::vector<std::string> joint_names_;
   std::vector<double> rc_defaults_;   // 16 values
@@ -58,7 +66,11 @@ private:
   // Precomputed full interface names (index-aligned with joint_names_).
   std::vector<std::string> pos_state_, vel_state_, eff_state_;
   std::vector<std::string> pos_cmd_, ff_cmd_, kp_cmd_, kd_cmd_;
-  // Task 7 adds: service node + executor thread. Task 8 adds: viewer.
+  // Gantry ROS services (spun in a dedicated thread while active).
+  std::shared_ptr<GantryServiceNode> gantry_node_;
+  std::shared_ptr<rclcpp::executors::SingleThreadedExecutor> gantry_executor_;
+  std::thread gantry_thread_;
+  // Task 8 adds: viewer.
 };
 
 }  // namespace ai_sapiens_mujoco

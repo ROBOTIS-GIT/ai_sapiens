@@ -54,6 +54,12 @@ double finite_or_zero(double value)
 
 }  // namespace
 
+MujocoSystem::~MujocoSystem()
+{
+  // on_deactivate may never run (e.g. hard shutdown); stop the thread here too.
+  stop_gantry_services();
+}
+
 hardware_interface::CallbackReturn MujocoSystem::on_init(
   const hardware_interface::HardwareComponentInterfaceParams & params)
 {
@@ -165,13 +171,20 @@ hardware_interface::CallbackReturn MujocoSystem::on_configure(
 hardware_interface::CallbackReturn MujocoSystem::on_activate(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  // Task 7 starts the gantry service node here; Task 8 starts the viewer.
+  // Task 8 starts the viewer here.
+  if (sim_->gantry_present() && rclcpp::ok()) {
+    gantry_node_ = std::make_shared<GantryServiceNode>(sim_);
+    gantry_executor_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
+    gantry_executor_->add_node(gantry_node_);
+    gantry_thread_ = std::thread([executor = gantry_executor_] {executor->spin();});
+  }
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
 hardware_interface::CallbackReturn MujocoSystem::on_deactivate(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
+  stop_gantry_services();
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
@@ -222,6 +235,18 @@ void MujocoSystem::publish_states()
   // [0, 32767].
   set_state(
     "hat/Realtime Tick", std::fmod(std::floor(sim_->sim_time() * 1000.0), 32768.0));
+}
+
+void MujocoSystem::stop_gantry_services()
+{
+  if (gantry_executor_) {
+    gantry_executor_->cancel();
+  }
+  if (gantry_thread_.joinable()) {
+    gantry_thread_.join();
+  }
+  gantry_executor_.reset();
+  gantry_node_.reset();
 }
 
 }  // namespace ai_sapiens_mujoco
