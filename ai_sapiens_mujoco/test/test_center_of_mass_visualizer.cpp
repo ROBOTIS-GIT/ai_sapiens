@@ -117,7 +117,8 @@ TEST_F(CenterOfMassVisualizerTest, AppendsRobotAndLinkMarkers)
   const mjvGeom & robot_com = scene_.geoms[0];
   EXPECT_EQ(robot_com.objtype, mjOBJ_UNKNOWN);
   EXPECT_EQ(robot_com.category, mjCAT_DECOR);
-  EXPECT_FLOAT_EQ(robot_com.size[0], kRobotCenterOfMassRadius);
+  EXPECT_FLOAT_EQ(
+    robot_com.size[0], center_of_mass_marker_radius(model_.get()));
   EXPECT_EQ(robot_com.transparent, 0);
   for (int axis = 0; axis < 3; ++axis) {
     EXPECT_NEAR(
@@ -125,7 +126,7 @@ TEST_F(CenterOfMassVisualizerTest, AppendsRobotAndLinkMarkers)
   }
   for (int channel = 0; channel < 4; ++channel) {
     EXPECT_FLOAT_EQ(
-      robot_com.rgba[channel], kRobotCenterOfMassColor[channel]);
+      robot_com.rgba[channel], model_->vis.rgba.com[channel]);
   }
 
   const mjvGeom & robot_link_com = scene_.geoms[1];
@@ -136,12 +137,12 @@ TEST_F(CenterOfMassVisualizerTest, AppendsRobotAndLinkMarkers)
   EXPECT_EQ(child_link_com.objid, link_id);
   EXPECT_FLOAT_EQ(
     robot_link_com.size[0],
-    link_center_of_mass_radius(model_->body_mass[robot_id]));
+    center_of_mass_marker_radius(model_.get()));
   EXPECT_FLOAT_EQ(
     child_link_com.size[0],
-    link_center_of_mass_radius(model_->body_mass[link_id]));
-  EXPECT_GT(robot_link_com.size[0], child_link_com.size[0]);
-  EXPECT_GT(kRobotCenterOfMassRadius, robot_link_com.size[0]);
+    center_of_mass_marker_radius(model_.get()));
+  EXPECT_FLOAT_EQ(robot_com.size[0], robot_link_com.size[0]);
+  EXPECT_FLOAT_EQ(robot_link_com.size[0], child_link_com.size[0]);
   EXPECT_EQ(child_link_com.transparent, 1);
   for (int axis = 0; axis < 3; ++axis) {
     EXPECT_NEAR(
@@ -177,20 +178,14 @@ TEST_F(CenterOfMassVisualizerTest, AppendsNothingWhenDisabled)
   EXPECT_EQ(scene_.ngeom, 0);
 }
 
-TEST(CenterOfMassVisualizer, ScalesLinkMarkerRadiusByMassWithinBounds)
+TEST(CenterOfMassVisualizer, UsesNativeMujocoCenterOfMassScale)
 {
-  EXPECT_FLOAT_EQ(
-    link_center_of_mass_radius(0.001),
-    kLinkCenterOfMassMinimumRadius);
-  EXPECT_FLOAT_EQ(
-    link_center_of_mass_radius(kLinkCenterOfMassReferenceMass),
-    kLinkCenterOfMassReferenceRadius);
-  EXPECT_FLOAT_EQ(
-    link_center_of_mass_radius(100.0),
-    kLinkCenterOfMassMaximumRadius);
-  EXPECT_LT(
-    link_center_of_mass_radius(0.5),
-    link_center_of_mass_radius(2.0));
+  EXPECT_FLOAT_EQ(center_of_mass_marker_radius(nullptr), 0.0F);
+
+  mjModel scale_model{};
+  scale_model.stat.meansize = 0.25;
+  scale_model.vis.scale.com = 0.12F;
+  EXPECT_FLOAT_EQ(center_of_mass_marker_radius(&scale_model), 0.03F);
 }
 
 }  // namespace ai_sapiens_mujoco
