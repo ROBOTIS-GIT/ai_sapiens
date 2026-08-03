@@ -18,6 +18,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iterator>
+#include <sstream>
 #include <stdexcept>
 
 #include <pluginlib/class_list_macros.hpp>
@@ -62,6 +64,7 @@ void DualSenseTeleopInputPlugin::configure(
     });
 
   RCLCPP_INFO(node_->get_logger(), "%s: topic=%s", name().c_str(), topic_.c_str());
+  log_input_guide();
 }
 
 std::string DualSenseTeleopInputPlugin::name() const
@@ -103,6 +106,89 @@ void DualSenseTeleopInputPlugin::read_config(const YAML::Node & config)
   input_codes_ = read_button_codes(config["input_code"], "input_code", true);
   selector_codes_ = read_button_codes(config["selector_code"], "selector_code", false);
   selector_axis_codes_ = read_axis_codes(config["selector_code"], "selector_code");
+  read_selector_navigation(config["selector_navigation"]);
+  read_input_guide(config["input_guide"]);
+
+  if (selector_navigation_enabled_ &&
+    (!selector_codes_.empty() || !selector_axis_codes_.empty()))
+  {
+    throw std::runtime_error(
+      "selector_navigation cannot be combined with momentary selector_code mappings");
+  }
+}
+
+void DualSenseTeleopInputPlugin::read_selector_navigation(const YAML::Node & node)
+{
+  selector_navigation_enabled_ = false;
+  selector_options_.clear();
+  selected_selector_index_ = 0;
+  previous_buttons_.clear();
+  if (!node) {
+    return;
+  }
+  if (!node["previous_button"] || !node["next_button"] || !node["options"]) {
+    throw std::runtime_error(
+      "selector_navigation requires previous_button, next_button, and options");
+  }
+
+  selector_previous_button_ = node["previous_button"].as<std::size_t>();
+  selector_next_button_ = node["next_button"].as<std::size_t>();
+  if (selector_previous_button_ == selector_next_button_) {
+    throw std::runtime_error("selector_navigation buttons must be different");
+  }
+
+  const auto options = node["options"];
+  if (!options.IsSequence() || options.size() == 0) {
+    throw std::runtime_error("selector_navigation.options must be a non-empty sequence");
+  }
+  for (const auto & option : options) {
+    if (!option["code"] || !option["label"]) {
+      throw std::runtime_error("selector_navigation options require code and label");
+    }
+    const auto code = option["code"].as<uint16_t>();
+    const auto label = option["label"].as<std::string>();
+    if (code == 0 || label.empty()) {
+      throw std::runtime_error("selector_navigation option code and label must be non-empty");
+    }
+    const bool duplicate = std::any_of(
+      selector_options_.begin(), selector_options_.end(),
+      [code](const SelectorOption & existing) {return existing.code == code;});
+    if (duplicate) {
+      throw std::runtime_error("selector_navigation option codes must be unique");
+    }
+    selector_options_.push_back({code, label});
+  }
+
+  if (node["initial_code"]) {
+    const auto initial_code = node["initial_code"].as<uint16_t>();
+    const auto initial = std::find_if(
+      selector_options_.begin(), selector_options_.end(),
+      [initial_code](const SelectorOption & option) {return option.code == initial_code;});
+    if (initial == selector_options_.end()) {
+      throw std::runtime_error("selector_navigation.initial_code is not in options");
+    }
+    selected_selector_index_ =
+      static_cast<std::size_t>(std::distance(selector_options_.begin(), initial));
+  }
+  selector_navigation_enabled_ = true;
+}
+
+void DualSenseTeleopInputPlugin::read_input_guide(const YAML::Node & node)
+{
+  input_guide_.clear();
+  if (!node) {
+    return;
+  }
+  if (!node.IsSequence()) {
+    throw std::runtime_error("input_guide must be a sequence");
+  }
+  for (const auto & entry : node) {
+    const auto text = entry.as<std::string>();
+    if (text.empty()) {
+      throw std::runtime_error("input_guide entries must not be empty");
+    }
+    input_guide_.push_back(text);
+  }
 }
 
 DualSenseTeleopInputPlugin::AxisConfig DualSenseTeleopInputPlugin::read_axis_config(
@@ -258,6 +344,16 @@ TeleopInputCommand DualSenseTeleopInputPlugin::make_command_from_message(
   return command;
 }
 
+void DualSenseTeleopInputPlugin::on_message_accepted(const sensor_msgs::msg::Joy & msg)
+{
+  const bool button_pressed = has_any_button_rising_edge(msg);
+  apply_selector_navigation(msg);
+  if (button_pressed) {
+    log_input_guide();
+  }
+  remember_button_state(msg);
+}
+
 bool DualSenseTeleopInputPlugin::has_configured_axes(
   const sensor_msgs::msg::Joy & msg) const
 {
@@ -309,6 +405,11 @@ bool DualSenseTeleopInputPlugin::has_configured_buttons(const sensor_msgs::msg::
     if (selector_code.index >= button_count) {
       return false;
     }
+  }
+  if (selector_navigation_enabled_ &&
+    (selector_previous_button_ >= button_count || selector_next_button_ >= button_count))
+  {
+    return false;
   }
   return true;
 }
@@ -368,6 +469,9 @@ uint16_t DualSenseTeleopInputPlugin::select_input_code(
 uint16_t DualSenseTeleopInputPlugin::select_selector_code(
   const sensor_msgs::msg::Joy & msg) const
 {
+  if (selector_navigation_enabled_) {
+    return selector_options_[selected_index_after_input(msg)].code;
+  }
   for (const auto & selector_code : selector_codes_) {
     if (is_button_pressed(msg, selector_code.index)) {
       return selector_code.code;
@@ -379,6 +483,96 @@ uint16_t DualSenseTeleopInputPlugin::select_selector_code(
     }
   }
   return 0;
+}
+
+bool DualSenseTeleopInputPlugin::is_button_rising_edge(
+  const sensor_msgs::msg::Joy & msg,
+  std::size_t button) const
+{
+  const bool was_pressed =
+    button < previous_buttons_.size() && previous_buttons_[button] != 0;
+  return is_button_pressed(msg, button) && !was_pressed;
+}
+
+bool DualSenseTeleopInputPlugin::has_any_button_rising_edge(
+  const sensor_msgs::msg::Joy & msg) const
+{
+  for (std::size_t button = 0; button < msg.buttons.size(); ++button) {
+    if (is_button_rising_edge(msg, button)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+int DualSenseTeleopInputPlugin::selector_navigation_step(
+  const sensor_msgs::msg::Joy & msg) const
+{
+  if (!selector_navigation_enabled_) {
+    return 0;
+  }
+  const bool previous = is_button_rising_edge(msg, selector_previous_button_);
+  const bool next = is_button_rising_edge(msg, selector_next_button_);
+  if (previous == next) {
+    return 0;
+  }
+  return previous ? -1 : 1;
+}
+
+std::size_t DualSenseTeleopInputPlugin::selected_index_after_input(
+  const sensor_msgs::msg::Joy & msg) const
+{
+  const int step = selector_navigation_step(msg);
+  if (step < 0) {
+    return selected_selector_index_ == 0 ?
+           selector_options_.size() - 1 : selected_selector_index_ - 1;
+  }
+  if (step > 0) {
+    return (selected_selector_index_ + 1) % selector_options_.size();
+  }
+  return selected_selector_index_;
+}
+
+void DualSenseTeleopInputPlugin::apply_selector_navigation(
+  const sensor_msgs::msg::Joy & msg)
+{
+  if (selector_navigation_enabled_) {
+    selected_selector_index_ = selected_index_after_input(msg);
+  }
+}
+
+void DualSenseTeleopInputPlugin::remember_button_state(
+  const sensor_msgs::msg::Joy & msg)
+{
+  previous_buttons_ = msg.buttons;
+}
+
+void DualSenseTeleopInputPlugin::log_input_guide() const
+{
+  if (!node_) {
+    return;
+  }
+
+  if (selector_navigation_enabled_) {
+    const auto & selected = selector_options_[selected_selector_index_];
+    RCLCPP_INFO(
+      node_->get_logger(), "%s: selected [%zu/%zu] %s (selector=%u)",
+      name().c_str(), selected_selector_index_ + 1, selector_options_.size(),
+      selected.label.c_str(), static_cast<unsigned int>(selected.code));
+  }
+
+  if (!input_guide_.empty()) {
+    std::ostringstream guide;
+    for (std::size_t i = 0; i < input_guide_.size(); ++i) {
+      if (i > 0) {
+        guide << " | ";
+      }
+      guide << input_guide_[i];
+    }
+    RCLCPP_INFO(
+      node_->get_logger(), "%s: key map: %s",
+      name().c_str(), guide.str().c_str());
+  }
 }
 
 }  // namespace ai_sapiens_sim2real
