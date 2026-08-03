@@ -12,6 +12,34 @@ A gantry is modeled as a mocap body weld-constrained to `torso_link`, so the
 robot can spawn hanging, be lowered until the feet touch, and be released once
 a policy is walking — mirroring real robot operation.
 
+## Container
+
+The simulation needs the MuJoCo and GLFW libraries that `docker/Dockerfile`
+installs, so it runs in a locally built image rather than the published arm64
+image used on the robot. Start it with the `--sim` flag:
+
+```bash
+./docker/container.sh start --sim   # build the sim image and start the container
+./docker/container.sh enter         # open a shell inside it
+./docker/container.sh stop --sim    # stop and remove it
+```
+
+Inside the container, build the workspace once (`cb`, then `sb`), then bring the
+stack up. `run_k1_tmux.sh` takes the same flag and starts the Zenoh router, the
+bringup, and `ai_sapiens_sim2real` in three tmux panes:
+
+```bash
+./src/ai_sapiens/run_k1_tmux.sh --sim
+```
+
+The Zenoh router matters: the container sets
+`RMW_IMPLEMENTATION=rmw_zenoh_cpp`, so without `rmw_zenohd` running the spawners
+never reach the controller manager and report "Failed to acquire lock".
+
+colcon build artifacts persist in named volumes across `stop`/`start`. If a
+rebuilt image ever leaves stale artifacts behind, clear them with
+`docker volume rm docker_ai_sapiens_sim_build docker_ai_sapiens_sim_install`.
+
 ## Bringup
 
 Launch the full K1 stack against MuJoCo instead of real hardware (inside the

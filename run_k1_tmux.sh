@@ -3,7 +3,23 @@
 
 set -e
 
-SESSION_NAME="${1:-ai_sapiens}"
+# Pull the --sim flag out of the arguments; the first remaining one names the
+# tmux session.
+SIM=false
+ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+    "--sim") SIM=true ;;
+    *) ARGS+=("$arg") ;;
+  esac
+done
+
+SESSION_NAME="${ARGS[0]:-ai_sapiens}"
+
+BRINGUP_ARGS=""
+if [ "$SIM" = true ]; then
+  BRINGUP_ARGS=" sim_mujoco:=true"
+fi
 
 hold_cmd() {
   local cmd="$1"
@@ -17,7 +33,7 @@ tmux has-session -t "$SESSION_NAME" 2>/dev/null && tmux kill-session -t "$SESSIO
 tmux new-session -d -s "$SESSION_NAME" -- "$(hold_cmd 'ros2 run rmw_zenoh_cpp rmw_zenohd')"
 
 # Split right: top-right — sleep 3s then launch
-tmux split-window -h -t "$SESSION_NAME" -- "$(hold_cmd 'sleep 3; ros2 launch ai_sapiens_bringup k1.launch.py')"
+tmux split-window -h -t "$SESSION_NAME" -- "$(hold_cmd "sleep 3; ros2 launch ai_sapiens_bringup k1.launch.py${BRINGUP_ARGS}")"
 
 # Select top-left and split down: bottom-left — sleep 6s then launch
 tmux select-pane -t "$SESSION_NAME":0.0
