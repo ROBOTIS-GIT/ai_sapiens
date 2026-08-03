@@ -95,6 +95,29 @@ TEST(MujocoSimulation, MitImpedanceHoldsJointAtTarget)
   EXPECT_NE(sim.joint_state(knee).effort, 0.0);
 }
 
+TEST(MujocoSimulation, DampingCommandDoesNotExciteLowInertiaJoints)
+{
+  MujocoSimulation sim;
+  sim.load(scene("scene_gantry.xml"), kJoints);
+  sim.set_hang_height(0.90);
+
+  JointCommand cmd;
+  cmd.kd = 3.0;
+  for (std::size_t i = 0; i < kJoints.size(); ++i) {
+    sim.set_command(i, cmd);
+  }
+
+  double max_abs_velocity = 0.0;
+  for (int step = 0; step < 2000; ++step) {
+    sim.advance(0.001);
+    for (std::size_t i = 0; i < kJoints.size(); ++i) {
+      max_abs_velocity = std::max(max_abs_velocity, std::abs(sim.joint_state(i).velocity));
+    }
+  }
+
+  EXPECT_LT(max_abs_velocity, 5.0);
+}
+
 TEST(MujocoSimulation, ImuStateIsSane)
 {
   MujocoSimulation sim;
