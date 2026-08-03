@@ -23,6 +23,25 @@ RUN set -eux; \
     ldconfig && \
     rm -rf /tmp/onnxruntime /tmp/ort.tgz
 
+ARG MUJOCO_VERSION=3.5.0
+
+RUN set -eux; \
+    case "$TARGETARCH" in \
+      amd64) MJ_ARCH=x86_64 ;; \
+      arm64) MJ_ARCH=aarch64 ;; \
+      *) echo "Unsupported TARGETARCH: $TARGETARCH"; exit 1 ;; \
+    esac && \
+    curl -sL https://github.com/google-deepmind/mujoco/releases/download/${MUJOCO_VERSION}/mujoco-${MUJOCO_VERSION}-linux-${MJ_ARCH}.tar.gz -o /tmp/mujoco.tgz && \
+    mkdir -p /tmp/mujoco && \
+    tar -xzf /tmp/mujoco.tgz -C /tmp/mujoco --strip-components=1 && \
+    cp -r /tmp/mujoco/include/mujoco /usr/local/include/mujoco && \
+    cp -a /tmp/mujoco/lib/. /usr/local/lib/ && \
+    ldconfig && \
+    rm -rf /tmp/mujoco /tmp/mujoco.tgz
+
+RUN apt-get update && apt-get install -y --no-install-recommends libglfw3-dev && \
+    rm -rf /var/lib/apt/lists/*
+
 ENV COLCON_WS=/root/ros2_ws
 WORKDIR ${COLCON_WS}
 
