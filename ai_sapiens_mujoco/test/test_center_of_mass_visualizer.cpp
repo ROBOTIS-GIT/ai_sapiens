@@ -136,10 +136,10 @@ TEST_F(CenterOfMassVisualizerTest, AppendsRobotAndLinkMarkers)
   EXPECT_EQ(child_link_com.objid, link_id);
   EXPECT_FLOAT_EQ(
     robot_link_com.size[0],
-    link_center_of_mass_radius(model_->body_mass[robot_id]));
+    kLinkCenterOfMassMaximumRadius);
   EXPECT_FLOAT_EQ(
     child_link_com.size[0],
-    link_center_of_mass_radius(model_->body_mass[link_id]));
+    kLinkCenterOfMassMinimumRadius);
   EXPECT_GT(robot_link_com.size[0], child_link_com.size[0]);
   EXPECT_GT(robot_com.size[0], robot_link_com.size[0]);
   EXPECT_EQ(child_link_com.transparent, 1);
@@ -177,25 +177,33 @@ TEST_F(CenterOfMassVisualizerTest, AppendsNothingWhenDisabled)
   EXPECT_EQ(scene_.ngeom, 0);
 }
 
-TEST(CenterOfMassVisualizer, ScalesLinkMarkersAcrossK1MassRange)
+TEST(CenterOfMassVisualizer, SpansVisualRangeAcrossK1Masses)
 {
   EXPECT_FLOAT_EQ(
-    link_center_of_mass_radius(0.001),
+    link_center_of_mass_radius(0.0, 0.369, 7.719359),
     kLinkCenterOfMassMinimumRadius);
   EXPECT_FLOAT_EQ(
-    link_center_of_mass_radius(kLinkCenterOfMassReferenceMass),
-    kLinkCenterOfMassReferenceRadius);
+    link_center_of_mass_radius(0.369, 0.369, 7.719359),
+    kLinkCenterOfMassMinimumRadius);
   EXPECT_FLOAT_EQ(
-    link_center_of_mass_radius(100.0),
+    link_center_of_mass_radius(7.719359, 0.369, 7.719359),
     kLinkCenterOfMassMaximumRadius);
 
-  const float lightest_k1_link_radius =
-    link_center_of_mass_radius(0.369);
-  const float heaviest_k1_link_radius =
-    link_center_of_mass_radius(7.719359);
-  EXPECT_NEAR(lightest_k1_link_radius, 0.00574F, 1.0e-5F);
-  EXPECT_NEAR(heaviest_k1_link_radius, 0.01581F, 1.0e-5F);
-  EXPECT_GT(heaviest_k1_link_radius, 2.5F * lightest_k1_link_radius);
+  const float one_kilogram_radius =
+    link_center_of_mass_radius(1.0, 0.369, 7.719359);
+  const float torso_radius =
+    link_center_of_mass_radius(3.6118822, 0.369, 7.719359);
+  EXPECT_GT(one_kilogram_radius, kLinkCenterOfMassMinimumRadius);
+  EXPECT_LT(one_kilogram_radius, torso_radius);
+  EXPECT_LT(torso_radius, kLinkCenterOfMassMaximumRadius);
+}
+
+TEST(CenterOfMassVisualizer, UsesMidpointWhenAllLinksHaveEqualMass)
+{
+  EXPECT_FLOAT_EQ(
+    link_center_of_mass_radius(1.0, 1.0, 1.0),
+    0.5F *
+    (kLinkCenterOfMassMinimumRadius + kLinkCenterOfMassMaximumRadius));
 }
 
 }  // namespace ai_sapiens_mujoco
