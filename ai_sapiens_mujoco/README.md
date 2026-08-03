@@ -99,9 +99,9 @@ The viewer window (enabled by default) renders the scene at ~60 Hz. A
 MuJoCo-native side panel keeps diagnostics and controls out of the 3D viewport.
 The `Diagnostics` section shows measured render FPS, current contact count, and
 the active mouse-force target. `Visualization` provides native checkboxes for
-contact points, contact forces, inertia boxes, and center of mass. When the
-gantry scene is active, the `Gantry` section shows its state and provides
-motion and attach/release buttons:
+visual meshes, collision geometry, contact points, contact forces, inertia
+boxes, and center of mass. When the gantry scene is active, the `Gantry`
+section shows its state and provides motion and attach/release buttons:
 
 | Input | Action |
 | --- | --- |
@@ -109,8 +109,9 @@ motion and attach/release buttons:
 | `Attach robot` / `Release robot` | Toggle the gantry weld with the on-screen buttons. |
 | `Up` / `Down` | Nudge the gantry hook target ±0.02 m. |
 | `A` / `R` | Attach or release the gantry (same as the corresponding services). |
+| `V` / `G` | Toggle robot visual meshes / collision geometry. |
 | `C` / `F` | Toggle contact points / one lime normal-force line per contact point. |
-| `I` / `M` | Toggle equivalent inertia boxes / center-of-mass visualization. |
+| `I` / `M` | Toggle equivalent inertia boxes / the red center-of-mass marker. Visual meshes become translucent while CoM is shown. |
 | Left mouse drag | Orbit the camera. |
 | Right mouse drag | Pan the camera. |
 | `Ctrl` + right mouse drag | Select a body and apply an external mouse-spring force. |

@@ -24,6 +24,7 @@
 #include <utility>
 
 #include "ai_sapiens_mujoco/contact_force_visualizer.hpp"
+#include "ai_sapiens_mujoco/viewer_scene_styling.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 namespace ai_sapiens_mujoco
@@ -151,6 +152,8 @@ void MujocoViewer::run()
       mjv_updateScene(
         sim_->model(), sim_->data(), &scene_options, &pert_, &cam_,
         mjCAT_ALL, &scn_);
+      apply_center_of_mass_visual_style(
+        sim_->model(), scene_options, &scn_);
       if (show_contact_forces) {
         append_contact_normal_force_lines(
           sim_->model(), sim_->data(), &scn_);
