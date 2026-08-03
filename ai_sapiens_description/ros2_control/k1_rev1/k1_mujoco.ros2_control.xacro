@@ -1,0 +1,100 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="k1_mujoco_system" params="viewer:=^|true gantry:=^|true">
+    <ros2_control name="k1_mujoco" type="system">
+      <hardware>
+        <plugin>ai_sapiens_mujoco/MujocoSystem</plugin>
+        <xacro:if value="${gantry}">
+          <param name="scene_file">$(find ai_sapiens_description)/mujoco/k1/scene_gantry.xml</param>
+        </xacro:if>
+        <xacro:unless value="${gantry}">
+          <param name="scene_file">$(find ai_sapiens_description)/mujoco/k1/scene.xml</param>
+        </xacro:unless>
+        <param name="viewer">${viewer}</param>
+        <param name="gantry">${gantry}</param>
+        <param name="hang_height">0.90</param>
+        <param name="rc_channel_defaults">1500,1500,1500,1500,1000,1500,2000,2000,1000,1000,1000,1000,1500,1500,1500,1500</param>
+      </hardware>
+
+      <xacro:macro name="mj_joint" params="name">
+        <joint name="${name}">
+          <command_interface name="position"/>
+          <command_interface name="feedforward"/>
+          <command_interface name="proportional"/>
+          <command_interface name="derivative"/>
+          <state_interface name="position"/>
+          <state_interface name="velocity"/>
+          <state_interface name="effort"/>
+        </joint>
+      </xacro:macro>
+      <xacro:mj_joint name="left_hip_pitch_joint"/>
+      <xacro:mj_joint name="left_hip_roll_joint"/>
+      <xacro:mj_joint name="left_hip_yaw_joint"/>
+      <xacro:mj_joint name="left_knee_joint"/>
+      <xacro:mj_joint name="left_ankle_pitch_joint"/>
+      <xacro:mj_joint name="left_ankle_roll_joint"/>
+      <xacro:mj_joint name="right_hip_pitch_joint"/>
+      <xacro:mj_joint name="right_hip_roll_joint"/>
+      <xacro:mj_joint name="right_hip_yaw_joint"/>
+      <xacro:mj_joint name="right_knee_joint"/>
+      <xacro:mj_joint name="right_ankle_pitch_joint"/>
+      <xacro:mj_joint name="right_ankle_roll_joint"/>
+      <xacro:mj_joint name="waist_yaw_joint"/>
+      <xacro:mj_joint name="left_shoulder_pitch_joint"/>
+      <xacro:mj_joint name="left_shoulder_roll_joint"/>
+      <xacro:mj_joint name="left_shoulder_yaw_joint"/>
+      <xacro:mj_joint name="left_elbow_joint"/>
+      <xacro:mj_joint name="left_wrist_roll_joint"/>
+      <xacro:mj_joint name="right_shoulder_pitch_joint"/>
+      <xacro:mj_joint name="right_shoulder_roll_joint"/>
+      <xacro:mj_joint name="right_shoulder_yaw_joint"/>
+      <xacro:mj_joint name="right_elbow_joint"/>
+      <xacro:mj_joint name="right_wrist_roll_joint"/>
+
+      <sensor name="imu">
+        <state_interface name="linear_acceleration.x"/>
+        <state_interface name="linear_acceleration.y"/>
+        <state_interface name="linear_acceleration.z"/>
+        <state_interface name="angular_velocity.x"/>
+        <state_interface name="angular_velocity.y"/>
+        <state_interface name="angular_velocity.z"/>
+        <state_interface name="orientation.w"/>
+        <state_interface name="orientation.x"/>
+        <state_interface name="orientation.y"/>
+        <state_interface name="orientation.z"/>
+      </sensor>
+
+      <sensor name="hat">
+        <state_interface name="Hardware Error Status"/>
+        <state_interface name="Realtime Tick"/>
+        <state_interface name="E-stop Active"/>
+        <state_interface name="BMS SOC"/>
+        <state_interface name="BMS Voltage"/>
+        <state_interface name="BMS Current"/>
+        <state_interface name="BMS Temperature"/>
+        <state_interface name="BMS Service Error Flags"/>
+        <state_interface name="BMS Remaining Energy"/>
+        <state_interface name="CRSF Failsafe"/>
+        <state_interface name="CRSF Link Quality"/>
+        <state_interface name="CRSF RSSI 1"/>
+        <state_interface name="CRSF Last Frame Age"/>
+        <state_interface name="RC Channel 1"/>
+        <state_interface name="RC Channel 2"/>
+        <state_interface name="RC Channel 3"/>
+        <state_interface name="RC Channel 4"/>
+        <state_interface name="RC Channel 5"/>
+        <state_interface name="RC Channel 6"/>
+        <state_interface name="RC Channel 7"/>
+        <state_interface name="RC Channel 8"/>
+        <state_interface name="RC Channel 9"/>
+        <state_interface name="RC Channel 10"/>
+        <state_interface name="RC Channel 11"/>
+        <state_interface name="RC Channel 12"/>
+        <state_interface name="RC Channel 13"/>
+        <state_interface name="RC Channel 14"/>
+        <state_interface name="RC Channel 15"/>
+        <state_interface name="RC Channel 16"/>
+      </sensor>
+    </ros2_control>
+  </xacro:macro>
+</robot>
