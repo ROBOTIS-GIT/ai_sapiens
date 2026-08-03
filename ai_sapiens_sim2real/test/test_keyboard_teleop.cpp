@@ -78,7 +78,7 @@ TEST(KeyboardTeleopState, StartsSafeAndMapsModeVelocityAndAuthority)
 {
   KeyboardTeleopState state(config());
 
-  auto message = state.make_message(1);
+  auto message = state.take_message(1);
   EXPECT_EQ(message.input_code, 1);
   EXPECT_EQ(message.selector_code, 200);
   EXPECT_FALSE(message.api_mode);
@@ -89,13 +89,13 @@ TEST(KeyboardTeleopState, StartsSafeAndMapsModeVelocityAndAuthority)
   }
   EXPECT_TRUE(state.apply(KeyboardAction::kLeft));
   EXPECT_TRUE(state.apply(KeyboardAction::kYawRight));
-  message = state.make_message(2);
+  message = state.take_message(2);
   EXPECT_FLOAT_EQ(message.linear_x, 1.0F);
   EXPECT_FLOAT_EQ(message.linear_y, 0.25F);
   EXPECT_FLOAT_EQ(message.angular_z, -0.25F);
 
   EXPECT_TRUE(state.apply(KeyboardAction::kVelocity));
-  message = state.make_message(3);
+  message = state.take_message(3);
   EXPECT_EQ(message.input_code, 3);
   EXPECT_FLOAT_EQ(message.linear_x, 0.0F);
   EXPECT_FLOAT_EQ(message.linear_y, 0.0F);
@@ -103,12 +103,12 @@ TEST(KeyboardTeleopState, StartsSafeAndMapsModeVelocityAndAuthority)
 
   EXPECT_TRUE(state.apply(KeyboardAction::kForward));
   EXPECT_TRUE(state.apply(KeyboardAction::kToggleApi));
-  message = state.make_message(4);
+  message = state.take_message(4);
   EXPECT_TRUE(message.api_mode);
   EXPECT_FLOAT_EQ(message.linear_x, 0.0F);
 
   EXPECT_TRUE(state.apply(KeyboardAction::kReadyPose));
-  message = state.make_message(5);
+  message = state.take_message(5);
   EXPECT_FALSE(message.api_mode);
   EXPECT_EQ(message.input_code, 2);
 }
@@ -118,14 +118,23 @@ TEST(KeyboardTeleopState, WrapsAndLatchesSelector)
   KeyboardTeleopState state(config());
 
   EXPECT_TRUE(state.apply(KeyboardAction::kPreviousSelector));
-  EXPECT_EQ(state.make_message(1).selector_code, 202);
+  EXPECT_EQ(state.take_message(1).selector_code, 202);
   EXPECT_TRUE(state.apply(KeyboardAction::kNextSelector));
-  EXPECT_EQ(state.make_message(2).selector_code, 200);
+  EXPECT_EQ(state.take_message(2).selector_code, 200);
   EXPECT_TRUE(state.apply(KeyboardAction::kNextSelector));
-  EXPECT_EQ(state.make_message(3).selector_code, 201);
+  EXPECT_EQ(state.take_message(3).selector_code, 201);
+
   EXPECT_TRUE(state.apply(KeyboardAction::kMimic));
-  EXPECT_EQ(state.make_message(4).selector_code, 201);
-  EXPECT_EQ(state.make_message(4).input_code, 4);
+  EXPECT_TRUE(state.mimic_request_pending());
+  auto message = state.take_message(4);
+  EXPECT_EQ(message.selector_code, 201);
+  EXPECT_EQ(message.input_code, 4);
+  EXPECT_EQ(state.take_message(5).input_code, 4);
+  EXPECT_FALSE(state.mimic_request_pending());
+  EXPECT_EQ(state.take_message(6).input_code, 0);
+
+  EXPECT_TRUE(state.apply(KeyboardAction::kMimic));
+  EXPECT_EQ(state.take_message(7).input_code, 4);
 }
 
 TEST(KeyboardTeleopConfig, RejectsUnsafeConfiguration)

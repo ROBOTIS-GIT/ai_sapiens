@@ -129,10 +129,14 @@ public:
 private:
   void publish_state()
   {
-    auto message = state_->make_message(++sequence_);
+    const bool had_pending_mimic_request = state_->mimic_request_pending();
+    auto message = state_->take_message(++sequence_);
     message.header.stamp = now();
     message.header.frame_id = "keyboard";
     publisher_->publish(message);
+    if (had_pending_mimic_request && !state_->mimic_request_pending()) {
+      print_guide();
+    }
   }
 
   void read_keyboard()

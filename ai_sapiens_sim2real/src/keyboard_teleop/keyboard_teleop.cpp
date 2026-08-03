@@ -30,6 +30,8 @@ namespace ai_sapiens_sim2real
 namespace
 {
 
+constexpr uint8_t kMimicRequestSampleCount = 2;
+
 uint16_t read_input_code(
   const YAML::Node & input_codes, const std::string & name, uint16_t fallback)
 {
@@ -229,7 +231,7 @@ bool KeyboardTeleopState::apply(KeyboardAction action)
       set_mode(config_.velocity_code, "Velocity");
       return true;
     case KeyboardAction::kMimic:
-      set_mode(config_.mimic_code, "Mimic");
+      queue_mimic_request();
       return true;
     case KeyboardAction::kForward:
       add_clamped(linear_x_, config_.velocity_step);
@@ -259,6 +261,7 @@ bool KeyboardTeleopState::apply(KeyboardAction action)
       select_next();
       return true;
     case KeyboardAction::kToggleApi:
+      mimic_request_samples_remaining_ = 0;
       api_mode_ = !api_mode_;
       if (api_mode_) {
         clear_velocity();
@@ -272,13 +275,18 @@ bool KeyboardTeleopState::apply(KeyboardAction action)
   }
 }
 
-ai_sapiens_interfaces::msg::KeyboardInput KeyboardTeleopState::make_message(
-  uint32_t sequence) const
+ai_sapiens_interfaces::msg::KeyboardInput KeyboardTeleopState::take_message(
+  uint32_t sequence)
 {
   ai_sapiens_interfaces::msg::KeyboardInput message;
   message.sequence = sequence;
   message.api_mode = api_mode_;
-  message.input_code = input_code_;
+  if (mimic_request_pending()) {
+    message.input_code = config_.mimic_code;
+    --mimic_request_samples_remaining_;
+  } else {
+    message.input_code = input_code_;
+  }
   message.selector_code = config_.selector_options[selector_index_].code;
   message.linear_x = linear_x_;
   message.linear_y = linear_y_;
@@ -286,12 +294,21 @@ ai_sapiens_interfaces::msg::KeyboardInput KeyboardTeleopState::make_message(
   return message;
 }
 
+bool KeyboardTeleopState::mimic_request_pending() const
+{
+  return mimic_request_samples_remaining_ > 0;
+}
+
 std::string KeyboardTeleopState::status_line() const
 {
   const auto & selector = config_.selector_options[selector_index_];
+  const uint16_t displayed_input_code =
+    mimic_request_pending() ? config_.mimic_code : input_code_;
+  const std::string displayed_input_label =
+    mimic_request_pending() ? "Mimic" : input_label_;
   std::ostringstream status;
   status << "authority=" << (api_mode_ ? "API" : "MANUAL")
-         << " | request=" << input_label_ << '(' << input_code_ << ')'
+         << " | request=" << displayed_input_label << '(' << displayed_input_code << ')'
          << " | selector=[" << selector_index_ + 1 << '/'
          << config_.selector_options.size() << "] "
          << selector.label << '(' << selector.code << ')'
@@ -328,9 +345,19 @@ void KeyboardTeleopState::clear_velocity()
 
 void KeyboardTeleopState::set_mode(uint16_t input_code, std::string label)
 {
+  mimic_request_samples_remaining_ = 0;
   api_mode_ = false;
   input_code_ = input_code;
   input_label_ = std::move(label);
+  clear_velocity();
+}
+
+void KeyboardTeleopState::queue_mimic_request()
+{
+  api_mode_ = false;
+  input_code_ = 0;
+  input_label_ = "Neutral";
+  mimic_request_samples_remaining_ = kMimicRequestSampleCount;
   clear_velocity();
 }
 

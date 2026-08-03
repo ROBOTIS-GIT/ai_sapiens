@@ -85,7 +85,8 @@ public:
   explicit KeyboardTeleopState(KeyboardTeleopConfig config);
 
   bool apply(KeyboardAction action);
-  ai_sapiens_interfaces::msg::KeyboardInput make_message(uint32_t sequence) const;
+  ai_sapiens_interfaces::msg::KeyboardInput take_message(uint32_t sequence);
+  bool mimic_request_pending() const;
   std::string status_line() const;
 
   static std::string key_map();
@@ -95,6 +96,7 @@ private:
   void select_next();
   void clear_velocity();
   void set_mode(uint16_t input_code, std::string label);
+  void queue_mimic_request();
   void add_clamped(float & value, float increment);
 
   KeyboardTeleopConfig config_;
@@ -105,6 +107,7 @@ private:
   float linear_x_{0.0F};
   float linear_y_{0.0F};
   float angular_z_{0.0F};
+  uint8_t mimic_request_samples_remaining_{0};
 };
 
 }  // namespace ai_sapiens_sim2real

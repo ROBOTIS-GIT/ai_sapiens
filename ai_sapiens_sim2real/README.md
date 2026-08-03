@@ -234,7 +234,9 @@ The keyboard publisher starts in Damping, publishes an advancing sequence at
 20 Hz, and restores the terminal when it exits. If the pane or publisher stops,
 the existing teleop watchdog marks the input unavailable. Velocity values are
 latched and adjusted in 0.2 normalized increments; press Space or select a mode
-to zero them.
+to zero them. Mimic is emitted as a momentary request and then returns to a
+neutral request, so selecting another motion and pressing `4` creates a new
+edge-triggered Mimic request.
 
 | Key | Action |
 | --- | --- |

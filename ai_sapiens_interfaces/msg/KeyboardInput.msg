@@ -4,6 +4,7 @@ std_msgs/Header header
 uint32 sequence
 
 bool api_mode
+# Zero is a neutral request used to re-arm edge-triggered mode commands.
 uint16 input_code
 uint16 selector_code
 
