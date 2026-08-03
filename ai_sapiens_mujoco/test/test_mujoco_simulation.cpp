@@ -208,6 +208,8 @@ TEST(MujocoSimulationGantry, ReleaseAndAttachToggleWeld)
   sim.load(scene("scene_gantry.xml"), kJoints);
   sim.set_hang_height(0.90);
   EXPECT_FALSE(sim.gantry_attach());
+  const double hanging_z = sim.data()->qpos[2];
+  const double hanging_gantry_z = sim.gantry_height();
   ASSERT_TRUE(sim.gantry_release());
   EXPECT_FALSE(sim.gantry_attached());
   // Motion commands fail while released, and the robot falls freely.
@@ -219,21 +221,24 @@ TEST(MujocoSimulationGantry, ReleaseAndAttachToggleWeld)
   }
   EXPECT_LT(sim.data()->qpos[2], z_before);  // free fall: robot drops
 
-  // Reattach at the robot's current pose instead of snapping it to the old hook pose.
-  const double z_before_attach = sim.data()->qpos[2];
+  // Reattach restores the robot under the last active gantry pose.
   ASSERT_TRUE(sim.gantry_attach());
   EXPECT_TRUE(sim.gantry_attached());
-  EXPECT_NEAR(sim.data()->qpos[2], z_before_attach, 1e-12);
+  EXPECT_NEAR(sim.data()->qpos[2], hanging_z, 1e-12);
+  EXPECT_NEAR(sim.gantry_height(), hanging_gantry_z, 1e-12);
+  for (int i = 0; i < sim.model()->nv; ++i) {
+    EXPECT_NEAR(sim.data()->qvel[i], 0.0, 1e-12);
+  }
   EXPECT_FALSE(sim.gantry_attach());
   EXPECT_TRUE(sim.gantry_set_target(sim.gantry_height() + 0.02, 0.2));
   for (int i = 0; i < 20; ++i) {
     sim.advance(0.001);
   }
-  EXPECT_LT(std::abs(sim.data()->qpos[2] - z_before_attach), 0.05);
+  EXPECT_LT(std::abs(sim.data()->qpos[2] - hanging_z), 0.05);
   EXPECT_TRUE(sim.gantry_release());
 }
 
-TEST(MujocoSimulationGantry, ReattachKeepsGantryUprightForFallenRobot)
+TEST(MujocoSimulationGantry, ReattachRestoresUprightHangingPoseForFallenRobot)
 {
   MujocoSimulation sim;
   sim.load(scene("scene_gantry.xml"), kJoints);
@@ -247,24 +252,32 @@ TEST(MujocoSimulationGantry, ReattachKeepsGantryUprightForFallenRobot)
   ASSERT_GE(gantry_mocap, 0);
 
   std::array<mjtNum, 4> upright_gantry_quat;
+  std::array<mjtNum, 4> upright_robot_quat;
   mju_copy4(upright_gantry_quat.data(), data->mocap_quat + 4 * gantry_mocap);
+  mju_copy4(upright_robot_quat.data(), data->qpos + 3);
+  const double hanging_z = data->qpos[2];
 
   ASSERT_TRUE(sim.gantry_release());
   const mjtNum roll_axis[3] = {1.0, 0.0, 0.0};
   mjtNum fallen_robot_quat[4];
   mju_axisAngle2Quat(fallen_robot_quat, roll_axis, 0.5 * M_PI);
   mju_copy4(data->qpos + 3, fallen_robot_quat);
+  data->qpos[2] = 0.3;
+  mju_fill(data->qvel, 1.0, model->nv);
   mj_forward(model, data);
-  const double z_before_attach = data->qpos[2];
 
   ASSERT_TRUE(sim.gantry_attach());
-  EXPECT_NEAR(data->qpos[2], z_before_attach, 1e-12);
+  EXPECT_NEAR(data->qpos[2], hanging_z, 1e-12);
+  EXPECT_GT(std::abs(mju_dot(data->qpos + 3, upright_robot_quat.data(), 4)), 0.999999);
+  for (int i = 0; i < model->nv; ++i) {
+    EXPECT_NEAR(data->qvel[i], 0.0, 1e-12);
+  }
   for (int i = 0; i < 4; ++i) {
     EXPECT_NEAR(data->mocap_quat[4 * gantry_mocap + i], upright_gantry_quat[i], 1e-12);
   }
 
   sim.advance(0.002);
-  EXPECT_GT(std::abs(mju_dot(data->qpos + 3, fallen_robot_quat, 4)), 0.999);
+  EXPECT_GT(std::abs(mju_dot(data->qpos + 3, upright_robot_quat.data(), 4)), 0.999);
 }
 
 TEST(MujocoSimulationGantry, PlainSceneHasNoGantry)

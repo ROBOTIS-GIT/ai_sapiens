@@ -92,6 +92,19 @@ void MujocoSimulation::load(
       } else if (body2 == gantry_body_) {
         gantry_robot_body_ = body1;
       }
+      for (int body = gantry_robot_body_; body > 0; body = model_->body_parentid[body]) {
+        const int joint_begin = model_->body_jntadr[body];
+        const int joint_end = joint_begin + model_->body_jntnum[body];
+        for (int joint = joint_begin; joint < joint_end; ++joint) {
+          if (model_->jnt_type[joint] == mjJNT_FREE) {
+            robot_free_qpos_adr_ = model_->jnt_qposadr[joint];
+            break;
+          }
+        }
+        if (robot_free_qpos_adr_ >= 0) {
+          break;
+        }
+      }
       gantry_target_z_ = data_->mocap_pos[3 * gantry_mocap_ + 2];
       gantry_released_ = data_->eq_active[gantry_eq_] == 0;
       mju_copy4(
@@ -104,12 +117,20 @@ void MujocoSimulation::load(
   if (gantry_robot_body_ >= 0) {
     const mjtNum * gantry_pos = data_->xpos + 3 * gantry_body_;
     const mjtNum * gantry_quat = data_->xquat + 4 * gantry_body_;
-    const mjtNum * robot_pos = data_->xpos + 3 * gantry_robot_body_;
     mjtNum inverse_gantry_quat[4];
     mjtNum world_offset[3];
     mju_negQuat(inverse_gantry_quat, gantry_quat);
-    mju_sub3(world_offset, robot_pos, gantry_pos);
-    mju_rotVecQuat(gantry_to_robot_pos_.data(), world_offset, inverse_gantry_quat);
+
+    if (robot_free_qpos_adr_ >= 0) {
+      const mjtNum * base_pos = data_->qpos + robot_free_qpos_adr_;
+      const mjtNum * base_quat = base_pos + 3;
+      mju_sub3(world_offset, base_pos, gantry_pos);
+      mju_rotVecQuat(gantry_to_base_pos_.data(), world_offset, inverse_gantry_quat);
+      mju_mulQuat(gantry_to_base_quat_.data(), inverse_gantry_quat, base_quat);
+      mju_copy3(
+        gantry_attach_pos_.data(),
+        data_->mocap_pos + 3 * gantry_mocap_);
+    }
   }
 }
 
@@ -237,27 +258,36 @@ bool MujocoSimulation::gantry_attach()
   std::lock_guard<std::mutex> lock(mutex_);
   if (
     gantry_mocap_ < 0 || gantry_eq_ < 0 || gantry_robot_body_ < 0 ||
+    robot_free_qpos_adr_ < 0 ||
     data_->eq_active[gantry_eq_] != 0 || !gantry_released_)
   {
     return false;
   }
 
-  mjtNum robot_pos[3];
   mjtNum world_offset[3];
-  mju_copy3(robot_pos, data_->xpos + 3 * gantry_robot_body_);
 
   mjtNum * mocap_pos = data_->mocap_pos + 3 * gantry_mocap_;
   mjtNum * mocap_quat = data_->mocap_quat + 4 * gantry_mocap_;
+  mju_copy3(mocap_pos, gantry_attach_pos_.data());
   mju_copy4(mocap_quat, gantry_upright_quat_.data());
-  mju_rotVecQuat(world_offset, gantry_to_robot_pos_.data(), mocap_quat);
-  mju_sub3(mocap_pos, robot_pos, world_offset);
+
+  // Return the floating base to its canonical upright hanging transform under
+  // the last active gantry position. Joint positions are intentionally kept.
+  mjtNum * base_pos = data_->qpos + robot_free_qpos_adr_;
+  mjtNum * base_quat = base_pos + 3;
+  mju_rotVecQuat(world_offset, gantry_to_base_pos_.data(), mocap_quat);
+  mju_add3(base_pos, mocap_pos, world_offset);
+  mju_mulQuat(base_quat, mocap_quat, gantry_to_base_quat_.data());
+  mju_normalize4(base_quat);
+
+  // A reattached robot should hang at rest instead of carrying fall/contact
+  // momentum into the weld.
+  mju_zero(data_->qvel, model_->nv);
   gantry_target_z_ = mocap_pos[2];
   gantry_speed_ = 0.0;
 
-  // Preserve the fallen robot pose by updating the weld's relative pose,
-  // rather than rotating the gantry mocap body to match the robot.
-  // Refresh body poses while the weld is inactive, then choose the robot
-  // origin as a common world anchor for both sides of the weld.
+  // Refresh body poses while the weld is inactive, then choose the restored
+  // robot origin as a common world anchor for both sides of the weld.
   mj_forward(model_, data_);
 
   const int body1 = model_->eq_obj1id[gantry_eq_];
@@ -301,6 +331,9 @@ bool MujocoSimulation::gantry_release()
   data_->eq_active[gantry_eq_] = 0;
   gantry_released_ = true;
   gantry_speed_ = 0.0;
+  mju_copy3(
+    gantry_attach_pos_.data(),
+    data_->mocap_pos + 3 * gantry_mocap_);
   data_->mocap_pos[3 * gantry_mocap_ + 2] += 1.0;  // park the visual out of the way
   gantry_target_z_ = data_->mocap_pos[3 * gantry_mocap_ + 2];
   mj_forward(model_, data_);
