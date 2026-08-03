@@ -26,6 +26,7 @@
 #include <mutex>
 #include <utility>
 
+#include "ai_sapiens_mujoco/contact_force_visualizer.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 namespace ai_sapiens_mujoco
@@ -146,8 +147,17 @@ void MujocoViewer::run()
       std::lock_guard<std::mutex> lock(sim_->mutex());
       apply_external_force_locked();
       contact_count_ = sim_->data()->ncon;
+      mjvOption scene_options = opt_;
+      const bool show_contact_forces =
+        scene_options.flags[mjVIS_CONTACTFORCE] != 0;
+      scene_options.flags[mjVIS_CONTACTFORCE] = 0;
       mjv_updateScene(
-        sim_->model(), sim_->data(), &opt_, &pert_, &cam_, mjCAT_ALL, &scn_);
+        sim_->model(), sim_->data(), &scene_options, &pert_, &cam_,
+        mjCAT_ALL, &scn_);
+      if (show_contact_forces) {
+        append_contact_normal_force_arrows(
+          sim_->model(), sim_->data(), &scn_);
+      }
     }
     mjrRect viewport{0, 0, 0, 0};
     glfwGetFramebufferSize(window, &viewport.width, &viewport.height);
