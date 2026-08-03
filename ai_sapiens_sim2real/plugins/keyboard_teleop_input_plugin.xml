@@ -1,0 +1,10 @@
+<library path="keyboard_teleop_input_plugin">
+  <class
+    name="ai_sapiens_sim2real/KeyboardTeleopInputPlugin"
+    type="ai_sapiens_sim2real::KeyboardTeleopInputPlugin"
+    base_class_type="ai_sapiens_sim2real::TeleopInputPluginBase">
+    <description>
+      Keyboard teleop plugin for converting watchdog-enabled keyboard input messages to sim2real commands.
+    </description>
+  </class>
+</library>

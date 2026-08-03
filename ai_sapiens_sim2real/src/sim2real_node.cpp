@@ -80,6 +80,8 @@ void Sim2RealNode::declare_node_parameters()
     "api_heartbeat_topic", "/ai_sapiens/api_heartbeat");
   node_->declare_parameter<double>("api_heartbeat_timeout", 0.2);
   node_->declare_parameter<std::string>("cmd_vel_topic", "/cmd_vel");
+  node_->declare_parameter<std::string>("teleop_input_plugin", "");
+  node_->declare_parameter<std::string>("teleop_input_config_path", "");
   node_->declare_parameter<std::string>(
     "set_mode_by_name_service", "/ai_sapiens/set_mode_by_name");
   node_->declare_parameter<std::string>("list_modes_service", "/ai_sapiens/list_modes");
@@ -116,6 +118,10 @@ NodeOptions Sim2RealNode::read_node_options() const
   options.api_heartbeat_timeout =
     node_->get_parameter("api_heartbeat_timeout").as_double();
   options.cmd_vel_topic = node_->get_parameter("cmd_vel_topic").as_string();
+  options.teleop_input_plugin =
+    node_->get_parameter("teleop_input_plugin").as_string();
+  options.teleop_input_config_path =
+    node_->get_parameter("teleop_input_config_path").as_string();
   options.set_mode_by_name_service =
     node_->get_parameter("set_mode_by_name_service").as_string();
   options.list_modes_service = node_->get_parameter("list_modes_service").as_string();
@@ -131,6 +137,11 @@ void Sim2RealNode::log_startup_options() const
   RCLCPP_INFO(node_->get_logger(), "Config: %s", options_.config_path.c_str());
   RCLCPP_INFO(node_->get_logger(), "IMU topic: %s", options_.imu_topic.c_str());
   RCLCPP_INFO(node_->get_logger(), "Joint states topic: %s", options_.joint_states_topic.c_str());
+  if (!options_.teleop_input_plugin.empty()) {
+    RCLCPP_INFO(
+      node_->get_logger(), "Teleop plugin override: %s",
+      options_.teleop_input_plugin.c_str());
+  }
 }
 
 void Sim2RealNode::configure()
@@ -213,6 +224,12 @@ void Sim2RealNode::add_operator_command_inputs()
   input_options.api_heartbeat_topic = options_.api_heartbeat_topic;
   input_options.api_heartbeat_timeout = options_.api_heartbeat_timeout;
   input_options.cmd_vel_topic = options_.cmd_vel_topic;
+  if (!options_.teleop_input_plugin.empty()) {
+    input_options.teleop_input_plugin = options_.teleop_input_plugin;
+  }
+  if (!options_.teleop_input_config_path.empty()) {
+    input_options.teleop_input_config_path = options_.teleop_input_config_path;
+  }
 
   operator_command_inputs_ =
     add_operator_command_input_handles(control_loop_, node_, shared_data_, input_options);

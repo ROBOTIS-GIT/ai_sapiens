@@ -151,6 +151,9 @@ sections:
 The reference configuration is
 [`config/k1_config.yaml`](config/k1_config.yaml), and its Radiomaster mapping
 is [`config/teleop/radiomaster_pocket.yaml`](config/teleop/radiomaster_pocket.yaml).
+PC-only operation can instead use
+[`config/teleop/keyboard.yaml`](config/teleop/keyboard.yaml) without changing
+the robot configuration.
 
 ### Policy assets
 
@@ -218,6 +221,49 @@ After hardware, controllers, inputs, and policies have been verified:
 ros2 launch ai_sapiens_sim2real ai_sapiens_sim2real.launch.py robot:=k1
 ```
 
+### Keyboard teleop
+
+Build and source the workspace, then start the complete tmux layout with an
+interactive keyboard pane:
+
+```bash
+./run_k1_tmux.sh --keyboard
+```
+
+The keyboard publisher starts in Damping, publishes an advancing sequence at
+20 Hz, and restores the terminal when it exits. If the pane or publisher stops,
+the existing teleop watchdog marks the input unavailable. Velocity values are
+latched and adjusted in 0.2 normalized increments; press Space or select a mode
+to zero them.
+
+| Key | Action |
+| --- | --- |
+| `1` / `2` / `3` / `4` | Request Damping / ReadyPose / Velocity / selected Mimic. |
+| `W` / `S` | Increase/decrease normalized forward velocity. |
+| `A` / `D` | Increase/decrease normalized left velocity. |
+| `Q` / `E` | Increase/decrease normalized yaw velocity. |
+| `Space` | Zero all velocity axes. |
+| `Left` / `Right` | Cycle the persistent mimic selector. |
+| `P` | Toggle API/Manual authority request; entering API zeros velocity. |
+| `H` | Reprint the current state and key map. |
+| `Ctrl-C` | Exit and restore the terminal. |
+
+The current authority, mode request, selected mimic, velocity, and complete key
+map are redrawn after every accepted key press.
+
+For manual startup without tmux:
+
+```bash
+ros2 run ai_sapiens_sim2real keyboard_teleop_node
+
+KEYBOARD_TELEOP_CONFIG="$(
+  ros2 pkg prefix --share ai_sapiens_sim2real
+)/config/teleop/keyboard.yaml"
+ros2 launch ai_sapiens_sim2real ai_sapiens_sim2real.launch.py \
+  teleop_input_plugin:=ai_sapiens_sim2real/KeyboardTeleopInputPlugin \
+  teleop_input_config_path:="${KEYBOARD_TELEOP_CONFIG}"
+```
+
 Useful launch arguments include:
 
 | Argument | Default | Meaning |
@@ -235,6 +281,8 @@ Useful launch arguments include:
 | `api_heartbeat_topic` | `/ai_sapiens/api_heartbeat` | API heartbeat input. |
 | `api_heartbeat_timeout` | `0.2` | Advancing-sequence watchdog timeout. |
 | `cmd_vel_topic` | `/cmd_vel` | API velocity command input. |
+| `teleop_input_plugin` | empty | Optional plugin override; empty uses `k1_config.yaml`. |
+| `teleop_input_config_path` | empty | Optional plugin-YAML override used with the plugin override. |
 | `set_mode_by_name_service` | `/ai_sapiens/set_mode_by_name` | Set mode service. |
 | `status_log_enabled` | `false` | Enables periodic control-loop status logs. |
 | `detailed_status_log` | `false` | Adds sensor/action previews to status logs. |

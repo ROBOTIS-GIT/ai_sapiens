@@ -125,6 +125,16 @@ def generate_launch_description():
             description='API mode velocity command topic'
         ),
         DeclareLaunchArgument(
+            'teleop_input_plugin',
+            default_value='',
+            description='Optional teleop plugin override; empty uses the root config'
+        ),
+        DeclareLaunchArgument(
+            'teleop_input_config_path',
+            default_value='',
+            description='Optional teleop plugin YAML override; empty uses the root config'
+        ),
+        DeclareLaunchArgument(
             'set_mode_by_name_service',
             default_value='/ai_sapiens/set_mode_by_name',
             description='Set mode service using FSM mode name'
@@ -156,6 +166,8 @@ def generate_launch_description():
             'api_heartbeat_topic': LaunchConfiguration('api_heartbeat_topic'),
             'api_heartbeat_timeout': LaunchConfiguration('api_heartbeat_timeout'),
             'cmd_vel_topic': LaunchConfiguration('cmd_vel_topic'),
+            'teleop_input_plugin': LaunchConfiguration('teleop_input_plugin'),
+            'teleop_input_config_path': LaunchConfiguration('teleop_input_config_path'),
             'set_mode_by_name_service': LaunchConfiguration('set_mode_by_name_service'),
         }],
     )
