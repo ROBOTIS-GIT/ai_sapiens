@@ -251,7 +251,10 @@ edge-triggered Mimic request.
 | `Ctrl-C` | Exit and restore the terminal. |
 
 The current authority, mode request, selected mimic, velocity, and complete key
-map are redrawn after every accepted key press.
+map are redrawn after every accepted key press. The terminal dashboard groups
+mode, movement, motion selection, and system keys; normalized velocity is shown
+both numerically and on a centered bar. ANSI colors are disabled automatically
+for a dumb terminal or when the `NO_COLOR` environment variable is set.
 
 For manual startup without tmux:
 

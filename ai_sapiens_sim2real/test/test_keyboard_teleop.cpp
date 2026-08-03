@@ -137,6 +137,55 @@ TEST(KeyboardTeleopState, WrapsAndLatchesSelector)
   EXPECT_EQ(state.take_message(7).input_code, 4);
 }
 
+TEST(KeyboardTeleopState, RendersReadableDashboard)
+{
+  KeyboardTeleopState state(config());
+  EXPECT_TRUE(state.apply(KeyboardAction::kNextSelector));
+  EXPECT_TRUE(state.apply(KeyboardAction::kForward));
+  EXPECT_TRUE(state.apply(KeyboardAction::kYawRight));
+
+  const auto dashboard = state.dashboard("Increase right yaw", false);
+  EXPECT_NE(dashboard.find("AI SAPIENS  /  KEYBOARD TELEOP"), std::string::npos);
+  EXPECT_NE(dashboard.find("CONTROL STATE"), std::string::npos);
+  EXPECT_NE(dashboard.find("MANUAL"), std::string::npos);
+  EXPECT_NE(dashboard.find("[2/3]  Dance1 (201)"), std::string::npos);
+  EXPECT_NE(dashboard.find("X   forward / back    +0.25"), std::string::npos);
+  EXPECT_NE(dashboard.find("Yaw left / right      -0.25"), std::string::npos);
+  EXPECT_NE(dashboard.find("MODE      [1] Damping"), std::string::npos);
+  EXPECT_NE(dashboard.find("Last input   Increase right yaw"), std::string::npos);
+  EXPECT_EQ(dashboard.find("\033["), std::string::npos);
+
+  const auto colored = state.dashboard("colored", true);
+  EXPECT_NE(colored.find("\033["), std::string::npos);
+}
+
+TEST(KeyboardTeleopState, DescribesEveryAcceptedAction)
+{
+  const std::vector<KeyboardAction> actions{
+    KeyboardAction::kDamping,
+    KeyboardAction::kReadyPose,
+    KeyboardAction::kVelocity,
+    KeyboardAction::kMimic,
+    KeyboardAction::kForward,
+    KeyboardAction::kBackward,
+    KeyboardAction::kLeft,
+    KeyboardAction::kRight,
+    KeyboardAction::kYawLeft,
+    KeyboardAction::kYawRight,
+    KeyboardAction::kStop,
+    KeyboardAction::kPreviousSelector,
+    KeyboardAction::kNextSelector,
+    KeyboardAction::kToggleApi,
+    KeyboardAction::kHelp};
+
+  for (const auto action : actions) {
+    EXPECT_FALSE(KeyboardTeleopState::action_description(action).empty());
+    EXPECT_NE(
+      KeyboardTeleopState::action_description(action),
+      "Unknown key ignored");
+  }
+}
+
 TEST(KeyboardTeleopConfig, RejectsUnsafeConfiguration)
 {
   auto node = YAML::Load(kConfig);

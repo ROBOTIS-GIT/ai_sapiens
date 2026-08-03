@@ -16,6 +16,7 @@
 
 #include <cerrno>
 #include <chrono>
+#include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
 #include <iostream>
@@ -110,6 +111,11 @@ public:
     publisher_ = create_publisher<ai_sapiens_interfaces::msg::KeyboardInput>(
       config_.topic, rclcpp::SensorDataQoS());
     terminal_ = std::make_unique<TerminalGuard>();
+    const char * term = std::getenv("TERM");
+    use_color_ =
+      isatty(STDOUT_FILENO) &&
+      std::getenv("NO_COLOR") == nullptr &&
+      (term == nullptr || std::string(term) != "dumb");
 
     const auto publish_period =
       std::chrono::duration<double>(1.0 / config_.publish_rate);
@@ -149,6 +155,7 @@ private:
             std::string_view(buffer, static_cast<std::size_t>(count))))
         {
           if (state_->apply(action)) {
+            last_action_ = KeyboardTeleopState::action_description(action);
             print_guide();
           }
         }
@@ -167,9 +174,7 @@ private:
   void print_guide() const
   {
     std::cout << "\033[2J\033[H"
-              << "AI Sapiens keyboard teleop\n"
-              << state_->status_line() << '\n'
-              << KeyboardTeleopState::key_map() << '\n'
+              << state_->dashboard(last_action_, use_color_)
               << std::flush;
   }
 
@@ -177,6 +182,8 @@ private:
   std::unique_ptr<KeyboardTeleopState> state_;
   KeyboardInputDecoder decoder_;
   uint32_t sequence_{0};
+  bool use_color_{false};
+  std::string last_action_{"Started safely in Damping"};
   rclcpp::Publisher<ai_sapiens_interfaces::msg::KeyboardInput>::SharedPtr publisher_;
   rclcpp::TimerBase::SharedPtr publish_timer_;
   rclcpp::TimerBase::SharedPtr keyboard_timer_;
