@@ -5,7 +5,7 @@
   <size nconmax="500" njmax="2000"/>
   <visual>
     <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0.1 0.1 0.1"/>
-    <rgba haze="0.15 0.25 0.35 1" com="1 0 0 1"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
   </visual>
   <default>
     <joint damping="0" armature="0" frictionloss="0"/>

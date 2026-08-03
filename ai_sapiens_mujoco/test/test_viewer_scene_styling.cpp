@@ -26,11 +26,9 @@ namespace ai_sapiens_mujoco
 namespace
 {
 
-constexpr char kViewerModel[] = R"(
+constexpr char kViewerModel[] =
+  R"(
 <mujoco>
-  <visual>
-    <rgba com="1 0 0 1"/>
-  </visual>
   <worldbody>
     <body>
       <freejoint/>
@@ -96,8 +94,10 @@ protected:
 
   void update_scene()
   {
+    mjvOption scene_option = option_;
+    scene_option.flags[mjVIS_COM] = 0;
     mjv_updateScene(
-      model_.get(), data_.get(), &option_, &perturb_, &camera_,
+      model_.get(), data_.get(), &scene_option, &perturb_, &camera_,
       mjCAT_ALL, &scene_);
   }
 
@@ -151,29 +151,6 @@ TEST_F(ViewerSceneStylingTest, LeavesVisualGroupOpaqueWhenComIsHidden)
   apply_center_of_mass_visual_style(model_.get(), option_, &scene_);
 
   EXPECT_FLOAT_EQ(visual->rgba[3], 1.0F);
-}
-
-TEST_F(ViewerSceneStylingTest, UsesRedCenterOfMassDecoration)
-{
-  option_.flags[mjVIS_COM] = 1;
-  update_scene();
-
-  const mjvGeom * center_of_mass = nullptr;
-  for (int index = 0; index < scene_.ngeom; ++index) {
-    const mjvGeom & geom = scene_.geoms[index];
-    if (geom.objtype == mjOBJ_UNKNOWN &&
-      geom.category == mjCAT_DECOR && geom.type == mjGEOM_SPHERE)
-    {
-      center_of_mass = &geom;
-      break;
-    }
-  }
-
-  ASSERT_NE(center_of_mass, nullptr);
-  EXPECT_FLOAT_EQ(center_of_mass->rgba[0], 1.0F);
-  EXPECT_FLOAT_EQ(center_of_mass->rgba[1], 0.0F);
-  EXPECT_FLOAT_EQ(center_of_mass->rgba[2], 0.0F);
-  EXPECT_FLOAT_EQ(center_of_mass->rgba[3], 1.0F);
 }
 
 }  // namespace ai_sapiens_mujoco

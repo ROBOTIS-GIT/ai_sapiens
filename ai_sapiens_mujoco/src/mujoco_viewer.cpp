@@ -23,6 +23,7 @@
 #include <mutex>
 #include <utility>
 
+#include "ai_sapiens_mujoco/center_of_mass_visualizer.hpp"
 #include "ai_sapiens_mujoco/contact_force_visualizer.hpp"
 #include "ai_sapiens_mujoco/viewer_scene_styling.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -148,12 +149,19 @@ void MujocoViewer::run()
       mjvOption scene_options = opt_;
       const bool show_contact_forces =
         scene_options.flags[mjVIS_CONTACTFORCE] != 0;
+      const bool show_center_of_mass =
+        scene_options.flags[mjVIS_COM] != 0;
       scene_options.flags[mjVIS_CONTACTFORCE] = 0;
+      scene_options.flags[mjVIS_COM] = 0;
       mjv_updateScene(
         sim_->model(), sim_->data(), &scene_options, &pert_, &cam_,
         mjCAT_ALL, &scn_);
-      apply_center_of_mass_visual_style(
-        sim_->model(), scene_options, &scn_);
+      if (show_center_of_mass) {
+        apply_center_of_mass_visual_style(
+          sim_->model(), opt_, &scn_);
+        append_center_of_mass_markers(
+          sim_->model(), sim_->data(), opt_, &scn_);
+      }
       if (show_contact_forces) {
         append_contact_normal_force_lines(
           sim_->model(), sim_->data(), &scn_);
@@ -303,8 +311,7 @@ void MujocoViewer::handle_cursor_pos(GLFWwindow * window, double xpos, double yp
     glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS ||
     glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_MIDDLE) == GLFW_PRESS ||
     glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
-  if (!any_button_down && !external_force_dragging_)
-  {
+  if (!any_button_down && !external_force_dragging_) {
     lastx_ = xpos;
     lasty_ = ypos;
     return;
