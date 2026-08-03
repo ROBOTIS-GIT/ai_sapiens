@@ -24,25 +24,25 @@
 namespace ai_sapiens_mujoco
 {
 
-struct ContactNormalForceArrow
+struct ContactNormalForceLine
 {
   std::array<mjtNum, 3> start{};
   std::array<mjtNum, 3> end{};
   mjtNum magnitude{0.0};
 };
 
-/// Compute one contact's normal-force arrow in world coordinates.
+/// Compute one contact's normal-force line in world coordinates.
 ///
 /// The direction follows the force acting on a dynamic body when it contacts
 /// the world. For other contact pairs, the normal is oriented toward the
 /// positive world-Z hemisphere so floor-like contacts remain visually upright.
-bool compute_contact_normal_force_arrow(
+bool compute_contact_normal_force_line(
   const mjModel * model, const mjData * data, int contact_id,
-  ContactNormalForceArrow * arrow);
+  ContactNormalForceLine * line);
 
-/// Append one arrow geom per active contact to an already-updated scene.
-/// Returns the number of arrows appended.
-int append_contact_normal_force_arrows(
+/// Append one lime line geom per active contact to an already-updated scene.
+/// Returns the number of lines appended.
+int append_contact_normal_force_lines(
   const mjModel * model, const mjData * data, mjvScene * scene);
 
 }  // namespace ai_sapiens_mujoco

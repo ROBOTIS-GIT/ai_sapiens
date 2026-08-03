@@ -25,8 +25,9 @@ namespace
 {
 
 constexpr mjtNum kMinimumVisibleForce = 1.0e-6;
-constexpr mjtNum kMinimumArrowWidth = 1.0e-3;
 constexpr mjtNum kMaximumArrowExtentFraction = 0.5;
+constexpr mjtNum kContactForceLineWidthPixels = 2.0;
+constexpr float kContactForceLineColor[4]{0.55f, 1.0f, 0.15f, 1.0f};
 
 bool geom_belongs_to_world(const mjModel * model, int geom_id)
 {
@@ -42,11 +43,11 @@ bool geom_belongs_to_dynamic_body(const mjModel * model, int geom_id)
 
 }  // namespace
 
-bool compute_contact_normal_force_arrow(
+bool compute_contact_normal_force_line(
   const mjModel * model, const mjData * data, int contact_id,
-  ContactNormalForceArrow * arrow)
+  ContactNormalForceLine * line)
 {
-  if (!model || !data || !arrow || contact_id < 0 || contact_id >= data->ncon) {
+  if (!model || !data || !line || contact_id < 0 || contact_id >= data->ncon) {
     return false;
   }
 
@@ -83,49 +84,47 @@ bool compute_contact_normal_force_arrow(
   const mjtNum maximum_length = std::max(
     static_cast<mjtNum>(model->stat.meansize),
     kMaximumArrowExtentFraction * model->stat.extent);
-  const mjtNum arrow_length = std::min(
+  const mjtNum line_length = std::min(
     normal_force * static_cast<mjtNum>(model->vis.map.force),
     maximum_length);
-  if (arrow_length <= 0.0) {
+  if (line_length <= 0.0) {
     return false;
   }
 
-  arrow->magnitude = normal_force;
+  line->magnitude = normal_force;
   for (int axis = 0; axis < 3; ++axis) {
-    arrow->start[axis] = contact.pos[axis];
-    arrow->end[axis] = contact.pos[axis] + arrow_length * direction[axis];
+    line->start[axis] = contact.pos[axis];
+    line->end[axis] = contact.pos[axis] + line_length * direction[axis];
   }
   return true;
 }
 
-int append_contact_normal_force_arrows(
+int append_contact_normal_force_lines(
   const mjModel * model, const mjData * data, mjvScene * scene)
 {
   if (!model || !data || !scene) {
     return 0;
   }
 
-  const mjtNum arrow_width = std::max(
-    kMinimumArrowWidth,
-    static_cast<mjtNum>(model->vis.scale.forcewidth) * model->stat.meansize);
   int appended = 0;
   for (int contact_id = 0;
     contact_id < data->ncon && scene->ngeom < scene->maxgeom;
     ++contact_id)
   {
-    ContactNormalForceArrow arrow;
-    if (!compute_contact_normal_force_arrow(model, data, contact_id, &arrow)) {
+    ContactNormalForceLine line;
+    if (!compute_contact_normal_force_line(model, data, contact_id, &line)) {
       continue;
     }
 
     mjvGeom & geom = scene->geoms[scene->ngeom++];
     mjv_initGeom(
-      &geom, mjGEOM_ARROW, nullptr, nullptr, nullptr,
-      model->vis.rgba.contactforce);
+      &geom, mjGEOM_LINE, nullptr, nullptr, nullptr,
+      kContactForceLineColor);
     mjv_connector(
-      &geom, mjGEOM_ARROW, arrow_width, arrow.start.data(), arrow.end.data());
+      &geom, mjGEOM_LINE, kContactForceLineWidthPixels,
+      line.start.data(), line.end.data());
     geom.category = mjCAT_DECOR;
-    geom.emission = 0.25f;
+    geom.emission = 0.4f;
     ++appended;
   }
   return appended;

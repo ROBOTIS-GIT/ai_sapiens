@@ -155,7 +155,7 @@ void MujocoViewer::run()
         sim_->model(), sim_->data(), &scene_options, &pert_, &cam_,
         mjCAT_ALL, &scn_);
       if (show_contact_forces) {
-        append_contact_normal_force_arrows(
+        append_contact_normal_force_lines(
           sim_->model(), sim_->data(), &scn_);
       }
     }
