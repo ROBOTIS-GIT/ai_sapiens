@@ -24,9 +24,9 @@ import launch
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import PathJoinSubstitution
+from launch_ros.substitutions import FindPackageShare
 import launch_testing.actions
 import launch_testing.markers
-from launch_ros.substitutions import FindPackageShare
 import pytest
 import rclpy
 from sensor_msgs.msg import Imu, JointState
@@ -103,6 +103,7 @@ class TestMujocoBringup(unittest.TestCase):
     def test_3_gantry_sequence(self):
         set_h = self.node.create_client(
             SetGantryHeight, '/mujoco_sim/gantry/set_height')
+        attach = self.node.create_client(Trigger, '/mujoco_sim/gantry/attach')
         release = self.node.create_client(Trigger, '/mujoco_sim/gantry/release')
         res = self._call(set_h, SetGantryHeight.Request(height=1.45, speed=0.2))
         self.assertTrue(res.success)
@@ -110,3 +111,7 @@ class TestMujocoBringup(unittest.TestCase):
         self.assertTrue(rel.success)
         res2 = self._call(set_h, SetGantryHeight.Request(height=1.6, speed=0.2))
         self.assertFalse(res2.success)
+        att = self._call(attach, Trigger.Request())
+        self.assertTrue(att.success)
+        res3 = self._call(set_h, SetGantryHeight.Request(height=1.6, speed=0.2))
+        self.assertTrue(res3.success)

@@ -29,7 +29,7 @@ namespace ai_sapiens_mujoco
 {
 
 /// ROS node exposing the simulation gantry as services:
-/// /mujoco_sim/gantry/set_height and /mujoco_sim/gantry/release.
+/// /mujoco_sim/gantry/set_height, /attach, and /release.
 class GantryServiceNode : public rclcpp::Node
 {
 public:
@@ -38,6 +38,7 @@ public:
 private:
   std::shared_ptr<MujocoSimulation> sim_;
   rclcpp::Service<ai_sapiens_interfaces::srv::SetGantryHeight>::SharedPtr set_height_service_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr attach_service_;
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr release_service_;
 };
 

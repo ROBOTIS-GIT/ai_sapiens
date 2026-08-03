@@ -42,6 +42,20 @@ GantryServiceNode::GantryServiceNode(std::shared_ptr<MujocoSimulation> sim)
       }
     });
 
+  attach_service_ = create_service<std_srvs::srv::Trigger>(
+    "/mujoco_sim/gantry/attach",
+    [this](
+      const std_srvs::srv::Trigger::Request::SharedPtr /*request*/,
+      std_srvs::srv::Trigger::Response::SharedPtr response) {
+      if (sim_->gantry_attach()) {
+        response->success = true;
+        response->message = "gantry attached";
+      } else {
+        response->success = false;
+        response->message = "gantry already attached or absent";
+      }
+    });
+
   release_service_ = create_service<std_srvs::srv::Trigger>(
     "/mujoco_sim/gantry/release",
     [this](

@@ -71,9 +71,36 @@ void MujocoSimulation::load(
   if (gantry_body_ >= 0) {
     gantry_mocap_ = model_->body_mocapid[gantry_body_];
     gantry_eq_ = mj_name2id(model_, mjOBJ_EQUALITY, "gantry_weld");
-    gantry_target_z_ = data_->mocap_pos[3 * gantry_mocap_ + 2];
+    if (
+      gantry_mocap_ >= 0 && gantry_eq_ >= 0 &&
+      model_->eq_type[gantry_eq_] == mjEQ_WELD &&
+      model_->eq_objtype[gantry_eq_] == mjOBJ_BODY)
+    {
+      const int body1 = model_->eq_obj1id[gantry_eq_];
+      const int body2 = model_->eq_obj2id[gantry_eq_];
+      if (body1 == gantry_body_) {
+        gantry_robot_body_ = body2;
+      } else if (body2 == gantry_body_) {
+        gantry_robot_body_ = body1;
+      }
+      gantry_target_z_ = data_->mocap_pos[3 * gantry_mocap_ + 2];
+      gantry_released_ = data_->eq_active[gantry_eq_] == 0;
+    }
   }
   mj_forward(model_, data_);
+
+  if (gantry_robot_body_ >= 0) {
+    const mjtNum * gantry_pos = data_->xpos + 3 * gantry_body_;
+    const mjtNum * gantry_quat = data_->xquat + 4 * gantry_body_;
+    const mjtNum * robot_pos = data_->xpos + 3 * gantry_robot_body_;
+    const mjtNum * robot_quat = data_->xquat + 4 * gantry_robot_body_;
+    mjtNum inverse_gantry_quat[4];
+    mjtNum world_offset[3];
+    mju_negQuat(inverse_gantry_quat, gantry_quat);
+    mju_sub3(world_offset, robot_pos, gantry_pos);
+    mju_rotVecQuat(gantry_to_robot_pos_.data(), world_offset, inverse_gantry_quat);
+    mju_mulQuat(gantry_to_robot_quat_.data(), inverse_gantry_quat, robot_quat);
+  }
 }
 
 void MujocoSimulation::set_hang_height(double pelvis_z)
@@ -163,31 +190,79 @@ mjData * MujocoSimulation::data()
 
 bool MujocoSimulation::gantry_present() const
 {
-  return gantry_body_ >= 0;
+  return
+    gantry_body_ >= 0 && gantry_mocap_ >= 0 && gantry_eq_ >= 0 &&
+    gantry_robot_body_ >= 0;
 }
 
 bool MujocoSimulation::gantry_attached() const
 {
   std::lock_guard<std::mutex> lock(mutex_);
-  return gantry_eq_ >= 0 && !gantry_released_;
+  return
+    gantry_eq_ >= 0 && data_->eq_active[gantry_eq_] != 0 &&
+    !gantry_released_;
 }
 
 bool MujocoSimulation::gantry_set_target(double height_m, double speed_mps)
 {
   std::lock_guard<std::mutex> lock(mutex_);
-  if (gantry_mocap_ < 0 || gantry_released_) {return false;}
+  if (
+    gantry_mocap_ < 0 || gantry_eq_ < 0 ||
+    data_->eq_active[gantry_eq_] == 0 || gantry_released_)
+  {
+    return false;
+  }
   gantry_target_z_ = height_m;
   gantry_speed_ = speed_mps > 0.0 ? speed_mps : 0.05;
+  return true;
+}
+
+bool MujocoSimulation::gantry_attach()
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (
+    gantry_mocap_ < 0 || gantry_eq_ < 0 || gantry_robot_body_ < 0 ||
+    data_->eq_active[gantry_eq_] != 0 || !gantry_released_)
+  {
+    return false;
+  }
+
+  const mjtNum * robot_pos = data_->xpos + 3 * gantry_robot_body_;
+  const mjtNum * robot_quat = data_->xquat + 4 * gantry_robot_body_;
+  mjtNum inverse_relative_quat[4];
+  mjtNum gantry_quat[4];
+  mjtNum world_offset[3];
+  mju_negQuat(inverse_relative_quat, gantry_to_robot_quat_.data());
+  mju_mulQuat(gantry_quat, robot_quat, inverse_relative_quat);
+  mju_rotVecQuat(world_offset, gantry_to_robot_pos_.data(), gantry_quat);
+
+  mjtNum * mocap_pos = data_->mocap_pos + 3 * gantry_mocap_;
+  mjtNum * mocap_quat = data_->mocap_quat + 4 * gantry_mocap_;
+  mju_sub3(mocap_pos, robot_pos, world_offset);
+  mju_copy4(mocap_quat, gantry_quat);
+  gantry_target_z_ = mocap_pos[2];
+  gantry_speed_ = 0.0;
+  data_->eq_active[gantry_eq_] = 1;
+  gantry_released_ = false;
+  mj_forward(model_, data_);
   return true;
 }
 
 bool MujocoSimulation::gantry_release()
 {
   std::lock_guard<std::mutex> lock(mutex_);
-  if (gantry_eq_ < 0 || gantry_released_) {return false;}
+  if (
+    gantry_eq_ < 0 || gantry_mocap_ < 0 ||
+    data_->eq_active[gantry_eq_] == 0 || gantry_released_)
+  {
+    return false;
+  }
   data_->eq_active[gantry_eq_] = 0;
   gantry_released_ = true;
+  gantry_speed_ = 0.0;
   data_->mocap_pos[3 * gantry_mocap_ + 2] += 1.0;  // park the visual out of the way
+  gantry_target_z_ = data_->mocap_pos[3 * gantry_mocap_ + 2];
+  mj_forward(model_, data_);
   return true;
 }
 
@@ -199,7 +274,12 @@ double MujocoSimulation::gantry_height() const
 
 void MujocoSimulation::update_gantry()  // caller holds mutex_
 {
-  if (gantry_mocap_ < 0 || gantry_released_ || gantry_speed_ <= 0.0) {return;}
+  if (
+    gantry_mocap_ < 0 || gantry_eq_ < 0 ||
+    data_->eq_active[gantry_eq_] == 0 || gantry_released_ || gantry_speed_ <= 0.0)
+  {
+    return;
+  }
   double & z = data_->mocap_pos[3 * gantry_mocap_ + 2];
   const double max_dz = gantry_speed_ * model_->opt.timestep;
   const double err = gantry_target_z_ - z;

@@ -10,7 +10,8 @@ it sees on the real robot.
 
 A gantry is modeled as a mocap body weld-constrained to `torso_link`, so the
 robot can spawn hanging, be lowered until the feet touch, and be released once
-a policy is walking — mirroring real robot operation.
+a policy is walking. The weld can also be reattached at the robot's current
+pose without snapping it back to its initial pose.
 
 ## Container
 
@@ -73,24 +74,29 @@ ros2 service call /mujoco_sim/gantry/set_height ai_sapiens_interfaces/srv/SetGan
 
 # 4. Detach the robot once it is walking.
 ros2 service call /mujoco_sim/gantry/release std_srvs/srv/Trigger
+
+# Reattach at the robot's current pose when another hanging test is needed.
+ros2 service call /mujoco_sim/gantry/attach std_srvs/srv/Trigger
 ```
 
 | Service | Type | Behavior |
 | --- | --- | --- |
-| `/mujoco_sim/gantry/set_height` | `ai_sapiens_interfaces/srv/SetGantryHeight` | Move the hook to an absolute height (m, world frame) at `speed` m/s (`speed <= 0` selects the default 0.05 m/s). Fails after release. |
-| `/mujoco_sim/gantry/release` | `std_srvs/srv/Trigger` | Deactivate the weld and detach the robot. One-shot; further gantry commands fail. |
+| `/mujoco_sim/gantry/set_height` | `ai_sapiens_interfaces/srv/SetGantryHeight` | Move the hook to an absolute height (m, world frame) at `speed` m/s (`speed <= 0` selects the default 0.05 m/s). Fails while released. |
+| `/mujoco_sim/gantry/attach` | `std_srvs/srv/Trigger` | Align the hook with the robot's current torso pose and activate the weld. |
+| `/mujoco_sim/gantry/release` | `std_srvs/srv/Trigger` | Deactivate the weld and detach the robot. |
 
 ## Viewer
 
 The viewer window (enabled by default) renders the scene at ~60 Hz. When the
-gantry scene is active, the top-right controls show its current height and
-provide Raise/Lower buttons:
+gantry scene is active, the top-right controls show its current state and
+provide motion and attach/release buttons:
 
 | Input | Action |
 | --- | --- |
 | `Raise +2 cm` / `Lower -2 cm` | Nudge the gantry hook target with the on-screen buttons. |
+| `Attach robot` / `Release robot` | Toggle the gantry weld with the on-screen buttons. |
 | `Up` / `Down` | Nudge the gantry hook target ±0.02 m. |
-| `R` | Release the gantry (same as the release service). |
+| `A` / `R` | Attach or release the gantry (same as the corresponding services). |
 | Left mouse drag | Orbit the camera. |
 | Right mouse drag | Pan the camera. |
 | Scroll | Zoom. |

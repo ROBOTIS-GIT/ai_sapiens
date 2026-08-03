@@ -99,9 +99,12 @@ TEST_F(MujocoSystemTest, GantryServices)
   auto client_node = std::make_shared<rclcpp::Node>("gantry_client");
   auto set_h = client_node->create_client<ai_sapiens_interfaces::srv::SetGantryHeight>(
     "/mujoco_sim/gantry/set_height");
+  auto attach = client_node->create_client<std_srvs::srv::Trigger>(
+    "/mujoco_sim/gantry/attach");
   auto release = client_node->create_client<std_srvs::srv::Trigger>(
     "/mujoco_sim/gantry/release");
   ASSERT_TRUE(set_h->wait_for_service(std::chrono::seconds(5)));
+  ASSERT_TRUE(attach->wait_for_service(std::chrono::seconds(5)));
 
   auto req = std::make_shared<ai_sapiens_interfaces::srv::SetGantryHeight::Request>();
   req->height = 1.45;
@@ -124,6 +127,19 @@ TEST_F(MujocoSystemTest, GantryServices)
     rclcpp::spin_until_future_complete(client_node, fut2, std::chrono::seconds(5)),
     rclcpp::FutureReturnCode::SUCCESS);
   EXPECT_FALSE(fut2.get()->success);
+
+  auto attach_fut =
+    attach->async_send_request(std::make_shared<std_srvs::srv::Trigger::Request>());
+  ASSERT_EQ(
+    rclcpp::spin_until_future_complete(client_node, attach_fut, std::chrono::seconds(5)),
+    rclcpp::FutureReturnCode::SUCCESS);
+  EXPECT_TRUE(attach_fut.get()->success);
+
+  auto fut3 = set_h->async_send_request(req);
+  ASSERT_EQ(
+    rclcpp::spin_until_future_complete(client_node, fut3, std::chrono::seconds(5)),
+    rclcpp::FutureReturnCode::SUCCESS);
+  EXPECT_TRUE(fut3.get()->success);
 }
 
 int main(int argc, char ** argv)
