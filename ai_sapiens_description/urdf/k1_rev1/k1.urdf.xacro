@@ -5,6 +5,9 @@
   <xacro:arg name="mock_sensor_commands" default="false" />
   <xacro:arg name="prefix" default="" />
   <xacro:arg name="model" default="k1_rev1" />
+  <xacro:arg name="sim_mujoco" default="false" />
+  <xacro:arg name="mujoco_viewer" default="true" />
+  <xacro:arg name="mujoco_gantry" default="true" />
   <xacro:include filename="$(find ai_sapiens_description)/urdf/k1_rev1/$(arg model).urdf.xacro" />
 
   <xacro:include filename="$(find ai_sapiens_description)/ros2_control/k1_rev1/k1.ros2_control.xacro" />
@@ -13,6 +16,9 @@
 
   <xacro:k1_system
     use_mock_hardware="$(arg use_mock_hardware)"
-    mock_sensor_commands="$(arg mock_sensor_commands)"/>
+    mock_sensor_commands="$(arg mock_sensor_commands)"
+    sim_mujoco="$(arg sim_mujoco)"
+    mujoco_viewer="$(arg mujoco_viewer)"
+    mujoco_gantry="$(arg mujoco_gantry)"/>
 
 </robot>

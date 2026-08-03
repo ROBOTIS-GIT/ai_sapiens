@@ -20,6 +20,7 @@ find_path(MUJOCO_INCLUDE_DIR mujoco/mujoco.h REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED
   src/mujoco_simulation.cpp
+  src/mujoco_system.cpp
 )
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -31,14 +32,21 @@ ament_target_dependencies(${PROJECT_NAME}
   hardware_interface pluginlib rclcpp rclcpp_lifecycle std_srvs
   ai_sapiens_interfaces ament_index_cpp)
 
+pluginlib_export_plugin_description_file(hardware_interface ai_sapiens_mujoco.xml)
+
 install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION lib)
 install(DIRECTORY include/ DESTINATION include)
+install(FILES ai_sapiens_mujoco.xml DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
   ament_add_gtest(test_mujoco_simulation test/test_mujoco_simulation.cpp)
   target_link_libraries(test_mujoco_simulation ${PROJECT_NAME})
   ament_target_dependencies(test_mujoco_simulation ament_index_cpp)
+
+  ament_add_gtest(test_mujoco_system test/test_mujoco_system.cpp)
+  target_link_libraries(test_mujoco_system ${PROJECT_NAME})
+  ament_target_dependencies(test_mujoco_system ament_index_cpp hardware_interface rclcpp)
 endif()
 
 ament_export_libraries(${PROJECT_NAME})

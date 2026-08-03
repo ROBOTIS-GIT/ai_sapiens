@@ -1,0 +1,7 @@
+<library path="ai_sapiens_mujoco">
+  <class name="ai_sapiens_mujoco/MujocoSystem"
+         type="ai_sapiens_mujoco::MujocoSystem"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>MuJoCo sim2sim system interface for AI Sapiens K1.</description>
+  </class>
+</library>
