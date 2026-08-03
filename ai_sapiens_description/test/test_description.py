@@ -31,6 +31,13 @@ MJCF_PATH = PACKAGE_ROOT / 'mujoco' / 'k1' / 'k1.xml'
 SCENE_PATH = PACKAGE_ROOT / 'mujoco' / 'k1' / 'scene.xml'
 MESH_ROOT = PACKAGE_ROOT / 'meshes' / 'k1_rev1'
 
+ARMATURE_BY_CLASS = {
+    'qc060': 0.00564892,
+    'qc060_double_armature': 0.01129784,
+    'qc080': 0.01936542,
+    'qc080_double_armature': 0.03873084,
+}
+
 
 def _values(text):
     return tuple(float(value) for value in text.split())
@@ -58,6 +65,14 @@ def _is_positive_definite(inertia):
 
 def _is_qc060_joint(name):
     return any(part in name for part in ('shoulder', 'elbow', 'wrist', 'ankle_roll'))
+
+
+def _armature_class(name):
+    if 'ankle_pitch' in name:
+        return 'qc080_double_armature'
+    if 'ankle_roll' in name:
+        return 'qc060_double_armature'
+    return 'qc060' if _is_qc060_joint(name) else 'qc080'
 
 
 def test_urdf_structure_and_inertias():
@@ -167,11 +182,16 @@ def test_mujoco_model_matches_urdf():
 
         expected_class = 'qc060' if _is_qc060_joint(name) else 'qc080'
         assert motors[name].attrib['class'] == expected_class
+        assert mjcf_joint.attrib['class'] == _armature_class(name)
 
     defaults = {
         default.attrib['class']: default
         for default in mjcf.findall('./default/default')
     }
+    for class_name, expected_armature in ARMATURE_BY_CLASS.items():
+        actual_armature = float(defaults[class_name].find('joint').attrib['armature'])
+        assert math.isclose(actual_armature, expected_armature)
+
     assert _values(defaults['qc060'].find('motor').attrib['ctrlrange']) == (
         -47.277,
         47.277,
@@ -209,3 +229,13 @@ def test_mujoco_files_load():
     assert model.nq == 30
     assert model.nv == 29
     assert scene.ngeom == model.ngeom + 1
+
+    mjcf = ET.parse(MJCF_PATH).getroot()
+    for joint in mjcf.findall('.//joint'):
+        if 'name' not in joint.attrib:
+            continue
+        joint_id = mujoco.mj_name2id(
+            model, mujoco.mjtObj.mjOBJ_JOINT, joint.attrib['name'])
+        dof_id = model.jnt_dofadr[joint_id]
+        expected_armature = ARMATURE_BY_CLASS[_armature_class(joint.attrib['name'])]
+        assert math.isclose(model.dof_armature[dof_id], expected_armature)
