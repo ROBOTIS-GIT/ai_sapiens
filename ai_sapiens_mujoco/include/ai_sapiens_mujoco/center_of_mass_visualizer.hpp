@@ -24,18 +24,23 @@
 namespace ai_sapiens_mujoco
 {
 
+inline constexpr float kRobotCenterOfMassRadius = 0.035F;
+inline constexpr float kLinkCenterOfMassReferenceMass = 1.0F;
+inline constexpr float kLinkCenterOfMassReferenceRadius = 0.008F;
+inline constexpr float kLinkCenterOfMassMinimumRadius = 0.005F;
+inline constexpr float kLinkCenterOfMassMaximumRadius = 0.018F;
 inline constexpr std::array<float, 4> kLinkCenterOfMassColor{
   0.35F, 0.80F, 1.0F, 0.50F};
 
-/// Returns the marker radius used by MuJoCo's native mjVIS_COM renderer.
-float center_of_mass_marker_radius(const mjModel * model);
+/// Converts link mass to a volume-proportional marker radius.
+float link_center_of_mass_radius(mjtNum body_mass);
 
 /// Appends one whole-robot CoM marker and one marker for each link CoM.
 ///
 /// The whole-robot marker uses the free-floating root body's subtree CoM.
-/// Link markers use each descendant body's inertial-frame position. All marker
-/// radii follow MuJoCo's model-relative mjVIS_COM scale. Bodies outside that
-/// subtree, such as the gantry, are excluded.
+/// Link markers use each descendant body's inertial-frame position and scale
+/// with the cube root of its mass. Bodies outside that subtree, such as the
+/// gantry, are excluded.
 int append_center_of_mass_markers(
   const mjModel * model, const mjData * data,
   const mjvOption & option, mjvScene * scene);

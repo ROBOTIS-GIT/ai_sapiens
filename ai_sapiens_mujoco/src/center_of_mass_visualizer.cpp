@@ -16,6 +16,9 @@
 
 #include "ai_sapiens_mujoco/center_of_mass_visualizer.hpp"
 
+#include <algorithm>
+#include <cmath>
+
 namespace ai_sapiens_mujoco
 {
 namespace
@@ -72,12 +75,15 @@ bool append_sphere(
 
 }  // namespace
 
-float center_of_mass_marker_radius(const mjModel * model)
+float link_center_of_mass_radius(mjtNum body_mass)
 {
-  if (!model) {
-    return 0.0F;
-  }
-  return static_cast<float>(model->stat.meansize) * model->vis.scale.com;
+  const float mass_ratio =
+    static_cast<float>(body_mass) / kLinkCenterOfMassReferenceMass;
+  const float radius =
+    kLinkCenterOfMassReferenceRadius * std::cbrt(mass_ratio);
+  return std::clamp(
+    radius, kLinkCenterOfMassMinimumRadius,
+    kLinkCenterOfMassMaximumRadius);
 }
 
 int append_center_of_mass_markers(
@@ -93,11 +99,10 @@ int append_center_of_mass_markers(
     return 0;
   }
 
-  const float marker_radius = center_of_mass_marker_radius(model);
   int appended = 0;
   if (append_sphere(
       data->subtree_com + 3 * root_body_id,
-      marker_radius, model->vis.rgba.com,
+      kRobotCenterOfMassRadius, model->vis.rgba.com,
       mjOBJ_UNKNOWN, -1, scene))
   {
     ++appended;
@@ -115,7 +120,7 @@ int append_center_of_mass_markers(
     }
     if (append_sphere(
         data->xipos + 3 * body_id,
-        marker_radius,
+        link_center_of_mass_radius(model->body_mass[body_id]),
         kLinkCenterOfMassColor.data(),
         mjOBJ_BODY, body_id, scene))
     {

@@ -101,10 +101,10 @@ The `Diagnostics` section shows measured render FPS, current contact count, and
 the active mouse-force target. `Visualization` provides native checkboxes for
 visual meshes, collision geometry, contact points, contact forces, inertia
 boxes, and center of mass. The CoM view shows the whole-robot CoM as a solid
-red sphere and each link's own CoM as a translucent light-blue sphere. Both use
-MuJoCo's model-relative native CoM marker radius
-(`model.stat.meansize * model.vis.scale.com`) so their scale matches MuJoCo's
-standard viewer.
+red sphere and each link's own CoM as a smaller, translucent light-blue sphere.
+The whole-robot marker has a 35 mm radius. Link marker volume is proportional
+to link mass; K1's 0.369–7.719 kg link range produces approximately 5.7–15.8 mm
+radii, making mass differences visible without obscuring the robot.
 When the gantry scene is active, the `Gantry`
 section shows its state and provides motion and attach/release buttons:
 
