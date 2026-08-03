@@ -500,6 +500,9 @@ void MujocoViewer::end_external_force_drag()
     mju_zero(sim_->data()->xfrc_applied + 6 * external_force_body_id_, 6);
   }
   pert_.active = 0;
+  pert_.select = 0;
+  pert_.flexselect = -1;
+  pert_.skinselect = -1;
   external_force_dragging_ = false;
   external_force_body_id_ = 0;
 }
