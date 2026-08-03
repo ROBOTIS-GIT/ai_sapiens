@@ -17,6 +17,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/RcChannel.msg"
   "msg/RcStatus.msg"
   "srv/ListModes.srv"
+  "srv/SetGantryHeight.srv"
   "srv/SetModeByName.srv"
   DEPENDENCIES std_msgs
 )
