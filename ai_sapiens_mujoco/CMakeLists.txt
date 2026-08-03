@@ -19,6 +19,7 @@ find_library(MUJOCO_LIBRARY mujoco REQUIRED)
 find_path(MUJOCO_INCLUDE_DIR mujoco/mujoco.h REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED
+  src/center_of_mass_visualizer.cpp
   src/contact_force_visualizer.cpp
   src/gantry_service_node.cpp
   src/mujoco_simulation.cpp
@@ -57,6 +58,10 @@ if(BUILD_TESTING)
   ament_add_gtest(
     test_contact_force_visualizer test/test_contact_force_visualizer.cpp)
   target_link_libraries(test_contact_force_visualizer ${PROJECT_NAME})
+
+  ament_add_gtest(
+    test_center_of_mass_visualizer test/test_center_of_mass_visualizer.cpp)
+  target_link_libraries(test_center_of_mass_visualizer ${PROJECT_NAME})
 
   ament_add_gtest(
     test_viewer_scene_styling test/test_viewer_scene_styling.cpp)

@@ -100,7 +100,9 @@ MuJoCo-native side panel keeps diagnostics and controls out of the 3D viewport.
 The `Diagnostics` section shows measured render FPS, current contact count, and
 the active mouse-force target. `Visualization` provides native checkboxes for
 visual meshes, collision geometry, contact points, contact forces, inertia
-boxes, and center of mass. When the gantry scene is active, the `Gantry`
+boxes, and center of mass. The CoM view shows the whole-robot CoM as a solid
+red sphere and each link's own CoM as a smaller, translucent light-blue sphere.
+When the gantry scene is active, the `Gantry`
 section shows its state and provides motion and attach/release buttons:
 
 | Input | Action |
@@ -111,7 +113,7 @@ section shows its state and provides motion and attach/release buttons:
 | `A` / `R` | Attach or release the gantry (same as the corresponding services). |
 | `V` / `G` | Toggle robot visual meshes / collision geometry. |
 | `C` / `F` | Toggle contact points / one lime normal-force line per contact point. |
-| `I` / `M` | Toggle equivalent inertia boxes / the red center-of-mass marker. Visual meshes become translucent while CoM is shown. |
+| `I` / `M` | Toggle equivalent inertia boxes / the whole-robot and per-link CoM markers. Visual meshes become translucent while CoM is shown. |
 | Left mouse drag | Orbit the camera. |
 | Right mouse drag | Pan the camera. |
 | `Ctrl` + right mouse drag | Select a body and apply an external mouse-spring force. |
