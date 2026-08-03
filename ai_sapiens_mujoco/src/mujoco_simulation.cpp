@@ -16,6 +16,7 @@
 
 #include "ai_sapiens_mujoco/mujoco_simulation.hpp"
 
+#include <algorithm>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -167,27 +168,42 @@ bool MujocoSimulation::gantry_present() const
 
 bool MujocoSimulation::gantry_attached() const
 {
-  return false;  // Task 5
+  std::lock_guard<std::mutex> lock(mutex_);
+  return gantry_eq_ >= 0 && !gantry_released_;
 }
 
-bool MujocoSimulation::gantry_set_target(double /*height_m*/, double /*speed_mps*/)
+bool MujocoSimulation::gantry_set_target(double height_m, double speed_mps)
 {
-  return false;  // Task 5
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (gantry_mocap_ < 0 || gantry_released_) {return false;}
+  gantry_target_z_ = height_m;
+  gantry_speed_ = speed_mps > 0.0 ? speed_mps : 0.05;
+  return true;
 }
 
 bool MujocoSimulation::gantry_release()
 {
-  return false;  // Task 5
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (gantry_eq_ < 0 || gantry_released_) {return false;}
+  data_->eq_active[gantry_eq_] = 0;
+  gantry_released_ = true;
+  data_->mocap_pos[3 * gantry_mocap_ + 2] += 1.0;  // park the visual out of the way
+  return true;
 }
 
 double MujocoSimulation::gantry_height() const
 {
-  return 0.0;  // Task 5
+  std::lock_guard<std::mutex> lock(mutex_);
+  return gantry_mocap_ >= 0 ? data_->mocap_pos[3 * gantry_mocap_ + 2] : 0.0;
 }
 
 void MujocoSimulation::update_gantry()  // caller holds mutex_
 {
-  // no-op until Task 5
+  if (gantry_mocap_ < 0 || gantry_released_ || gantry_speed_ <= 0.0) {return;}
+  double & z = data_->mocap_pos[3 * gantry_mocap_ + 2];
+  const double max_dz = gantry_speed_ * model_->opt.timestep;
+  const double err = gantry_target_z_ - z;
+  z += std::clamp(err, -max_dz, max_dz);
 }
 
 }  // namespace ai_sapiens_mujoco

@@ -108,6 +108,43 @@ TEST(MujocoSimulation, ImuStateIsSane)
   EXPECT_NEAR(norm, 1.0, 1e-6);
 }
 
+TEST(MujocoSimulationGantry, LowerBringsRobotDown)
+{
+  MujocoSimulation sim;
+  sim.load(scene("scene_gantry.xml"), kJoints);
+  sim.set_hang_height(0.90);
+  ASSERT_TRUE(sim.gantry_present());
+  ASSERT_TRUE(sim.gantry_attached());
+  const double start_z = sim.data()->qpos[2];
+  ASSERT_TRUE(sim.gantry_set_target(sim.gantry_height() - 0.10, 0.2));
+  for (int i = 0; i < 1500; ++i) {sim.advance(0.001);}
+  EXPECT_LT(sim.data()->qpos[2], start_z - 0.05);
+}
+
+TEST(MujocoSimulationGantry, ReleaseDetachesRobot)
+{
+  MujocoSimulation sim;
+  sim.load(scene("scene_gantry.xml"), kJoints);
+  sim.set_hang_height(0.90);
+  ASSERT_TRUE(sim.gantry_release());
+  EXPECT_FALSE(sim.gantry_attached());
+  // Commands after release must fail, and further gantry motion must not move the robot.
+  EXPECT_FALSE(sim.gantry_set_target(1.5, 0.2));
+  EXPECT_FALSE(sim.gantry_release());
+  const double z_before = sim.data()->qpos[2];
+  for (int i = 0; i < 500; ++i) {sim.advance(0.001);}
+  EXPECT_LT(sim.data()->qpos[2], z_before);  // free fall: robot drops
+}
+
+TEST(MujocoSimulationGantry, PlainSceneHasNoGantry)
+{
+  MujocoSimulation sim;
+  sim.load(scene("scene.xml"), kJoints);
+  EXPECT_FALSE(sim.gantry_present());
+  EXPECT_FALSE(sim.gantry_set_target(1.0, 0.1));
+  EXPECT_FALSE(sim.gantry_release());
+}
+
 int main(int argc, char ** argv)
 {
   testing::InitGoogleTest(&argc, argv);
