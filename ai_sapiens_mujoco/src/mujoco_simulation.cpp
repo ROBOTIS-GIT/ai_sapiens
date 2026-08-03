@@ -94,6 +94,9 @@ void MujocoSimulation::load(
       }
       gantry_target_z_ = data_->mocap_pos[3 * gantry_mocap_ + 2];
       gantry_released_ = data_->eq_active[gantry_eq_] == 0;
+      mju_copy4(
+        gantry_upright_quat_.data(),
+        data_->mocap_quat + 4 * gantry_mocap_);
     }
   }
   mj_forward(model_, data_);
@@ -102,13 +105,11 @@ void MujocoSimulation::load(
     const mjtNum * gantry_pos = data_->xpos + 3 * gantry_body_;
     const mjtNum * gantry_quat = data_->xquat + 4 * gantry_body_;
     const mjtNum * robot_pos = data_->xpos + 3 * gantry_robot_body_;
-    const mjtNum * robot_quat = data_->xquat + 4 * gantry_robot_body_;
     mjtNum inverse_gantry_quat[4];
     mjtNum world_offset[3];
     mju_negQuat(inverse_gantry_quat, gantry_quat);
     mju_sub3(world_offset, robot_pos, gantry_pos);
     mju_rotVecQuat(gantry_to_robot_pos_.data(), world_offset, inverse_gantry_quat);
-    mju_mulQuat(gantry_to_robot_quat_.data(), inverse_gantry_quat, robot_quat);
   }
 }
 
@@ -241,21 +242,47 @@ bool MujocoSimulation::gantry_attach()
     return false;
   }
 
-  const mjtNum * robot_pos = data_->xpos + 3 * gantry_robot_body_;
-  const mjtNum * robot_quat = data_->xquat + 4 * gantry_robot_body_;
-  mjtNum inverse_relative_quat[4];
-  mjtNum gantry_quat[4];
+  mjtNum robot_pos[3];
   mjtNum world_offset[3];
-  mju_negQuat(inverse_relative_quat, gantry_to_robot_quat_.data());
-  mju_mulQuat(gantry_quat, robot_quat, inverse_relative_quat);
-  mju_rotVecQuat(world_offset, gantry_to_robot_pos_.data(), gantry_quat);
+  mju_copy3(robot_pos, data_->xpos + 3 * gantry_robot_body_);
 
   mjtNum * mocap_pos = data_->mocap_pos + 3 * gantry_mocap_;
   mjtNum * mocap_quat = data_->mocap_quat + 4 * gantry_mocap_;
+  mju_copy4(mocap_quat, gantry_upright_quat_.data());
+  mju_rotVecQuat(world_offset, gantry_to_robot_pos_.data(), mocap_quat);
   mju_sub3(mocap_pos, robot_pos, world_offset);
-  mju_copy4(mocap_quat, gantry_quat);
   gantry_target_z_ = mocap_pos[2];
   gantry_speed_ = 0.0;
+
+  // Preserve the fallen robot pose by updating the weld's relative pose,
+  // rather than rotating the gantry mocap body to match the robot.
+  // Refresh body poses while the weld is inactive, then choose the robot
+  // origin as a common world anchor for both sides of the weld.
+  mj_forward(model_, data_);
+
+  const int body1 = model_->eq_obj1id[gantry_eq_];
+  const int body2 = model_->eq_obj2id[gantry_eq_];
+  const mjtNum * body1_pos = data_->xpos + 3 * body1;
+  const mjtNum * body1_quat = data_->xquat + 4 * body1;
+  const mjtNum * body2_pos = data_->xpos + 3 * body2;
+  const mjtNum * body2_quat = data_->xquat + 4 * body2;
+  const mjtNum * anchor_world = data_->xpos + 3 * gantry_robot_body_;
+
+  mjtNum * weld_data = model_->eq_data + gantry_eq_ * mjNEQDATA;
+  mjtNum inverse_body_quat[4];
+  mjtNum relative_quat[4];
+
+  // Weld layout: body2 anchor [0:3], body1 anchor [3:6],
+  // body2 pose relative to body1 [6:10], torquescale [10].
+  mju_sub3(world_offset, anchor_world, body2_pos);
+  mju_negQuat(inverse_body_quat, body2_quat);
+  mju_rotVecQuat(weld_data, world_offset, inverse_body_quat);
+  mju_sub3(world_offset, anchor_world, body1_pos);
+  mju_negQuat(inverse_body_quat, body1_quat);
+  mju_rotVecQuat(weld_data + 3, world_offset, inverse_body_quat);
+  mju_mulQuat(relative_quat, inverse_body_quat, body2_quat);
+  mju_copy4(weld_data + 6, relative_quat);
+
   data_->eq_active[gantry_eq_] = 1;
   gantry_released_ = false;
   mj_forward(model_, data_);

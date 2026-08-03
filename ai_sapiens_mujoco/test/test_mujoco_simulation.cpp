@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <cmath>
 #include <string>
 #include <vector>
@@ -230,6 +231,40 @@ TEST(MujocoSimulationGantry, ReleaseAndAttachToggleWeld)
   }
   EXPECT_LT(std::abs(sim.data()->qpos[2] - z_before_attach), 0.05);
   EXPECT_TRUE(sim.gantry_release());
+}
+
+TEST(MujocoSimulationGantry, ReattachKeepsGantryUprightForFallenRobot)
+{
+  MujocoSimulation sim;
+  sim.load(scene("scene_gantry.xml"), kJoints);
+  sim.set_hang_height(0.90);
+
+  const mjModel * model = sim.model();
+  mjData * data = sim.data();
+  const int gantry_body = mj_name2id(model, mjOBJ_BODY, "gantry");
+  ASSERT_GE(gantry_body, 0);
+  const int gantry_mocap = model->body_mocapid[gantry_body];
+  ASSERT_GE(gantry_mocap, 0);
+
+  std::array<mjtNum, 4> upright_gantry_quat;
+  mju_copy4(upright_gantry_quat.data(), data->mocap_quat + 4 * gantry_mocap);
+
+  ASSERT_TRUE(sim.gantry_release());
+  const mjtNum roll_axis[3] = {1.0, 0.0, 0.0};
+  mjtNum fallen_robot_quat[4];
+  mju_axisAngle2Quat(fallen_robot_quat, roll_axis, 0.5 * M_PI);
+  mju_copy4(data->qpos + 3, fallen_robot_quat);
+  mj_forward(model, data);
+  const double z_before_attach = data->qpos[2];
+
+  ASSERT_TRUE(sim.gantry_attach());
+  EXPECT_NEAR(data->qpos[2], z_before_attach, 1e-12);
+  for (int i = 0; i < 4; ++i) {
+    EXPECT_NEAR(data->mocap_quat[4 * gantry_mocap + i], upright_gantry_quat[i], 1e-12);
+  }
+
+  sim.advance(0.002);
+  EXPECT_GT(std::abs(mju_dot(data->qpos + 3, fallen_robot_quat, 4)), 0.999);
 }
 
 TEST(MujocoSimulationGantry, PlainSceneHasNoGantry)
