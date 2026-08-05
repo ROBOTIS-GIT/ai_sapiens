@@ -68,7 +68,7 @@ private:
     ui_ = std::make_unique<DualSenseTeleopUi>(config_);
     input_plugin_ = std::make_shared<DualSenseTeleopInputPlugin>();
     auto ui_plugin_config = YAML::Clone(yaml);
-    ui_plugin_config["log_input_guide_enabled"] = false;
+    ui_plugin_config["log_selected_selector_enabled"] = false;
     input_plugin_->configure(shared_from_this(), ui_plugin_config);
 
     mode_status_subscription_ =

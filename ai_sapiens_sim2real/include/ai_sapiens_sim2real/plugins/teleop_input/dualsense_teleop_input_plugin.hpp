@@ -79,7 +79,6 @@ private:
 
   void read_config(const YAML::Node & config);
   void read_selector_navigation(const YAML::Node & node);
-  void read_input_guide(const YAML::Node & node);
   static AxisConfig read_axis_config(const YAML::Node & axes, const std::string & name);
   static std::vector<ButtonCondition> read_button_conditions(const YAML::Node & node);
   static std::vector<ButtonCode> read_button_codes(
@@ -115,7 +114,7 @@ private:
   std::size_t selected_index_after_input(const sensor_msgs::msg::Joy & msg) const;
   void apply_selector_navigation(const sensor_msgs::msg::Joy & msg);
   void remember_button_state(const sensor_msgs::msg::Joy & msg);
-  void log_input_guide() const;
+  void log_selected_selector() const;
 
   rclcpp::Node::SharedPtr node_;
   std::string topic_;
@@ -136,8 +135,7 @@ private:
   std::size_t selected_selector_index_{0};
   std::vector<SelectorOption> selector_options_;
   std::vector<int32_t> previous_buttons_;
-  bool log_input_guide_enabled_{true};
-  std::vector<std::string> input_guide_;
+  bool log_selected_selector_enabled_{true};
 
   rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr subscription_;
 };

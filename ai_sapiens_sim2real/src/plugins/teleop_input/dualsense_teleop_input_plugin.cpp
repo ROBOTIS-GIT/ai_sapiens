@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <cmath>
 #include <iterator>
-#include <sstream>
 #include <stdexcept>
 
 #include <pluginlib/class_list_macros.hpp>
@@ -64,7 +63,7 @@ void DualSenseTeleopInputPlugin::configure(
     });
 
   RCLCPP_INFO(node_->get_logger(), "%s: topic=%s", name().c_str(), topic_.c_str());
-  log_input_guide();
+  log_selected_selector();
 }
 
 std::string DualSenseTeleopInputPlugin::name() const
@@ -107,9 +106,8 @@ void DualSenseTeleopInputPlugin::read_config(const YAML::Node & config)
   selector_codes_ = read_button_codes(config["selector_code"], "selector_code", false);
   selector_axis_codes_ = read_axis_codes(config["selector_code"], "selector_code");
   read_selector_navigation(config["selector_navigation"]);
-  log_input_guide_enabled_ =
-    read_bool(config, "log_input_guide_enabled", true);
-  read_input_guide(config["input_guide"]);
+  log_selected_selector_enabled_ =
+    read_bool(config, "log_selected_selector_enabled", true);
 
   if (selector_navigation_enabled_ &&
     (!selector_codes_.empty() || !selector_axis_codes_.empty()))
@@ -173,24 +171,6 @@ void DualSenseTeleopInputPlugin::read_selector_navigation(const YAML::Node & nod
       static_cast<std::size_t>(std::distance(selector_options_.begin(), initial));
   }
   selector_navigation_enabled_ = true;
-}
-
-void DualSenseTeleopInputPlugin::read_input_guide(const YAML::Node & node)
-{
-  input_guide_.clear();
-  if (!node) {
-    return;
-  }
-  if (!node.IsSequence()) {
-    throw std::runtime_error("input_guide must be a sequence");
-  }
-  for (const auto & entry : node) {
-    const auto text = entry.as<std::string>();
-    if (text.empty()) {
-      throw std::runtime_error("input_guide entries must not be empty");
-    }
-    input_guide_.push_back(text);
-  }
 }
 
 DualSenseTeleopInputPlugin::AxisConfig DualSenseTeleopInputPlugin::read_axis_config(
@@ -351,7 +331,7 @@ void DualSenseTeleopInputPlugin::on_message_accepted(const sensor_msgs::msg::Joy
   const bool button_pressed = has_any_button_rising_edge(msg);
   apply_selector_navigation(msg);
   if (button_pressed) {
-    log_input_guide();
+    log_selected_selector();
   }
   remember_button_state(msg);
 }
@@ -549,9 +529,9 @@ void DualSenseTeleopInputPlugin::remember_button_state(
   previous_buttons_ = msg.buttons;
 }
 
-void DualSenseTeleopInputPlugin::log_input_guide() const
+void DualSenseTeleopInputPlugin::log_selected_selector() const
 {
-  if (!node_ || !log_input_guide_enabled_) {
+  if (!node_ || !log_selected_selector_enabled_) {
     return;
   }
 
@@ -561,19 +541,6 @@ void DualSenseTeleopInputPlugin::log_input_guide() const
       node_->get_logger(), "%s: selected [%zu/%zu] %s (selector=%u)",
       name().c_str(), selected_selector_index_ + 1, selector_options_.size(),
       selected.label.c_str(), static_cast<unsigned int>(selected.code));
-  }
-
-  if (!input_guide_.empty()) {
-    std::ostringstream guide;
-    for (std::size_t i = 0; i < input_guide_.size(); ++i) {
-      if (i > 0) {
-        guide << " | ";
-      }
-      guide << input_guide_[i];
-    }
-    RCLCPP_INFO(
-      node_->get_logger(), "%s: key map: %s",
-      name().c_str(), guide.str().c_str());
   }
 }
 
