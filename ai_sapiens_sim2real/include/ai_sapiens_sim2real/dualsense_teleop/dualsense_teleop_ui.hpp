@@ -43,7 +43,6 @@ struct DualSenseTeleopUiConfig
   std::string mode_status_topic{"/ai_sapiens/mode_status"};
   std::map<uint16_t, std::string> input_labels;
   std::vector<DualSenseSelectorUiOption> selector_options;
-  std::vector<std::string> input_guide;
 
   static DualSenseTeleopUiConfig from_yaml(const YAML::Node & node);
 };
@@ -71,7 +70,7 @@ public:
 private:
   std::string input_label(uint16_t code) const;
   std::string selector_label(uint16_t code, std::size_t * index) const;
-  std::string controls() const;
+  std::string controls(bool use_color) const;
 
   DualSenseTeleopUiConfig config_;
 };

@@ -32,11 +32,6 @@ selector_navigation:
     - {code: 201, label: MimicDance1}
     - {code: 202, label: MimicDance2}
 
-input_guide:
-  - "MODE      Circle Damping   Cross Ready   Triangle Velocity"
-  - "MIMIC     D-pad Left/Right select   Square run selected"
-  - "MOTION    Left stick move   Right stick yaw   PS API authority"
-
 ui:
   update_rate: 10.0
   stale_timeout: 0.5
