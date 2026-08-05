@@ -25,10 +25,11 @@
 #include <ai_sapiens_interfaces/msg/mode_status.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <std_msgs/msg/u_int16.hpp>
 #include <yaml-cpp/yaml.h>  // NOLINT(build/include_order)
 
+#include "ai_sapiens_sim2real/teleop_devtools/dualsense/dualsense_teleop_input_plugin.hpp"
 #include "ai_sapiens_sim2real/teleop_devtools/dualsense/dualsense_teleop_ui.hpp"
-#include "ai_sapiens_sim2real/plugins/teleop_input/dualsense_teleop_input_plugin.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -54,22 +55,39 @@ private:
 
   void initialize()
   {
-    const auto default_config =
-      ament_index_cpp::get_package_share_directory("ai_sapiens_sim2real") +
-      "/config/teleop/dualsense.yaml";
+    const auto package_share =
+      ament_index_cpp::get_package_share_directory("ai_sapiens_sim2real");
+    const auto default_config = package_share + "/config/teleop/dualsense.yaml";
+    const auto default_root_config = package_share + "/config/k1_config.yaml";
     declare_parameter<std::string>("config_path", default_config);
+    declare_parameter<std::string>("root_config_path", default_root_config);
     const auto config_path = get_parameter("config_path").as_string();
+    const auto root_config_path = get_parameter("root_config_path").as_string();
     if (config_path.empty()) {
       throw std::runtime_error("DualSense teleop UI config_path must not be empty");
     }
+    if (root_config_path.empty()) {
+      throw std::runtime_error("DualSense teleop UI root_config_path must not be empty");
+    }
 
-    const auto yaml = YAML::LoadFile(config_path);
+    const auto yaml = resolve_dualsense_selector_config(
+      YAML::LoadFile(config_path), YAML::LoadFile(root_config_path));
     config_ = DualSenseTeleopUiConfig::from_yaml(yaml);
     ui_ = std::make_unique<DualSenseTeleopUi>(config_);
     input_plugin_ = std::make_shared<DualSenseTeleopInputPlugin>();
     auto ui_plugin_config = YAML::Clone(yaml);
-    ui_plugin_config["log_selected_selector_enabled"] = false;
+    ui_plugin_config["selector_status_publish_enabled"] = false;
     input_plugin_->configure(shared_from_this(), ui_plugin_config);
+
+    auto selector_status_qos = rclcpp::QoS(1);
+    selector_status_qos.reliable().transient_local();
+    selector_status_subscription_ =
+      create_subscription<std_msgs::msg::UInt16>(
+      config_.selector_status_topic, selector_status_qos,
+      [this](const std_msgs::msg::UInt16::SharedPtr message) {
+        selected_selector_code_ = message->data;
+        selector_status_received_ = true;
+      });
 
     mode_status_subscription_ =
       create_subscription<ai_sapiens_interfaces::msg::ModeStatus>(
@@ -108,6 +126,9 @@ private:
     } else {
       state_.joy_fresh = false;
     }
+    if (selector_status_received_) {
+      state_.command.selector_code = selected_selector_code_;
+    }
     if (state_.mode_status_received) {
       const auto status_age =
         std::chrono::steady_clock::now() - mode_status_received_at_;
@@ -128,8 +149,12 @@ private:
   std::shared_ptr<DualSenseTeleopInputPlugin> input_plugin_;
   rclcpp::Subscription<ai_sapiens_interfaces::msg::ModeStatus>::SharedPtr
     mode_status_subscription_;
+  rclcpp::Subscription<std_msgs::msg::UInt16>::SharedPtr
+    selector_status_subscription_;
   rclcpp::TimerBase::SharedPtr render_timer_;
   std::chrono::steady_clock::time_point mode_status_received_at_{};
+  uint16_t selected_selector_code_{0};
+  bool selector_status_received_{false};
   bool use_color_{false};
 };
 

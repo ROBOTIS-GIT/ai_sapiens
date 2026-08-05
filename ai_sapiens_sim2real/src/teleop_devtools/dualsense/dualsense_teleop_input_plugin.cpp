@@ -14,11 +14,12 @@
 //
 // Author: Woojin Wie
 
-#include "ai_sapiens_sim2real/plugins/teleop_input/dualsense_teleop_input_plugin.hpp"
+#include "ai_sapiens_sim2real/teleop_devtools/dualsense/dualsense_teleop_input_plugin.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <iterator>
+#include <map>
 #include <stdexcept>
 
 #include <pluginlib/class_list_macros.hpp>
@@ -45,6 +46,57 @@ bool read_bool(const YAML::Node & node, const std::string & key, bool fallback)
 
 }  // namespace
 
+YAML::Node resolve_dualsense_selector_config(
+  const YAML::Node & teleop_config,
+  const YAML::Node & root_config)
+{
+  auto resolved = YAML::Clone(teleop_config);
+  const auto navigation = resolved["selector_navigation"];
+  if (!navigation || !navigation["selector"]) {
+    return resolved;
+  }
+  if (navigation["options"]) {
+    throw std::runtime_error(
+            "DualSense selector_navigation cannot define both selector and options");
+  }
+
+  const auto selector_name = navigation["selector"].as<std::string>();
+  if (selector_name.empty()) {
+    throw std::runtime_error(
+            "DualSense selector_navigation.selector must not be empty");
+  }
+  const auto selector = root_config["selectors"][selector_name];
+  const auto table = selector ? selector["table"] : YAML::Node();
+  if (!table || !table.IsMap() || table.size() == 0) {
+    throw std::runtime_error(
+            "DualSense selector_navigation references missing or empty selector '" +
+            selector_name + "'");
+  }
+
+  std::map<uint16_t, std::string> ordered_options;
+  for (const auto & entry : table) {
+    const auto code = entry.first.as<uint16_t>();
+    const auto label = entry.second.as<std::string>();
+    if (code == 0 || label.empty()) {
+      throw std::runtime_error(
+              "DualSense selector codes and labels must be non-empty");
+    }
+    if (!ordered_options.emplace(code, label).second) {
+      throw std::runtime_error("DualSense selector codes must be unique");
+    }
+  }
+
+  YAML::Node options(YAML::NodeType::Sequence);
+  for (const auto & [code, label] : ordered_options) {
+    YAML::Node option(YAML::NodeType::Map);
+    option["code"] = code;
+    option["label"] = label;
+    options.push_back(option);
+  }
+  resolved["selector_navigation"]["options"] = options;
+  return resolved;
+}
+
 void DualSenseTeleopInputPlugin::configure(
   const rclcpp::Node::SharedPtr & node,
   const YAML::Node & config)
@@ -54,16 +106,38 @@ void DualSenseTeleopInputPlugin::configure(
   }
 
   node_ = node;
-  read_config(config);
+  auto resolved_config = YAML::Clone(config);
+  const auto navigation = resolved_config["selector_navigation"];
+  if (navigation && navigation["selector"] && !navigation["options"]) {
+    if (!node_->has_parameter("config_path")) {
+      throw std::runtime_error(
+              "DualSense selector_navigation requires the node config_path parameter");
+    }
+    const auto root_config_path = node_->get_parameter("config_path").as_string();
+    if (root_config_path.empty()) {
+      throw std::runtime_error(
+              "DualSense selector_navigation requires a non-empty node config_path");
+    }
+    resolved_config = resolve_dualsense_selector_config(
+      config, YAML::LoadFile(root_config_path));
+  }
+  read_config(resolved_config);
 
   subscription_ = node_->create_subscription<sensor_msgs::msg::Joy>(
     topic_, rclcpp::SensorDataQoS(),
     [this](const sensor_msgs::msg::Joy::SharedPtr msg) {
       handle_raw_message(*msg);
     });
+  if (selector_navigation_enabled_ && selector_status_publish_enabled_) {
+    auto status_qos = rclcpp::QoS(1);
+    status_qos.reliable().transient_local();
+    selector_status_publisher_ =
+      node_->create_publisher<std_msgs::msg::UInt16>(
+      selector_status_topic_, status_qos);
+    publish_selected_selector();
+  }
 
   RCLCPP_INFO(node_->get_logger(), "%s: topic=%s", name().c_str(), topic_.c_str());
-  log_selected_selector();
 }
 
 std::string DualSenseTeleopInputPlugin::name() const
@@ -119,9 +193,9 @@ void DualSenseTeleopInputPlugin::read_config(const YAML::Node & config)
   }
   selector_codes_ = read_button_codes(config["selector_code"], "selector_code", false);
   selector_axis_codes_ = read_axis_codes(config["selector_code"], "selector_code");
+  selector_status_publish_enabled_ =
+    read_bool(config, "selector_status_publish_enabled", true);
   read_selector_navigation(config["selector_navigation"]);
-  log_selected_selector_enabled_ =
-    read_bool(config, "log_selected_selector_enabled", true);
 
   if (selector_navigation_enabled_ &&
     (!selector_codes_.empty() || !selector_axis_codes_.empty()))
@@ -147,8 +221,14 @@ void DualSenseTeleopInputPlugin::read_selector_navigation(const YAML::Node & nod
 
   selector_previous_button_ = node["previous_button"].as<std::size_t>();
   selector_next_button_ = node["next_button"].as<std::size_t>();
+  selector_status_topic_ =
+    has_node(node, "status_topic") ?
+    node["status_topic"].as<std::string>() : selector_status_topic_;
   if (selector_previous_button_ == selector_next_button_) {
     throw std::runtime_error("selector_navigation buttons must be different");
+  }
+  if (selector_status_publish_enabled_ && selector_status_topic_.empty()) {
+    throw std::runtime_error("selector_navigation.status_topic must not be empty");
   }
 
   const auto options = node["options"];
@@ -156,9 +236,21 @@ void DualSenseTeleopInputPlugin::read_selector_navigation(const YAML::Node & nod
     throw std::runtime_error("selector_navigation.options must be a non-empty sequence");
   }
   for (const auto & option : options) {
-    const auto code = option.as<uint16_t>();
-    if (code == 0) {
-      throw std::runtime_error("selector_navigation option codes must be non-zero");
+    uint16_t code = 0;
+    std::string label{"Selector"};
+    if (option.IsScalar()) {
+      code = option.as<uint16_t>();
+    } else {
+      if (!option["code"] || !option["label"]) {
+        throw std::runtime_error(
+                "selector_navigation options require code and label");
+      }
+      code = option["code"].as<uint16_t>();
+      label = option["label"].as<std::string>();
+    }
+    if (code == 0 || label.empty()) {
+      throw std::runtime_error(
+              "selector_navigation option code and label must be non-empty");
     }
     const bool duplicate = std::any_of(
       selector_options_.begin(), selector_options_.end(),
@@ -166,7 +258,7 @@ void DualSenseTeleopInputPlugin::read_selector_navigation(const YAML::Node & nod
     if (duplicate) {
       throw std::runtime_error("selector_navigation option codes must be unique");
     }
-    selector_options_.push_back({code});
+    selector_options_.push_back({code, label});
   }
 
   if (node["initial_code"]) {
@@ -340,11 +432,11 @@ TeleopInputCommand DualSenseTeleopInputPlugin::make_command_from_message(
 
 void DualSenseTeleopInputPlugin::on_message_accepted(const sensor_msgs::msg::Joy & msg)
 {
-  const bool button_pressed = has_any_button_rising_edge(msg);
   apply_input_code_latch(msg);
+  const auto previous_selector_index = selected_selector_index_;
   apply_selector_navigation(msg);
-  if (button_pressed) {
-    log_selected_selector();
+  if (selected_selector_index_ != previous_selector_index) {
+    publish_selected_selector();
   }
   remember_button_state(msg);
 }
@@ -511,17 +603,6 @@ bool DualSenseTeleopInputPlugin::is_button_rising_edge(
   return is_button_pressed(msg, button) && !was_pressed;
 }
 
-bool DualSenseTeleopInputPlugin::has_any_button_rising_edge(
-  const sensor_msgs::msg::Joy & msg) const
-{
-  for (std::size_t button = 0; button < msg.buttons.size(); ++button) {
-    if (is_button_rising_edge(msg, button)) {
-      return true;
-    }
-  }
-  return false;
-}
-
 int DualSenseTeleopInputPlugin::selector_navigation_step(
   const sensor_msgs::msg::Joy & msg) const
 {
@@ -564,19 +645,15 @@ void DualSenseTeleopInputPlugin::remember_button_state(
   previous_buttons_ = msg.buttons;
 }
 
-void DualSenseTeleopInputPlugin::log_selected_selector() const
+void DualSenseTeleopInputPlugin::publish_selected_selector() const
 {
-  if (!node_ || !log_selected_selector_enabled_) {
+  if (!selector_status_publisher_ || !selector_navigation_enabled_) {
     return;
   }
 
-  if (selector_navigation_enabled_) {
-    const auto & selected = selector_options_[selected_selector_index_];
-    RCLCPP_INFO(
-      node_->get_logger(), "%s: selected [%zu/%zu] selector=%u",
-      name().c_str(), selected_selector_index_ + 1, selector_options_.size(),
-      static_cast<unsigned int>(selected.code));
-  }
+  std_msgs::msg::UInt16 message;
+  message.data = selector_options_[selected_selector_index_].code;
+  selector_status_publisher_->publish(message);
 }
 
 }  // namespace ai_sapiens_sim2real

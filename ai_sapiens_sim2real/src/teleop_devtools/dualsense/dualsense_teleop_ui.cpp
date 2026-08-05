@@ -135,6 +135,13 @@ DualSenseTeleopUiConfig DualSenseTeleopUiConfig::from_yaml(
   if (config.mode_status_topic.empty()) {
     throw std::runtime_error("DualSense UI mode_status_topic must not be empty");
   }
+  const auto navigation = node["selector_navigation"];
+  if (navigation && navigation["status_topic"]) {
+    config.selector_status_topic = navigation["status_topic"].as<std::string>();
+  }
+  if (config.selector_status_topic.empty()) {
+    throw std::runtime_error("DualSense UI selector status topic must not be empty");
+  }
 
   const auto buttons = node["input_code"] ? node["input_code"]["buttons"] : YAML::Node();
   if (!buttons) {
@@ -163,7 +170,6 @@ DualSenseTeleopUiConfig DualSenseTeleopUiConfig::from_yaml(
     throw std::runtime_error("DualSense input_code.buttons must be a sequence or map");
   }
 
-  const auto navigation = node["selector_navigation"];
   const auto options = navigation ? navigation["options"] : YAML::Node();
   if (!options || !options.IsSequence() || options.size() == 0) {
     throw std::runtime_error(
@@ -172,10 +178,22 @@ DualSenseTeleopUiConfig DualSenseTeleopUiConfig::from_yaml(
   std::set<uint16_t> selector_codes;
   for (const auto & option : options) {
     DualSenseSelectorUiOption parsed;
-    parsed.code = option.as<uint16_t>();
-    if (parsed.code == 0 || !selector_codes.insert(parsed.code).second) {
+    if (option.IsScalar()) {
+      parsed.code = option.as<uint16_t>();
+      parsed.label = "Selector";
+    } else {
+      if (!option["code"] || !option["label"]) {
+        throw std::runtime_error(
+                "DualSense selector options require code and label");
+      }
+      parsed.code = option["code"].as<uint16_t>();
+      parsed.label = option["label"].as<std::string>();
+    }
+    if (parsed.code == 0 || parsed.label.empty() ||
+      !selector_codes.insert(parsed.code).second)
+    {
       throw std::runtime_error(
-              "DualSense selector option codes must be non-zero and unique");
+              "DualSense selector option code and label must be non-empty and unique");
     }
     config.selector_options.push_back(std::move(parsed));
   }
@@ -299,7 +317,7 @@ std::string DualSenseTeleopUi::selector_label(
   }
   *index = static_cast<std::size_t>(
     std::distance(config_.selector_options.begin(), option));
-  return "Selector";
+  return option->label;
 }
 
 std::string DualSenseTeleopUi::controls(bool use_color) const

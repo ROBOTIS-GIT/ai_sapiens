@@ -26,8 +26,8 @@ input_code:
 selector_navigation:
   previous_button: 13  # D-pad Left
   next_button: 14      # D-pad Right
-  initial_code: 200
-  options: [200, 201, 202]
+  selector: mimic_selector
+  status_topic: /dualsense_teleop/selector_status
 
 ui:
   update_rate: 10.0
