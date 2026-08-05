@@ -9,5 +9,9 @@ input_code:
   mimic: 4
 
 selector_navigation:
-  initial_code: 200
-  options: [200, 201, 202, 203, 204, 205, 206, 207, 208, 209]
+  selector: mimic_selector
+
+ui:
+  update_rate: 10.0
+  stale_timeout: 0.5
+  mode_status_topic: /ai_sapiens/mode_status

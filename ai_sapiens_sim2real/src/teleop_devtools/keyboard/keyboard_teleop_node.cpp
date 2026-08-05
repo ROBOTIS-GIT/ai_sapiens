@@ -26,6 +26,7 @@
 #include <termios.h>
 #include <unistd.h>
 
+#include <ai_sapiens_interfaces/msg/mode_status.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <yaml-cpp/yaml.h>  // NOLINT(build/include_order)
@@ -97,19 +98,38 @@ public:
   KeyboardTeleopNode()
   : Node("keyboard_teleop")
   {
-    const auto default_config =
-      ament_index_cpp::get_package_share_directory("ai_sapiens_sim2real") +
-      "/config/teleop/keyboard.yaml";
+    const auto package_share =
+      ament_index_cpp::get_package_share_directory("ai_sapiens_sim2real");
+    const auto default_config = package_share + "/config/teleop/keyboard.yaml";
+    const auto default_root_config = package_share + "/config/k1_config.yaml";
     declare_parameter<std::string>("config_path", default_config);
+    declare_parameter<std::string>("root_config_path", default_root_config);
     const auto config_path = get_parameter("config_path").as_string();
+    const auto root_config_path = get_parameter("root_config_path").as_string();
     if (config_path.empty()) {
       throw std::runtime_error("keyboard teleop config_path must not be empty");
     }
+    if (root_config_path.empty()) {
+      throw std::runtime_error("keyboard teleop root_config_path must not be empty");
+    }
 
-    config_ = KeyboardTeleopConfig::from_yaml(YAML::LoadFile(config_path));
+    config_ = KeyboardTeleopConfig::from_yaml(
+      resolve_keyboard_selector_config(
+        YAML::LoadFile(config_path), YAML::LoadFile(root_config_path)));
     state_ = std::make_unique<KeyboardTeleopState>(config_);
     publisher_ = create_publisher<ai_sapiens_interfaces::msg::KeyboardInput>(
       config_.topic, rclcpp::SensorDataQoS());
+    mode_status_subscription_ =
+      create_subscription<ai_sapiens_interfaces::msg::ModeStatus>(
+      config_.mode_status_topic, 10,
+      [this](const ai_sapiens_interfaces::msg::ModeStatus::SharedPtr message) {
+        ui_status_.mode_status_received = true;
+        mode_status_received_at_ = std::chrono::steady_clock::now();
+        ui_status_.teleop_input_valid = message->teleop_input_valid;
+        ui_status_.active_mode = message->active_mode;
+        ui_status_.authority = message->authority;
+        ui_status_.transition_reason = message->last_transition_reason;
+      });
     terminal_ = std::make_unique<TerminalGuard>();
     const char * term = std::getenv("TERM");
     use_color_ =
@@ -125,6 +145,11 @@ public:
     keyboard_timer_ = create_wall_timer(
       std::chrono::milliseconds(10),
       [this]() {read_keyboard();});
+    const auto render_period =
+      std::chrono::duration<double>(1.0 / config_.ui_update_rate);
+    render_timer_ = create_wall_timer(
+      std::chrono::duration_cast<std::chrono::nanoseconds>(render_period),
+      [this]() {print_guide();});
 
     RCLCPP_INFO(
       get_logger(), "keyboard teleop: topic=%s rate=%.1f Hz",
@@ -173,8 +198,15 @@ private:
 
   void print_guide() const
   {
+    auto ui_status = ui_status_;
+    if (ui_status.mode_status_received) {
+      const auto status_age =
+        std::chrono::steady_clock::now() - mode_status_received_at_;
+      ui_status.mode_status_fresh =
+        status_age <= std::chrono::duration<double>(config_.ui_stale_timeout);
+    }
     std::cout << "\033[2J\033[H"
-              << state_->dashboard(last_action_, use_color_)
+              << state_->dashboard(last_action_, ui_status, use_color_)
               << std::flush;
   }
 
@@ -184,9 +216,14 @@ private:
   uint32_t sequence_{0};
   bool use_color_{false};
   std::string last_action_{"Started safely in Damping"};
+  KeyboardTeleopUiStatus ui_status_;
+  std::chrono::steady_clock::time_point mode_status_received_at_{};
   rclcpp::Publisher<ai_sapiens_interfaces::msg::KeyboardInput>::SharedPtr publisher_;
+  rclcpp::Subscription<ai_sapiens_interfaces::msg::ModeStatus>::SharedPtr
+    mode_status_subscription_;
   rclcpp::TimerBase::SharedPtr publish_timer_;
   rclcpp::TimerBase::SharedPtr keyboard_timer_;
+  rclcpp::TimerBase::SharedPtr render_timer_;
   std::unique_ptr<TerminalGuard> terminal_;
 };
 

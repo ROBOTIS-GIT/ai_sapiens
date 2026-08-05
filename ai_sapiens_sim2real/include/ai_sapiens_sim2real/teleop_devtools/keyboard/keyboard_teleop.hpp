@@ -52,6 +52,7 @@ enum class KeyboardAction
 struct KeyboardSelectorOption
 {
   uint16_t code{0};
+  std::string label;
 };
 
 struct KeyboardTeleopConfig
@@ -59,6 +60,9 @@ struct KeyboardTeleopConfig
   std::string topic{"/keyboard_teleop/input"};
   double publish_rate{20.0};
   float velocity_step{0.2F};
+  double ui_update_rate{10.0};
+  double ui_stale_timeout{0.5};
+  std::string mode_status_topic{"/ai_sapiens/mode_status"};
   uint16_t damping_code{1};
   uint16_t ready_pose_code{2};
   uint16_t velocity_code{3};
@@ -68,6 +72,20 @@ struct KeyboardTeleopConfig
 
   static KeyboardTeleopConfig from_yaml(const YAML::Node & node);
 };
+
+struct KeyboardTeleopUiStatus
+{
+  bool mode_status_received{false};
+  bool mode_status_fresh{false};
+  bool teleop_input_valid{false};
+  std::string active_mode;
+  std::string authority;
+  std::string transition_reason;
+};
+
+YAML::Node resolve_keyboard_selector_config(
+  const YAML::Node & teleop_config,
+  const YAML::Node & root_config);
 
 class KeyboardInputDecoder
 {
@@ -87,7 +105,10 @@ public:
   ai_sapiens_interfaces::msg::KeyboardInput take_message(uint32_t sequence);
   bool mimic_request_pending() const;
   std::string status_line() const;
-  std::string dashboard(std::string_view last_action, bool use_color) const;
+  std::string dashboard(
+    std::string_view last_action,
+    const KeyboardTeleopUiStatus & ui_status,
+    bool use_color) const;
 
   static std::string action_description(KeyboardAction action);
   static std::string key_map();

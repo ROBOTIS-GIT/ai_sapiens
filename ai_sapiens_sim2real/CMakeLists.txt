@@ -109,7 +109,7 @@ add_library(keyboard_teleop_core SHARED
 )
 
 add_library(keyboard_teleop_input_plugin SHARED
-  src/plugins/teleop_input/keyboard_teleop_input_plugin.cpp
+  src/teleop_devtools/keyboard/keyboard_teleop_input_plugin.cpp
 )
 
 add_executable(keyboard_teleop_node

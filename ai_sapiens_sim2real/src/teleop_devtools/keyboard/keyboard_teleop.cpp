@@ -20,6 +20,7 @@
 #include <cctype>
 #include <cmath>
 #include <iomanip>
+#include <map>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -38,6 +39,7 @@ constexpr const char * kAnsiBoldCyan = "\033[1;36m";
 constexpr const char * kAnsiBoldGreen = "\033[1;32m";
 constexpr const char * kAnsiBoldYellow = "\033[1;33m";
 constexpr const char * kAnsiBoldMagenta = "\033[1;35m";
+constexpr const char * kAnsiBoldRed = "\033[1;31m";
 constexpr const char * kAnsiDim = "\033[2m";
 
 std::string paint(
@@ -115,6 +117,57 @@ KeyboardAction decode_character(unsigned char character)
 
 }  // namespace
 
+YAML::Node resolve_keyboard_selector_config(
+  const YAML::Node & teleop_config,
+  const YAML::Node & root_config)
+{
+  auto resolved = YAML::Clone(teleop_config);
+  const auto navigation = resolved["selector_navigation"];
+  if (!navigation || !navigation["selector"]) {
+    return resolved;
+  }
+  if (navigation["options"]) {
+    throw std::runtime_error(
+            "keyboard selector_navigation cannot define both selector and options");
+  }
+
+  const auto selector_name = navigation["selector"].as<std::string>();
+  if (selector_name.empty()) {
+    throw std::runtime_error(
+            "keyboard selector_navigation.selector must not be empty");
+  }
+  const auto selector = root_config["selectors"][selector_name];
+  const auto table = selector ? selector["table"] : YAML::Node();
+  if (!table || !table.IsMap() || table.size() == 0) {
+    throw std::runtime_error(
+            "keyboard selector_navigation references missing or empty selector '" +
+            selector_name + "'");
+  }
+
+  std::map<uint16_t, std::string> ordered_options;
+  for (const auto & entry : table) {
+    const auto code = entry.first.as<uint16_t>();
+    const auto label = entry.second.as<std::string>();
+    if (code == 0 || label.empty()) {
+      throw std::runtime_error(
+              "keyboard selector codes and labels must be non-empty");
+    }
+    if (!ordered_options.emplace(code, label).second) {
+      throw std::runtime_error("keyboard selector codes must be unique");
+    }
+  }
+
+  YAML::Node options(YAML::NodeType::Sequence);
+  for (const auto & [code, label] : ordered_options) {
+    YAML::Node option(YAML::NodeType::Map);
+    option["code"] = code;
+    option["label"] = label;
+    options.push_back(option);
+  }
+  resolved["selector_navigation"]["options"] = options;
+  return resolved;
+}
+
 KeyboardTeleopConfig KeyboardTeleopConfig::from_yaml(const YAML::Node & node)
 {
   if (!node || !node.IsMap()) {
@@ -134,6 +187,28 @@ KeyboardTeleopConfig KeyboardTeleopConfig::from_yaml(const YAML::Node & node)
   }
   if (!std::isfinite(config.publish_rate) || config.publish_rate <= 0.0) {
     throw std::runtime_error("keyboard teleop publish_rate must be positive");
+  }
+
+  const auto ui = node["ui"];
+  if (ui) {
+    if (ui["update_rate"]) {
+      config.ui_update_rate = ui["update_rate"].as<double>();
+    }
+    if (ui["stale_timeout"]) {
+      config.ui_stale_timeout = ui["stale_timeout"].as<double>();
+    }
+    if (ui["mode_status_topic"]) {
+      config.mode_status_topic = ui["mode_status_topic"].as<std::string>();
+    }
+  }
+  if (!std::isfinite(config.ui_update_rate) || config.ui_update_rate <= 0.0) {
+    throw std::runtime_error("keyboard teleop UI update_rate must be positive");
+  }
+  if (!std::isfinite(config.ui_stale_timeout) || config.ui_stale_timeout <= 0.0) {
+    throw std::runtime_error("keyboard teleop UI stale_timeout must be positive");
+  }
+  if (config.mode_status_topic.empty()) {
+    throw std::runtime_error("keyboard teleop UI mode_status_topic must not be empty");
   }
 
   if (node["velocity_step"]) {
@@ -173,9 +248,19 @@ KeyboardTeleopConfig KeyboardTeleopConfig::from_yaml(const YAML::Node & node)
   std::set<uint16_t> selector_codes;
   for (const auto & option : options) {
     KeyboardSelectorOption parsed;
-    parsed.code = option.as<uint16_t>();
-    if (parsed.code == 0) {
-      throw std::runtime_error("keyboard selector option codes must be non-zero");
+    if (option.IsScalar()) {
+      parsed.code = option.as<uint16_t>();
+      parsed.label = "Selector";
+    } else {
+      if (!option["code"] || !option["label"]) {
+        throw std::runtime_error("keyboard selector options require code and label");
+      }
+      parsed.code = option["code"].as<uint16_t>();
+      parsed.label = option["label"].as<std::string>();
+    }
+    if (parsed.code == 0 || parsed.label.empty()) {
+      throw std::runtime_error(
+              "keyboard selector option code and label must be non-empty");
     }
     if (!selector_codes.insert(parsed.code).second) {
       throw std::runtime_error("keyboard selector option codes must be unique");
@@ -343,14 +428,16 @@ std::string KeyboardTeleopState::status_line() const
          << " | request=" << displayed_input_label << '(' << displayed_input_code << ')'
          << " | selector=[" << selector_index_ + 1 << '/'
          << config_.selector_options.size() << "] "
-         << "Selector(" << selector.code << ')'
+         << selector.label << '(' << selector.code << ')'
          << " | velocity=(" << std::fixed << std::setprecision(1)
          << linear_x_ << ", " << linear_y_ << ", " << angular_z_ << ')';
   return status.str();
 }
 
 std::string KeyboardTeleopState::dashboard(
-  std::string_view last_action, bool use_color) const
+  std::string_view last_action,
+  const KeyboardTeleopUiStatus & ui_status,
+  bool use_color) const
 {
   const auto & selector = config_.selector_options[selector_index_];
   const uint16_t displayed_input_code =
@@ -375,17 +462,37 @@ std::string KeyboardTeleopState::dashboard(
 
   std::ostringstream motion;
   motion << '[' << selector_index_ + 1 << '/' << config_.selector_options.size()
-         << "]  Selector (" << selector.code << ')';
+         << "]  " << selector.label << " (" << selector.code << ')';
+
+  const std::string controller_status =
+    !ui_status.mode_status_received ? "WAITING" :
+    !ui_status.mode_status_fresh ? "STALE" :
+    ui_status.teleop_input_valid ? "READY" : "INPUT LOST";
+  const char * controller_color =
+    ui_status.mode_status_received && ui_status.mode_status_fresh &&
+    ui_status.teleop_input_valid ?
+    kAnsiBoldGreen :
+    ui_status.mode_status_received ? kAnsiBoldRed : kAnsiBoldYellow;
+  const std::string active_mode =
+    ui_status.mode_status_received && !ui_status.active_mode.empty() ?
+    ui_status.active_mode : "--";
+  const std::string authority =
+    ui_status.mode_status_received && !ui_status.authority.empty() ?
+    ui_status.authority : "--";
+  const std::string requested_authority = api_mode_ ? "API" : "MANUAL";
 
   std::ostringstream dashboard;
   dashboard
     << paint("AI SAPIENS  /  KEYBOARD TELEOP", kAnsiBoldCyan, use_color) << '\n'
     << "======================================================================\n"
     << paint("CONTROL STATE", kAnsiBoldCyan, use_color) << '\n'
+    << "  Controller   "
+    << paint(controller_status, controller_color, use_color) << '\n'
+    << "  Active mode  "
+    << paint(active_mode, kAnsiBoldGreen, use_color) << '\n'
     << "  Authority    "
-    << paint(
-      api_mode_ ? "API" : "MANUAL",
-      api_mode_ ? kAnsiBoldCyan : kAnsiBoldGreen, use_color) << '\n'
+    << paint(authority, kAnsiBoldCyan, use_color)
+    << "  (requested: " << requested_authority << ")\n"
     << "  Request      "
     << paint(request.str(), request_color, use_color) << '\n'
     << "  Motion       <  "
@@ -399,6 +506,12 @@ std::string KeyboardTeleopState::dashboard(
     << paint("KEYS", kAnsiBoldCyan, use_color) << '\n'
     << key_map() << '\n'
     << "----------------------------------------------------------------------\n"
+    << "  Last state   "
+    << paint(
+      ui_status.transition_reason.empty() ?
+      "Waiting for controller status..." : ui_status.transition_reason,
+      kAnsiDim, use_color)
+    << '\n'
     << "  Last input   "
     << paint(
       last_action.empty() ? "Waiting for a key..." : std::string(last_action),
