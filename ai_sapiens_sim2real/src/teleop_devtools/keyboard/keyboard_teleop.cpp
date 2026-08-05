@@ -172,14 +172,10 @@ KeyboardTeleopConfig KeyboardTeleopConfig::from_yaml(const YAML::Node & node)
 
   std::set<uint16_t> selector_codes;
   for (const auto & option : options) {
-    if (!option["code"] || !option["label"]) {
-      throw std::runtime_error("keyboard selector options require code and label");
-    }
     KeyboardSelectorOption parsed;
-    parsed.code = option["code"].as<uint16_t>();
-    parsed.label = option["label"].as<std::string>();
-    if (parsed.code == 0 || parsed.label.empty()) {
-      throw std::runtime_error("keyboard selector option code and label must be non-empty");
+    parsed.code = option.as<uint16_t>();
+    if (parsed.code == 0) {
+      throw std::runtime_error("keyboard selector option codes must be non-zero");
     }
     if (!selector_codes.insert(parsed.code).second) {
       throw std::runtime_error("keyboard selector option codes must be unique");
@@ -347,7 +343,7 @@ std::string KeyboardTeleopState::status_line() const
          << " | request=" << displayed_input_label << '(' << displayed_input_code << ')'
          << " | selector=[" << selector_index_ + 1 << '/'
          << config_.selector_options.size() << "] "
-         << selector.label << '(' << selector.code << ')'
+         << "Selector(" << selector.code << ')'
          << " | velocity=(" << std::fixed << std::setprecision(1)
          << linear_x_ << ", " << linear_y_ << ", " << angular_z_ << ')';
   return status.str();
@@ -379,7 +375,7 @@ std::string KeyboardTeleopState::dashboard(
 
   std::ostringstream motion;
   motion << '[' << selector_index_ + 1 << '/' << config_.selector_options.size()
-         << "]  " << selector.label << " (" << selector.code << ')';
+         << "]  Selector (" << selector.code << ')';
 
   std::ostringstream dashboard;
   dashboard

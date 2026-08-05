@@ -37,10 +37,7 @@ input_code:
   mimic: 4
 selector_navigation:
   initial_code: 200
-  options:
-    - {code: 200, label: Squat}
-    - {code: 201, label: Dance1}
-    - {code: 202, label: Dance2}
+  options: [200, 201, 202, 203, 204, 205, 206, 207, 208, 209]
 )";
 
 KeyboardTeleopConfig config()
@@ -118,7 +115,7 @@ TEST(KeyboardTeleopState, WrapsAndLatchesSelector)
   KeyboardTeleopState state(config());
 
   EXPECT_TRUE(state.apply(KeyboardAction::kPreviousSelector));
-  EXPECT_EQ(state.take_message(1).selector_code, 202);
+  EXPECT_EQ(state.take_message(1).selector_code, 209);
   EXPECT_TRUE(state.apply(KeyboardAction::kNextSelector));
   EXPECT_EQ(state.take_message(2).selector_code, 200);
   EXPECT_TRUE(state.apply(KeyboardAction::kNextSelector));
@@ -149,7 +146,7 @@ TEST(KeyboardTeleopState, RendersReadableDashboard)
   EXPECT_NE(dashboard.find("AI SAPIENS  /  KEYBOARD TELEOP"), std::string::npos);
   EXPECT_NE(dashboard.find("CONTROL STATE"), std::string::npos);
   EXPECT_NE(dashboard.find("MANUAL"), std::string::npos);
-  EXPECT_NE(dashboard.find("[2/3]  Dance1 (201)"), std::string::npos);
+  EXPECT_NE(dashboard.find("[2/10]  Selector (201)"), std::string::npos);
   EXPECT_NE(
     dashboard.find("X    back  [----------|--o-------]  +0.25  forward"),
     std::string::npos);
@@ -206,6 +203,10 @@ TEST(KeyboardTeleopConfig, RejectsUnsafeConfiguration)
 
   node = YAML::Load(kConfig);
   node["selector_navigation"]["initial_code"] = 999;
+  EXPECT_THROW(KeyboardTeleopConfig::from_yaml(node), std::runtime_error);
+
+  node = YAML::Load(kConfig);
+  node["selector_navigation"]["options"][1] = 200;
   EXPECT_THROW(KeyboardTeleopConfig::from_yaml(node), std::runtime_error);
 }
 
