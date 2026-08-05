@@ -22,7 +22,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <yaml-cpp/yaml.h>  // NOLINT(build/include_order)
 
-#include "ai_sapiens_sim2real/plugins/teleop_input/keyboard_teleop_input_plugin.hpp"
+#include "ai_sapiens_sim2real/teleop_devtools/keyboard/keyboard_teleop_input_plugin.hpp"
 
 namespace ai_sapiens_sim2real
 {

@@ -14,7 +14,7 @@
 //
 // Author: Kiwoong Park
 
-#include "ai_sapiens_sim2real/plugins/teleop_input/keyboard_teleop_input_plugin.hpp"
+#include "ai_sapiens_sim2real/teleop_devtools/keyboard/keyboard_teleop_input_plugin.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -34,7 +34,22 @@ void KeyboardTeleopInputPlugin::configure(
   }
 
   node_ = node;
-  config_ = KeyboardTeleopConfig::from_yaml(config);
+  auto resolved_config = YAML::Clone(config);
+  const auto navigation = resolved_config["selector_navigation"];
+  if (navigation && navigation["selector"] && !navigation["options"]) {
+    if (!node_->has_parameter("config_path")) {
+      throw std::runtime_error(
+              "keyboard selector_navigation requires the node config_path parameter");
+    }
+    const auto root_config_path = node_->get_parameter("config_path").as_string();
+    if (root_config_path.empty()) {
+      throw std::runtime_error(
+              "keyboard selector_navigation requires a non-empty node config_path");
+    }
+    resolved_config = resolve_keyboard_selector_config(
+      config, YAML::LoadFile(root_config_path));
+  }
+  config_ = KeyboardTeleopConfig::from_yaml(resolved_config);
   subscription_ = node_->create_subscription<KeyboardInput>(
     config_.topic, rclcpp::SensorDataQoS(),
     [this](const KeyboardInput::SharedPtr message) {

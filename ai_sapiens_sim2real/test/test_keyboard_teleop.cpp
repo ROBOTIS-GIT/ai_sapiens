@@ -38,11 +38,60 @@ input_code:
 selector_navigation:
   initial_code: 200
   options: [200, 201, 202, 203, 204, 205, 206, 207, 208, 209]
+ui:
+  update_rate: 12.0
+  stale_timeout: 0.4
+  mode_status_topic: /test/mode_status
 )";
 
 KeyboardTeleopConfig config()
 {
   return KeyboardTeleopConfig::from_yaml(YAML::Load(kConfig));
+}
+
+TEST(KeyboardTeleopConfig, ResolvesOnlyConfiguredRootSelectorEntries)
+{
+  const auto teleop = YAML::Load(
+    R"(
+topic: /test/keyboard
+input_code:
+  damping: 1
+  ready_pose: 2
+  velocity: 3
+  mimic: 4
+selector_navigation:
+  selector: mimic_selector
+)");
+  const auto root = YAML::Load(
+    R"(
+selectors:
+  mimic_selector:
+    table:
+      202: MimicDance2
+      200: MimicSquat
+      201: MimicDance1
+)");
+
+  const auto resolved =
+    resolve_keyboard_selector_config(teleop, root);
+  const auto parsed = KeyboardTeleopConfig::from_yaml(resolved);
+
+  ASSERT_EQ(parsed.selector_options.size(), 3U);
+  EXPECT_EQ(parsed.selector_options[0].code, 200);
+  EXPECT_EQ(parsed.selector_options[0].label, "MimicSquat");
+  EXPECT_EQ(parsed.selector_options[1].code, 201);
+  EXPECT_EQ(parsed.selector_options[1].label, "MimicDance1");
+  EXPECT_EQ(parsed.selector_options[2].code, 202);
+  EXPECT_EQ(parsed.selector_options[2].label, "MimicDance2");
+}
+
+TEST(KeyboardTeleopConfig, ParsesUiStatusConfiguration)
+{
+  const auto parsed = config();
+
+  EXPECT_DOUBLE_EQ(parsed.ui_update_rate, 12.0);
+  EXPECT_DOUBLE_EQ(parsed.ui_stale_timeout, 0.4);
+  EXPECT_EQ(parsed.mode_status_topic, "/test/mode_status");
 }
 
 TEST(KeyboardInputDecoder, DecodesCharactersAndFragmentedArrowKeys)
@@ -142,10 +191,24 @@ TEST(KeyboardTeleopState, RendersReadableDashboard)
   EXPECT_TRUE(state.apply(KeyboardAction::kLeft));
   EXPECT_TRUE(state.apply(KeyboardAction::kYawRight));
 
-  const auto dashboard = state.dashboard("Increase right yaw", false);
+  KeyboardTeleopUiStatus ui_status;
+  ui_status.mode_status_received = true;
+  ui_status.mode_status_fresh = true;
+  ui_status.teleop_input_valid = true;
+  ui_status.active_mode = "Velocity";
+  ui_status.authority = "MANUAL";
+  ui_status.transition_reason = "teleop request accepted";
+
+  const auto dashboard =
+    state.dashboard("Increase right yaw", ui_status, false);
   EXPECT_NE(dashboard.find("AI SAPIENS  /  KEYBOARD TELEOP"), std::string::npos);
   EXPECT_NE(dashboard.find("CONTROL STATE"), std::string::npos);
-  EXPECT_NE(dashboard.find("MANUAL"), std::string::npos);
+  EXPECT_NE(dashboard.find("Controller   READY"), std::string::npos);
+  EXPECT_NE(dashboard.find("Active mode  Velocity"), std::string::npos);
+  EXPECT_NE(
+    dashboard.find("Authority    MANUAL  (requested: MANUAL)"),
+    std::string::npos);
+  EXPECT_NE(dashboard.find("Request      Damping (1)"), std::string::npos);
   EXPECT_NE(dashboard.find("[2/10]  Selector (201)"), std::string::npos);
   EXPECT_NE(
     dashboard.find("X    back  [----------|--o-------]  +0.25  forward"),
@@ -157,11 +220,32 @@ TEST(KeyboardTeleopState, RendersReadableDashboard)
     dashboard.find("Yaw  left  [----------|--o-------]  -0.25  right"),
     std::string::npos);
   EXPECT_NE(dashboard.find("MODE      [1] Damping"), std::string::npos);
+  EXPECT_NE(
+    dashboard.find("Last state   teleop request accepted"),
+    std::string::npos);
   EXPECT_NE(dashboard.find("Last input   Increase right yaw"), std::string::npos);
   EXPECT_EQ(dashboard.find("\033["), std::string::npos);
 
-  const auto colored = state.dashboard("colored", true);
+  const auto colored = state.dashboard("colored", ui_status, true);
   EXPECT_NE(colored.find("\033["), std::string::npos);
+}
+
+TEST(KeyboardTeleopState, DistinguishesWaitingAndStaleControllerStatus)
+{
+  KeyboardTeleopState state(config());
+  KeyboardTeleopUiStatus ui_status;
+
+  auto dashboard = state.dashboard("", ui_status, false);
+  EXPECT_NE(dashboard.find("Controller   WAITING"), std::string::npos);
+  EXPECT_NE(dashboard.find("Active mode  --"), std::string::npos);
+
+  ui_status.mode_status_received = true;
+  dashboard = state.dashboard("", ui_status, false);
+  EXPECT_NE(dashboard.find("Controller   STALE"), std::string::npos);
+
+  ui_status.mode_status_fresh = true;
+  dashboard = state.dashboard("", ui_status, false);
+  EXPECT_NE(dashboard.find("Controller   INPUT LOST"), std::string::npos);
 }
 
 TEST(KeyboardTeleopState, DescribesEveryAcceptedAction)
@@ -207,6 +291,10 @@ TEST(KeyboardTeleopConfig, RejectsUnsafeConfiguration)
 
   node = YAML::Load(kConfig);
   node["selector_navigation"]["options"][1] = 200;
+  EXPECT_THROW(KeyboardTeleopConfig::from_yaml(node), std::runtime_error);
+
+  node = YAML::Load(kConfig);
+  node["ui"]["update_rate"] = 0.0;
   EXPECT_THROW(KeyboardTeleopConfig::from_yaml(node), std::runtime_error);
 }
 
