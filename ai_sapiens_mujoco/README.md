@@ -55,16 +55,15 @@ Launch the full K1 stack against MuJoCo instead of real hardware (inside the
 container, with X forwarding for the viewer):
 
 ```bash
-ros2 launch ai_sapiens_bringup k1.launch.py sim_mujoco:=true                       # hanging from gantry
-ros2 launch ai_sapiens_bringup k1.launch.py sim_mujoco:=true mujoco_gantry:=false  # flat spawn on the floor
-ros2 launch ai_sapiens_bringup k1.launch.py sim_mujoco:=true mujoco_viewer:=false  # headless (no window)
+ros2 launch ai_sapiens_bringup k1_mujoco.launch.py                       # hanging from gantry
+ros2 launch ai_sapiens_bringup k1_mujoco.launch.py mujoco_gantry:=false  # flat spawn on the floor
+ros2 launch ai_sapiens_bringup k1_mujoco.launch.py mujoco_viewer:=false  # headless (no window)
 ```
 
 | Launch argument | Default | Meaning |
 | --- | --- | --- |
-| `sim_mujoco` | `false` | Run against the MuJoCo simulation instead of real hardware. |
-| `mujoco_viewer` | `true` | Show the MuJoCo viewer window (sim_mujoco only). |
-| `mujoco_gantry` | `true` | Spawn hanging from the gantry (sim_mujoco only). |
+| `mujoco_viewer` | `true` | Show the MuJoCo viewer window. |
+| `mujoco_gantry` | `true` | Spawn hanging from the gantry. |
 
 ## Gantry workflow
 
@@ -73,7 +72,7 @@ with the robot hanging, lower it until the feet touch the ground, start
 walking, then release the hook.
 
 ```bash
-# 1. Bring up with sim_mujoco:=true — the robot spawns hanging from the gantry.
+# 1. Start k1_mujoco.launch.py — the robot spawns hanging from the gantry.
 
 # 2. Lower until the feet touch the floor.
 ros2 service call /mujoco_sim/gantry/set_height ai_sapiens_interfaces/srv/SetGantryHeight "{height: 1.45, speed: 0.05}"

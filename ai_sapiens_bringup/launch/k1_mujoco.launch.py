@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Author: Woojin Wie
+# Author: Kiwoong Park
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, RegisterEventHandler
@@ -29,17 +29,15 @@ def generate_launch_description():
     declared_arguments = [
         DeclareLaunchArgument('start_rviz', default_value='false',
                               description='Whether to execute rviz2'),
-        DeclareLaunchArgument('use_mock_hardware', default_value='false',
-                              description='Use mock hardware mirroring command.'),
-        DeclareLaunchArgument('mock_sensor_commands', default_value='false',
-                              description='Enable mock sensor commands.'),
         DeclareLaunchArgument('model', default_value='k1_rev1',
                               description='Model name.'),
+        DeclareLaunchArgument('mujoco_viewer', default_value='true',
+                              description='Show the MuJoCo viewer window.'),
+        DeclareLaunchArgument('mujoco_gantry', default_value='true',
+                              description='Spawn hanging from the gantry.'),
     ]
 
     start_rviz = LaunchConfiguration('start_rviz')
-    use_mock_hardware = LaunchConfiguration('use_mock_hardware')
-    mock_sensor_commands = LaunchConfiguration('mock_sensor_commands')
     model = LaunchConfiguration('model')
     robot_description_content = Command([
         PathJoinSubstitution([FindExecutable(name='xacro')]),
@@ -49,11 +47,17 @@ def generate_launch_description():
                               'k1_rev1',
                               'k1.urdf.xacro']),
         ' ',
-        'use_mock_hardware:=', use_mock_hardware,
+        'use_mock_hardware:=false',
         ' ',
-        'mock_sensor_commands:=', mock_sensor_commands,
+        'mock_sensor_commands:=false',
         ' ',
         'model:=', model,
+        ' ',
+        'sim_mujoco:=true',
+        ' ',
+        'mujoco_viewer:=', LaunchConfiguration('mujoco_viewer'),
+        ' ',
+        'mujoco_gantry:=', LaunchConfiguration('mujoco_gantry'),
     ])
 
     controller_manager_config = PathJoinSubstitution([
@@ -129,6 +133,5 @@ def generate_launch_description():
             rc_broadcaster_spawner,
             joint_group_impedance_controller_spawner,
             delay_rviz_after_joint_state_broadcaster_spawner,
-            # rviz_node,
         ]
     )

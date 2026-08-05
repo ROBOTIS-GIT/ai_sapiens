@@ -16,9 +16,9 @@ done
 
 SESSION_NAME="${ARGS[0]:-ai_sapiens}"
 
-BRINGUP_ARGS=""
+BRINGUP_LAUNCH="k1.launch.py"
 if [ "$SIM" = true ]; then
-  BRINGUP_ARGS=" sim_mujoco:=true"
+  BRINGUP_LAUNCH="k1_mujoco.launch.py"
 fi
 
 hold_cmd() {
@@ -33,7 +33,7 @@ tmux has-session -t "$SESSION_NAME" 2>/dev/null && tmux kill-session -t "$SESSIO
 tmux new-session -d -s "$SESSION_NAME" -- "$(hold_cmd 'ros2 run rmw_zenoh_cpp rmw_zenohd')"
 
 # Split right: top-right — sleep 3s then launch
-tmux split-window -h -t "$SESSION_NAME" -- "$(hold_cmd "sleep 3; ros2 launch ai_sapiens_bringup k1.launch.py${BRINGUP_ARGS}")"
+tmux split-window -h -t "$SESSION_NAME" -- "$(hold_cmd "sleep 3; ros2 launch ai_sapiens_bringup ${BRINGUP_LAUNCH}")"
 
 # Select top-left and split down: bottom-left — sleep 6s then launch
 tmux select-pane -t "$SESSION_NAME":0.0
