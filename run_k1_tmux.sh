@@ -23,9 +23,10 @@ tmux split-window -h -t "$SESSION_NAME" -- "$(hold_cmd 'sleep 3; ros2 launch ai_
 tmux select-pane -t "$SESSION_NAME":0.0
 tmux split-window -v -t "$SESSION_NAME" -- "$(hold_cmd 'sleep 6; ros2 launch ai_sapiens_sim2real ai_sapiens_sim2real.launch.py')"
 
-# Select top-right and split down: bottom-right — publish DualSense Joy input
+# Select top-right and split down: bottom-right — DualSense input and dashboard
 tmux select-pane -t "$SESSION_NAME":0.2
-tmux split-window -v -t "$SESSION_NAME" -- "$(hold_cmd 'sleep 3; ros2 run joy joy_node --ros-args -p device_id:=0 -p deadzone:=0.0')"
+tmux split-window -v -t "$SESSION_NAME" -- \
+  "$(hold_cmd 'sleep 3; ros2 run ai_sapiens_sim2real run_dualsense_teleop.sh')"
 
 # Optional: balance pane sizes and attach
 tmux select-layout -t "$SESSION_NAME" tiled

@@ -19,6 +19,7 @@ find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(control_msgs REQUIRED)
 find_package(ai_sapiens_interfaces REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(pluginlib REQUIRED)
@@ -107,6 +108,14 @@ add_library(dualsense_teleop_input_plugin SHARED
   src/plugins/teleop_input/dualsense_teleop_input_plugin.cpp
 )
 
+add_library(dualsense_teleop_ui_core SHARED
+  src/dualsense_teleop/dualsense_teleop_ui.cpp
+)
+
+add_executable(dualsense_teleop_ui_node
+  src/dualsense_teleop/dualsense_teleop_ui_node.cpp
+)
+
 ament_target_dependencies(radiomaster_pocket_teleop_input_plugin
   rclcpp
   realtime_tools
@@ -121,6 +130,12 @@ ament_target_dependencies(dualsense_teleop_input_plugin
   pluginlib
 )
 
+ament_target_dependencies(dualsense_teleop_ui_node
+  rclcpp
+  ai_sapiens_interfaces
+  ament_index_cpp
+)
+
 target_link_libraries(radiomaster_pocket_teleop_input_plugin
   yaml-cpp
   Eigen3::Eigen
@@ -129,6 +144,17 @@ target_link_libraries(radiomaster_pocket_teleop_input_plugin
 target_link_libraries(dualsense_teleop_input_plugin
   yaml-cpp
   Eigen3::Eigen
+)
+
+target_link_libraries(dualsense_teleop_ui_core
+  yaml-cpp
+  Eigen3::Eigen
+)
+
+target_link_libraries(dualsense_teleop_ui_node
+  dualsense_teleop_input_plugin
+  dualsense_teleop_ui_core
+  yaml-cpp
 )
 
 pluginlib_export_plugin_description_file(${PROJECT_NAME} plugins/teleop_input_plugins.xml)
@@ -141,6 +167,8 @@ install(TARGETS
   ai_sapiens_sim2real_node
   radiomaster_pocket_teleop_input_plugin
   dualsense_teleop_input_plugin
+  dualsense_teleop_ui_core
+  dualsense_teleop_ui_node
   RUNTIME DESTINATION lib/${PROJECT_NAME}
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
@@ -166,6 +194,10 @@ install(DIRECTORY assets/
 # Install launch directory
 install(DIRECTORY launch/
   DESTINATION share/${PROJECT_NAME}/launch
+)
+
+install(PROGRAMS scripts/run_dualsense_teleop.sh
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 if(BUILD_TESTING)
@@ -249,6 +281,14 @@ if(BUILD_TESTING)
     test_dualsense_teleop_input_plugin
     rclcpp
     sensor_msgs)
+
+  ament_add_gtest(
+    test_dualsense_teleop_ui
+    test/test_dualsense_teleop_ui.cpp)
+  target_link_libraries(
+    test_dualsense_teleop_ui
+    dualsense_teleop_ui_core
+    yaml-cpp)
 endif()
 
 ament_package()
