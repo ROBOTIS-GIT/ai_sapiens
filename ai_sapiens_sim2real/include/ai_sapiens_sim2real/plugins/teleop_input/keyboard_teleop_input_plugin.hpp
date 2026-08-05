@@ -22,7 +22,7 @@
 
 #include <ai_sapiens_interfaces/msg/keyboard_input.hpp>
 
-#include "ai_sapiens_sim2real/keyboard_teleop/keyboard_teleop.hpp"
+#include "ai_sapiens_sim2real/teleop_devtools/keyboard/keyboard_teleop.hpp"
 #include "ai_sapiens_sim2real/teleop_input/teleop_input_plugin_base.hpp"
 
 namespace ai_sapiens_sim2real

@@ -105,7 +105,7 @@ add_library(radiomaster_pocket_teleop_input_plugin SHARED
 )
 
 add_library(keyboard_teleop_core SHARED
-  src/keyboard_teleop/keyboard_teleop.cpp
+  src/teleop_devtools/keyboard/keyboard_teleop.cpp
 )
 
 add_library(keyboard_teleop_input_plugin SHARED
@@ -113,7 +113,7 @@ add_library(keyboard_teleop_input_plugin SHARED
 )
 
 add_executable(keyboard_teleop_node
-  src/keyboard_teleop/keyboard_teleop_node.cpp
+  src/teleop_devtools/keyboard/keyboard_teleop_node.cpp
 )
 
 ament_target_dependencies(radiomaster_pocket_teleop_input_plugin

@@ -30,7 +30,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <yaml-cpp/yaml.h>  // NOLINT(build/include_order)
 
-#include "ai_sapiens_sim2real/keyboard_teleop/keyboard_teleop.hpp"
+#include "ai_sapiens_sim2real/teleop_devtools/keyboard/keyboard_teleop.hpp"
 
 namespace ai_sapiens_sim2real
 {
