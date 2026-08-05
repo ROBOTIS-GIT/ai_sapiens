@@ -14,7 +14,7 @@
 //
 // Author: Kiwoong Park
 
-#include "ai_sapiens_sim2real/keyboard_teleop/keyboard_teleop.hpp"
+#include "ai_sapiens_sim2real/teleop_devtools/keyboard/keyboard_teleop.hpp"
 
 #include <algorithm>
 #include <cctype>
