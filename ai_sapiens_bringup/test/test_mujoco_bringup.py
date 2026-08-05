@@ -38,9 +38,9 @@ from std_srvs.srv import Trigger
 def generate_test_description():
     bringup = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(PathJoinSubstitution(
-            [FindPackageShare('ai_sapiens_bringup'), 'launch', 'k1.launch.py'])),
+            [FindPackageShare('ai_sapiens_bringup'), 'launch',
+             'k1_mujoco.launch.py'])),
         launch_arguments={
-            'sim_mujoco': 'true',
             'mujoco_viewer': 'false',
             'mujoco_gantry': 'true',
         }.items())
