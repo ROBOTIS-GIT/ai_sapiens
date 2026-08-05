@@ -44,11 +44,12 @@ api_mode:
     button: 5
     pressed: true
 input_code:
+  initial_code: 1
   buttons:
     - {button: 1, code: 1}
     - {button: 0, code: 2}
     - {button: 3, code: 3}
-    - {button: 2, code: 4}
+    - {button: 2, code: 4, latch: false}
 selector_code:
   buttons:
     - {button: 9, code: 200}
@@ -155,6 +156,41 @@ TEST_F(DualSenseTeleopInputPluginTest, MapsTriggerAxesToSelectors)
   EXPECT_EQ(command.selector_code, 202);
 }
 
+TEST_F(DualSenseTeleopInputPluginTest, LatchesModesAndPulsesMimic)
+{
+  auto msg = valid_message();
+  plugin_->inject(msg);
+
+  TeleopInputCommand command;
+  ASSERT_TRUE(plugin_->read_latest_accepted_command(command));
+  EXPECT_EQ(command.input_code, 1);  // configured initial Damping
+
+  msg.buttons[0] = 1;  // Cross: ReadyPose
+  plugin_->inject(msg);
+  ASSERT_TRUE(plugin_->read_latest_accepted_command(command));
+  EXPECT_EQ(command.input_code, 2);
+
+  msg.buttons[0] = 0;
+  plugin_->inject(msg);
+  ASSERT_TRUE(plugin_->read_latest_accepted_command(command));
+  EXPECT_EQ(command.input_code, 2);
+
+  msg.buttons[2] = 1;  // Square: momentary Mimic
+  plugin_->inject(msg);
+  ASSERT_TRUE(plugin_->read_latest_accepted_command(command));
+  EXPECT_EQ(command.input_code, 4);
+
+  msg.buttons[2] = 0;
+  plugin_->inject(msg);
+  ASSERT_TRUE(plugin_->read_latest_accepted_command(command));
+  EXPECT_EQ(command.input_code, 0);
+
+  msg.buttons[2] = 1;
+  plugin_->inject(msg);
+  ASSERT_TRUE(plugin_->read_latest_accepted_command(command));
+  EXPECT_EQ(command.input_code, 4);
+}
+
 TEST_F(DualSenseTeleopInputPluginTest, CyclesAndLatchesSelectorWithDpadEdges)
 {
   auto plugin = std::make_shared<TestableDualSensePlugin>();
@@ -215,7 +251,7 @@ buttons:
   EXPECT_THROW(plugin.configure(node_, config), std::runtime_error);
 }
 
-TEST_F(DualSenseTeleopInputPluginTest, AppliesDeadzoneAndDefaultsButtonsToInactive)
+TEST_F(DualSenseTeleopInputPluginTest, AppliesDeadzoneAndStartsInConfiguredDamping)
 {
   auto msg = valid_message();
   msg.axes = {0.02f, -0.08f, 0.5f, 0.0f, 0.0f, 0.0f};
@@ -224,7 +260,7 @@ TEST_F(DualSenseTeleopInputPluginTest, AppliesDeadzoneAndDefaultsButtonsToInacti
   TeleopInputCommand command;
   ASSERT_TRUE(plugin_->read_latest_accepted_command(command));
   EXPECT_FALSE(command.api_mode);
-  EXPECT_EQ(command.input_code, 0);
+  EXPECT_EQ(command.input_code, 1);
   EXPECT_EQ(command.selector_code, 0);
   EXPECT_FLOAT_EQ(command.velocity.x(), 0.0f);
   EXPECT_FLOAT_EQ(command.velocity.y(), 0.0f);
