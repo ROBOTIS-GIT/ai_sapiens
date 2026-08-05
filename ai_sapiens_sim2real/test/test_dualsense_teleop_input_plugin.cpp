@@ -16,14 +16,18 @@
 
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <limits>
 #include <memory>
+#include <optional>
+#include <thread>
 
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/joy.hpp>
+#include <std_msgs/msg/u_int16.hpp>
 #include <yaml-cpp/yaml.h>  // NOLINT(build/include_order)
 
-#include "ai_sapiens_sim2real/plugins/teleop_input/dualsense_teleop_input_plugin.hpp"
+#include "ai_sapiens_sim2real/teleop_devtools/dualsense/dualsense_teleop_input_plugin.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -78,6 +82,38 @@ YAML::Node navigation_config()
 - "Square: run selected mimic"
 )");
   return config;
+}
+
+TEST(DualSenseTeleopConfig, ResolvesOnlyConfiguredRootSelectorEntries)
+{
+  const auto teleop = YAML::Load(
+    R"(
+selector_navigation:
+  previous_button: 13
+  next_button: 14
+  selector: mimic_selector
+)");
+  const auto root = YAML::Load(
+    R"(
+selectors:
+  mimic_selector:
+    table:
+      202: MimicDance2
+      200: MimicSquat
+      201: MimicDance1
+)");
+
+  const auto resolved =
+    resolve_dualsense_selector_config(teleop, root);
+  const auto options = resolved["selector_navigation"]["options"];
+
+  ASSERT_EQ(options.size(), 3U);
+  EXPECT_EQ(options[0]["code"].as<uint16_t>(), 200);
+  EXPECT_EQ(options[0]["label"].as<std::string>(), "MimicSquat");
+  EXPECT_EQ(options[1]["code"].as<uint16_t>(), 201);
+  EXPECT_EQ(options[1]["label"].as<std::string>(), "MimicDance1");
+  EXPECT_EQ(options[2]["code"].as<uint16_t>(), 202);
+  EXPECT_EQ(options[2]["label"].as<std::string>(), "MimicDance2");
 }
 
 class TestableDualSensePlugin : public DualSenseTeleopInputPlugin
@@ -230,6 +266,41 @@ TEST_F(DualSenseTeleopInputPluginTest, CyclesAndLatchesSelectorWithDpadEdges)
   plugin->inject(msg);
   ASSERT_TRUE(plugin->read_latest_accepted_command(command));
   EXPECT_EQ(command.selector_code, 202);
+}
+
+TEST_F(DualSenseTeleopInputPluginTest, PublishesAcceptedSelectorForUi)
+{
+  auto config = navigation_config();
+  config["selector_navigation"]["status_topic"] = "/test/dualsense/selector_status";
+
+  std::optional<uint16_t> selected_code;
+  auto status_qos = rclcpp::QoS(1);
+  status_qos.reliable().transient_local();
+  const auto subscription = node_->create_subscription<std_msgs::msg::UInt16>(
+    "/test/dualsense/selector_status", status_qos,
+    [&selected_code](const std_msgs::msg::UInt16::SharedPtr message) {
+      selected_code = message->data;
+    });
+
+  auto plugin = std::make_shared<TestableDualSensePlugin>();
+  plugin->configure(node_, config);
+  for (int attempt = 0; attempt < 20 && !selected_code; ++attempt) {
+    rclcpp::spin_some(node_);
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  }
+  ASSERT_TRUE(selected_code.has_value());
+  EXPECT_EQ(*selected_code, 200);
+
+  auto msg = valid_message();
+  msg.buttons[14] = 1;
+  plugin->inject(msg);
+  for (int attempt = 0; attempt < 20 && selected_code != 201; ++attempt) {
+    rclcpp::spin_some(node_);
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  }
+  ASSERT_TRUE(selected_code.has_value());
+  EXPECT_EQ(*selected_code, 201);
+  (void)subscription;
 }
 
 TEST_F(DualSenseTeleopInputPluginTest, RejectsAmbiguousSelectorNavigation)

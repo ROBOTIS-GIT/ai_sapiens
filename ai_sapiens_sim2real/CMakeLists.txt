@@ -105,7 +105,7 @@ add_library(radiomaster_pocket_teleop_input_plugin SHARED
 )
 
 add_library(dualsense_teleop_input_plugin SHARED
-  src/plugins/teleop_input/dualsense_teleop_input_plugin.cpp
+  src/teleop_devtools/dualsense/dualsense_teleop_input_plugin.cpp
 )
 
 add_library(dualsense_teleop_ui_core SHARED
@@ -127,6 +127,7 @@ ament_target_dependencies(dualsense_teleop_input_plugin
   rclcpp
   realtime_tools
   sensor_msgs
+  std_msgs
   pluginlib
 )
 
@@ -134,6 +135,7 @@ ament_target_dependencies(dualsense_teleop_ui_node
   rclcpp
   ai_sapiens_interfaces
   ament_index_cpp
+  std_msgs
 )
 
 target_link_libraries(radiomaster_pocket_teleop_input_plugin

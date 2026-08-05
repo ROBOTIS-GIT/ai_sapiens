@@ -14,8 +14,8 @@
 //
 // Author: Woojin Wie
 
-#ifndef AI_SAPIENS_SIM2REAL__PLUGINS__TELEOP_INPUT__DUALSENSE_TELEOP_INPUT_PLUGIN_HPP_
-#define AI_SAPIENS_SIM2REAL__PLUGINS__TELEOP_INPUT__DUALSENSE_TELEOP_INPUT_PLUGIN_HPP_
+#ifndef AI_SAPIENS_SIM2REAL__TELEOP_DEVTOOLS__DUALSENSE__DUALSENSE_TELEOP_INPUT_PLUGIN_HPP_
+#define AI_SAPIENS_SIM2REAL__TELEOP_DEVTOOLS__DUALSENSE__DUALSENSE_TELEOP_INPUT_PLUGIN_HPP_
 
 #include <cstddef>
 #include <cstdint>
@@ -23,11 +23,16 @@
 #include <vector>
 
 #include <sensor_msgs/msg/joy.hpp>
+#include <std_msgs/msg/u_int16.hpp>
 
 #include "ai_sapiens_sim2real/teleop_input/teleop_input_plugin_base.hpp"
 
 namespace ai_sapiens_sim2real
 {
+
+YAML::Node resolve_dualsense_selector_config(
+  const YAML::Node & teleop_config,
+  const YAML::Node & root_config);
 
 class DualSenseTeleopInputPlugin
   : public TeleopInputPluginTemplate<sensor_msgs::msg::Joy>
@@ -75,6 +80,7 @@ private:
   struct SelectorOption
   {
     uint16_t code{0};
+    std::string label;
   };
 
   void read_config(const YAML::Node & config);
@@ -111,12 +117,11 @@ private:
   bool is_button_rising_edge(
     const sensor_msgs::msg::Joy & msg,
     std::size_t button) const;
-  bool has_any_button_rising_edge(const sensor_msgs::msg::Joy & msg) const;
   int selector_navigation_step(const sensor_msgs::msg::Joy & msg) const;
   std::size_t selected_index_after_input(const sensor_msgs::msg::Joy & msg) const;
   void apply_selector_navigation(const sensor_msgs::msg::Joy & msg);
   void remember_button_state(const sensor_msgs::msg::Joy & msg);
-  void log_selected_selector() const;
+  void publish_selected_selector() const;
 
   rclcpp::Node::SharedPtr node_;
   std::string topic_;
@@ -138,11 +143,13 @@ private:
   std::size_t selected_selector_index_{0};
   std::vector<SelectorOption> selector_options_;
   std::vector<int32_t> previous_buttons_;
-  bool log_selected_selector_enabled_{true};
+  bool selector_status_publish_enabled_{true};
+  std::string selector_status_topic_{"/dualsense_teleop/selector_status"};
 
   rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr subscription_;
+  rclcpp::Publisher<std_msgs::msg::UInt16>::SharedPtr selector_status_publisher_;
 };
 
 }  // namespace ai_sapiens_sim2real
 
-#endif  // AI_SAPIENS_SIM2REAL__PLUGINS__TELEOP_INPUT__DUALSENSE_TELEOP_INPUT_PLUGIN_HPP_
+#endif  // AI_SAPIENS_SIM2REAL__TELEOP_DEVTOOLS__DUALSENSE__DUALSENSE_TELEOP_INPUT_PLUGIN_HPP_

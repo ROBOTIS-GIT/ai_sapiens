@@ -33,6 +33,7 @@ namespace ai_sapiens_sim2real
 struct DualSenseSelectorUiOption
 {
   uint16_t code{0};
+  std::string label;
 };
 
 struct DualSenseTeleopUiConfig
@@ -40,6 +41,7 @@ struct DualSenseTeleopUiConfig
   double update_rate{10.0};
   double stale_timeout{0.5};
   std::string mode_status_topic{"/ai_sapiens/mode_status"};
+  std::string selector_status_topic{"/dualsense_teleop/selector_status"};
   std::map<uint16_t, std::string> input_labels;
   std::vector<DualSenseSelectorUiOption> selector_options;
 
