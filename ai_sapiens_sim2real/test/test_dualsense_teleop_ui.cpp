@@ -34,10 +34,7 @@ input_code:
     - {button: 3, code: 3, label: Velocity}
     - {button: 2, code: 4, label: Mimic}
 selector_navigation:
-  options:
-    - {code: 200, label: Squat}
-    - {code: 201, label: Dance1}
-    - {code: 202, label: Dance2}
+  options: [200, 201, 202]
 ui:
   update_rate: 12.0
   stale_timeout: 0.4
@@ -53,7 +50,7 @@ TEST(DualSenseTeleopUiConfig, ParsesDashboardConfiguration)
   EXPECT_EQ(config.mode_status_topic, "/test/mode_status");
   EXPECT_EQ(config.input_labels.at(2), "ReadyPose");
   ASSERT_EQ(config.selector_options.size(), 3U);
-  EXPECT_EQ(config.selector_options[1].label, "Dance1");
+  EXPECT_EQ(config.selector_options[1].code, 201);
 }
 
 TEST(DualSenseTeleopUi, RendersLiveStateAndCorrectAxisDirections)
@@ -79,7 +76,7 @@ TEST(DualSenseTeleopUi, RendersLiveStateAndCorrectAxisDirections)
   EXPECT_NE(dashboard.find("Controller   READY"), std::string::npos);
   EXPECT_NE(dashboard.find("Active mode  Velocity"), std::string::npos);
   EXPECT_NE(dashboard.find("Request      Velocity (3)"), std::string::npos);
-  EXPECT_NE(dashboard.find("[2/3]  Dance1 (201)"), std::string::npos);
+  EXPECT_NE(dashboard.find("[2/3]  Selector (201)"), std::string::npos);
   EXPECT_NE(
     dashboard.find("X    back  [----------|--o-------]  +0.25  forward"),
     std::string::npos);
@@ -132,7 +129,7 @@ TEST(DualSenseTeleopUiConfig, RejectsInvalidUiConfiguration)
     DualSenseTeleopUiConfig::from_yaml(config), std::runtime_error);
 
   config = YAML::Load(kConfig);
-  config["selector_navigation"]["options"][1]["code"] = 200;
+  config["selector_navigation"]["options"][1] = 200;
   EXPECT_THROW(
     DualSenseTeleopUiConfig::from_yaml(config), std::runtime_error);
 }

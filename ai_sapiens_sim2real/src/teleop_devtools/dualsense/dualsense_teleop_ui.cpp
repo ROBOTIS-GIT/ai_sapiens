@@ -171,17 +171,11 @@ DualSenseTeleopUiConfig DualSenseTeleopUiConfig::from_yaml(
   }
   std::set<uint16_t> selector_codes;
   for (const auto & option : options) {
-    if (!option["code"] || !option["label"]) {
-      throw std::runtime_error("DualSense selector options require code and label");
-    }
     DualSenseSelectorUiOption parsed;
-    parsed.code = option["code"].as<uint16_t>();
-    parsed.label = option["label"].as<std::string>();
-    if (parsed.code == 0 || parsed.label.empty() ||
-      !selector_codes.insert(parsed.code).second)
-    {
+    parsed.code = option.as<uint16_t>();
+    if (parsed.code == 0 || !selector_codes.insert(parsed.code).second) {
       throw std::runtime_error(
-              "DualSense selector option code and label must be non-empty and unique");
+              "DualSense selector option codes must be non-zero and unique");
     }
     config.selector_options.push_back(std::move(parsed));
   }
@@ -305,7 +299,7 @@ std::string DualSenseTeleopUi::selector_label(
   }
   *index = static_cast<std::size_t>(
     std::distance(config_.selector_options.begin(), option));
-  return option->label;
+  return "Selector";
 }
 
 std::string DualSenseTeleopUi::controls(bool use_color) const
