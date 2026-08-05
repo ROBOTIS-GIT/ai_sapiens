@@ -107,6 +107,8 @@ void DualSenseTeleopInputPlugin::read_config(const YAML::Node & config)
   selector_codes_ = read_button_codes(config["selector_code"], "selector_code", false);
   selector_axis_codes_ = read_axis_codes(config["selector_code"], "selector_code");
   read_selector_navigation(config["selector_navigation"]);
+  log_input_guide_enabled_ =
+    read_bool(config, "log_input_guide_enabled", true);
   read_input_guide(config["input_guide"]);
 
   if (selector_navigation_enabled_ &&
@@ -549,7 +551,7 @@ void DualSenseTeleopInputPlugin::remember_button_state(
 
 void DualSenseTeleopInputPlugin::log_input_guide() const
 {
-  if (!node_) {
+  if (!node_ || !log_input_guide_enabled_) {
     return;
   }
 

@@ -16,10 +16,10 @@ api_mode:
 
 input_code:
   buttons:
-    - {button: 1, code: 1}
-    - {button: 0, code: 2}
-    - {button: 3, code: 3}
-    - {button: 2, code: 4}
+    - {button: 1, code: 1, label: Damping}
+    - {button: 0, code: 2, label: ReadyPose}
+    - {button: 3, code: 3, label: Velocity}
+    - {button: 2, code: 4, label: Mimic}
 
 selector_navigation:
   previous_button: 13  # D-pad Left
@@ -31,9 +31,11 @@ selector_navigation:
     - {code: 202, label: MimicDance2}
 
 input_guide:
-  - "D-pad Left/Right: select mimic"
-  - "Square: run selected mimic"
-  - "Circle: Damping"
-  - "Cross: ReadyPose"
-  - "Triangle: Velocity"
-  - "PS: API authority"
+  - "MODE      Circle Damping   Cross Ready   Triangle Velocity"
+  - "MIMIC     D-pad Left/Right select   Square run selected"
+  - "MOTION    Left stick move   Right stick yaw   PS API authority"
+
+ui:
+  update_rate: 10.0
+  stale_timeout: 0.5
+  mode_status_topic: /ai_sapiens/mode_status

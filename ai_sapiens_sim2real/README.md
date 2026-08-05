@@ -220,6 +220,17 @@ they differ from the mapping documented in `config/k1_config.yaml`, update
 DualSense plugin applies its configured deadzone once and renormalizes the
 remaining stick travel to `[-1, 1]`.
 
+To start the joystick driver and the live DualSense dashboard together:
+
+```bash
+ros2 run ai_sapiens_sim2real run_dualsense_teleop.sh
+```
+
+The dashboard shows joystick freshness, controller readiness, active mode and
+authority, the current request and mimic selection, normalized X/Y/Yaw gauges,
+and the configured button map. `run_k1_tmux.sh` starts this dashboard in its
+bottom-right pane.
+
 Start with command output disabled when validating a new configuration:
 
 ```bash

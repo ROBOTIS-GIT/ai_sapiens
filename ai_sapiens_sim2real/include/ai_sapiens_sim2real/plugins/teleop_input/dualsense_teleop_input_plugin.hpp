@@ -136,6 +136,7 @@ private:
   std::size_t selected_selector_index_{0};
   std::vector<SelectorOption> selector_options_;
   std::vector<int32_t> previous_buttons_;
+  bool log_input_guide_enabled_{true};
   std::vector<std::string> input_guide_;
 
   rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr subscription_;
