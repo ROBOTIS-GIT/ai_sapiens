@@ -27,10 +27,7 @@ selector_navigation:
   previous_button: 13  # D-pad Left
   next_button: 14      # D-pad Right
   initial_code: 200
-  options:
-    - {code: 200, label: MimicSquat}
-    - {code: 201, label: MimicDance1}
-    - {code: 202, label: MimicDance2}
+  options: [200, 201, 202]
 
 ui:
   update_rate: 10.0

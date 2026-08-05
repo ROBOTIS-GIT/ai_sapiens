@@ -75,7 +75,6 @@ private:
   struct SelectorOption
   {
     uint16_t code{0};
-    std::string label;
   };
 
   void read_config(const YAML::Node & config);

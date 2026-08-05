@@ -33,7 +33,6 @@ namespace ai_sapiens_sim2real
 struct DualSenseSelectorUiOption
 {
   uint16_t code{0};
-  std::string label;
 };
 
 struct DualSenseTeleopUiConfig

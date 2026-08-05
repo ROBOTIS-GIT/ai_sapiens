@@ -156,13 +156,9 @@ void DualSenseTeleopInputPlugin::read_selector_navigation(const YAML::Node & nod
     throw std::runtime_error("selector_navigation.options must be a non-empty sequence");
   }
   for (const auto & option : options) {
-    if (!option["code"] || !option["label"]) {
-      throw std::runtime_error("selector_navigation options require code and label");
-    }
-    const auto code = option["code"].as<uint16_t>();
-    const auto label = option["label"].as<std::string>();
-    if (code == 0 || label.empty()) {
-      throw std::runtime_error("selector_navigation option code and label must be non-empty");
+    const auto code = option.as<uint16_t>();
+    if (code == 0) {
+      throw std::runtime_error("selector_navigation option codes must be non-zero");
     }
     const bool duplicate = std::any_of(
       selector_options_.begin(), selector_options_.end(),
@@ -170,7 +166,7 @@ void DualSenseTeleopInputPlugin::read_selector_navigation(const YAML::Node & nod
     if (duplicate) {
       throw std::runtime_error("selector_navigation option codes must be unique");
     }
-    selector_options_.push_back({code, label});
+    selector_options_.push_back({code});
   }
 
   if (node["initial_code"]) {
@@ -577,9 +573,9 @@ void DualSenseTeleopInputPlugin::log_selected_selector() const
   if (selector_navigation_enabled_) {
     const auto & selected = selector_options_[selected_selector_index_];
     RCLCPP_INFO(
-      node_->get_logger(), "%s: selected [%zu/%zu] %s (selector=%u)",
+      node_->get_logger(), "%s: selected [%zu/%zu] selector=%u",
       name().c_str(), selected_selector_index_ + 1, selector_options_.size(),
-      selected.label.c_str(), static_cast<unsigned int>(selected.code));
+      static_cast<unsigned int>(selected.code));
   }
 }
 

@@ -64,10 +64,7 @@ constexpr char kSelectorNavigation[] =
 previous_button: 13
 next_button: 14
 initial_code: 200
-options:
-  - {code: 200, label: MimicSquat}
-  - {code: 201, label: MimicDance1}
-  - {code: 202, label: MimicDance2}
+options: [200, 201, 202]
 )";
 
 YAML::Node navigation_config()
