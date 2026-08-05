@@ -15,11 +15,13 @@ api_mode:
     pressed: true
 
 input_code:
+  initial_code: 1
   buttons:
     - {button: 1, code: 1, label: Damping}
     - {button: 0, code: 2, label: ReadyPose}
     - {button: 3, code: 3, label: Velocity}
-    - {button: 2, code: 4, label: Mimic}
+    # Mimic creates a press edge, then returns to Neutral so the motion keeps running.
+    - {button: 2, code: 4, label: Mimic, latch: false}
 
 selector_navigation:
   previous_button: 13  # D-pad Left

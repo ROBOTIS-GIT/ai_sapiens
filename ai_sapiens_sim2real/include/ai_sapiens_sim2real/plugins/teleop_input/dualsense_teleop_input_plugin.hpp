@@ -62,6 +62,7 @@ private:
   {
     std::size_t index{0};
     uint16_t code{0};
+    bool latch{true};
   };
 
   struct AxisCode
@@ -102,8 +103,10 @@ private:
     const std::vector<ButtonCondition> & conditions) const;
   static bool is_button_pressed(const sensor_msgs::msg::Joy & msg, std::size_t index);
   float axis_value(const sensor_msgs::msg::Joy & msg, const AxisConfig & axis) const;
+  const ButtonCode * pressed_input_code(const sensor_msgs::msg::Joy & msg) const;
   uint16_t select_input_code(const sensor_msgs::msg::Joy & msg) const;
   uint16_t select_selector_code(const sensor_msgs::msg::Joy & msg) const;
+  void apply_input_code_latch(const sensor_msgs::msg::Joy & msg);
 
   // Persistent selector navigation is kept separate from command conversion.
   bool is_button_rising_edge(
@@ -126,6 +129,7 @@ private:
 
   std::vector<ButtonCondition> api_mode_conditions_;
   std::vector<ButtonCode> input_codes_;
+  uint16_t latched_input_code_{0};
   std::vector<ButtonCode> selector_codes_;
   std::vector<AxisCode> selector_axis_codes_;
 

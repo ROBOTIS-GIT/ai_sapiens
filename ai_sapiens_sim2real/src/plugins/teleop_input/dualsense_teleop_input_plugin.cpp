@@ -103,6 +103,20 @@ void DualSenseTeleopInputPlugin::read_config(const YAML::Node & config)
 
   api_mode_conditions_ = read_button_conditions(config["api_mode"]);
   input_codes_ = read_button_codes(config["input_code"], "input_code", true);
+  latched_input_code_ =
+    has_node(config["input_code"], "initial_code") ?
+    config["input_code"]["initial_code"].as<uint16_t>() : 0;
+  if (latched_input_code_ != 0) {
+    const auto initial = std::find_if(
+      input_codes_.begin(), input_codes_.end(),
+      [this](const ButtonCode & entry) {
+        return entry.code == latched_input_code_ && entry.latch;
+      });
+    if (initial == input_codes_.end()) {
+      throw std::runtime_error(
+        "input_code.initial_code must match a latched button code");
+    }
+  }
   selector_codes_ = read_button_codes(config["selector_code"], "selector_code", false);
   selector_axis_codes_ = read_axis_codes(config["selector_code"], "selector_code");
   read_selector_navigation(config["selector_navigation"]);
@@ -233,7 +247,8 @@ DualSenseTeleopInputPlugin::read_button_codes(
     for (const auto & item : buttons) {
       codes.push_back({
           item.first.as<std::size_t>(),
-          item.second.as<uint16_t>()});
+          item.second.as<uint16_t>(),
+          true});
     }
     return codes;
   }
@@ -244,7 +259,8 @@ DualSenseTeleopInputPlugin::read_button_codes(
       }
       codes.push_back({
           item["button"].as<std::size_t>(),
-          item["code"].as<uint16_t>()});
+          item["code"].as<uint16_t>(),
+          read_bool(item, "latch", true)});
     }
     return codes;
   }
@@ -329,6 +345,7 @@ TeleopInputCommand DualSenseTeleopInputPlugin::make_command_from_message(
 void DualSenseTeleopInputPlugin::on_message_accepted(const sensor_msgs::msg::Joy & msg)
 {
   const bool button_pressed = has_any_button_rising_edge(msg);
+  apply_input_code_latch(msg);
   apply_selector_navigation(msg);
   if (button_pressed) {
     log_selected_selector();
@@ -440,12 +457,34 @@ float DualSenseTeleopInputPlugin::axis_value(
 uint16_t DualSenseTeleopInputPlugin::select_input_code(
   const sensor_msgs::msg::Joy & msg) const
 {
-  for (const auto & input_code : input_codes_) {
-    if (is_button_pressed(msg, input_code.index)) {
-      return input_code.code;
-    }
+  const auto * pressed = pressed_input_code(msg);
+  return pressed == nullptr ? latched_input_code_ : pressed->code;
+}
+
+const DualSenseTeleopInputPlugin::ButtonCode *
+DualSenseTeleopInputPlugin::pressed_input_code(const sensor_msgs::msg::Joy & msg) const
+{
+  const auto pressed = std::find_if(
+    input_codes_.begin(), input_codes_.end(),
+    [&msg](const ButtonCode & entry) {
+      return is_button_pressed(msg, entry.index);
+    });
+  if (pressed == input_codes_.end()) {
+    return nullptr;
   }
-  return 0;
+  return &*pressed;
+}
+
+void DualSenseTeleopInputPlugin::apply_input_code_latch(
+  const sensor_msgs::msg::Joy & msg)
+{
+  const auto * pressed = pressed_input_code(msg);
+  if (pressed != nullptr) {
+    // Momentary requests return to Neutral after release. This creates a fresh
+    // Mimic edge without immediately requesting the previously latched mode
+    // and cancelling the active motion.
+    latched_input_code_ = pressed->latch ? pressed->code : 0;
+  }
 }
 
 uint16_t DualSenseTeleopInputPlugin::select_selector_code(
