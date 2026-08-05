@@ -52,7 +52,6 @@ enum class KeyboardAction
 struct KeyboardSelectorOption
 {
   uint16_t code{0};
-  std::string label;
 };
 
 struct KeyboardTeleopConfig

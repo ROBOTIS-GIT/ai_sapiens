@@ -41,9 +41,7 @@ input_code:
   mimic: 4
 selector_navigation:
   initial_code: 200
-  options:
-    - {code: 200, label: Squat}
-    - {code: 201, label: Dance1}
+  options: [200, 201, 202, 203, 204, 205, 206, 207, 208, 209]
 )";
 
 class TestableKeyboardPlugin : public KeyboardTeleopInputPlugin
