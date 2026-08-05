@@ -109,11 +109,11 @@ add_library(dualsense_teleop_input_plugin SHARED
 )
 
 add_library(dualsense_teleop_ui_core SHARED
-  src/dualsense_teleop/dualsense_teleop_ui.cpp
+  src/teleop_devtools/dualsense/dualsense_teleop_ui.cpp
 )
 
 add_executable(dualsense_teleop_ui_node
-  src/dualsense_teleop/dualsense_teleop_ui_node.cpp
+  src/teleop_devtools/dualsense/dualsense_teleop_ui_node.cpp
 )
 
 ament_target_dependencies(radiomaster_pocket_teleop_input_plugin

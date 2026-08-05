@@ -18,7 +18,7 @@
 
 #include <yaml-cpp/yaml.h>  // NOLINT(build/include_order)
 
-#include "ai_sapiens_sim2real/dualsense_teleop/dualsense_teleop_ui.hpp"
+#include "ai_sapiens_sim2real/teleop_devtools/dualsense/dualsense_teleop_ui.hpp"
 
 namespace ai_sapiens_sim2real
 {
