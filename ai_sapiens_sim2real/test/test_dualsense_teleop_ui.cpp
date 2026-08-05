@@ -38,9 +38,6 @@ selector_navigation:
     - {code: 200, label: Squat}
     - {code: 201, label: Dance1}
     - {code: 202, label: Dance2}
-input_guide:
-  - "MODE      Circle Damping   Cross Ready"
-  - "MIMIC     D-pad Left/Right select"
 ui:
   update_rate: 12.0
   stale_timeout: 0.4
@@ -92,6 +89,16 @@ TEST(DualSenseTeleopUi, RendersLiveStateAndCorrectAxisDirections)
   EXPECT_NE(
     dashboard.find("Yaw  left  [----------|--o-------]  -0.25  right"),
     std::string::npos);
+  EXPECT_NE(dashboard.find("MODE"), std::string::npos);
+  EXPECT_NE(dashboard.find("MIMIC"), std::string::npos);
+  EXPECT_NE(dashboard.find("○ Damping"), std::string::npos);
+  EXPECT_NE(dashboard.find("× Ready pose"), std::string::npos);
+  EXPECT_NE(dashboard.find("△ Velocity"), std::string::npos);
+  EXPECT_NE(dashboard.find("□ Mimic"), std::string::npos);
+  EXPECT_NE(dashboard.find("◀ ▶ Select motion"), std::string::npos);
+  EXPECT_NE(dashboard.find("Left stick Linear X/Y"), std::string::npos);
+  EXPECT_NE(dashboard.find("Right stick Yaw"), std::string::npos);
+  EXPECT_NE(dashboard.find("SYSTEM  PS API authority"), std::string::npos);
   EXPECT_EQ(dashboard.find("\033["), std::string::npos);
 
   const auto colored = ui.dashboard(state, true);

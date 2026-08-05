@@ -30,6 +30,7 @@ namespace
 {
 
 constexpr int kAxisBarHalfWidth = 10;
+constexpr std::size_t kControlLabelWidth = 8;
 
 constexpr const char * kAnsiReset = "\033[0m";
 constexpr const char * kAnsiBoldCyan = "\033[1;36m";
@@ -94,6 +95,13 @@ std::string read_optional_label(const YAML::Node & item, uint16_t code)
     default:
       return code_fallback(code);
   }
+}
+
+std::string control_section(const std::string & label, bool use_color)
+{
+  const std::size_t padding = kControlLabelWidth > label.size() ?
+    kControlLabelWidth - label.size() : 1;
+  return "  " + paint(label, kAnsiBoldCyan, use_color) + std::string(padding, ' ');
 }
 
 }  // namespace
@@ -178,19 +186,6 @@ DualSenseTeleopUiConfig DualSenseTeleopUiConfig::from_yaml(
     config.selector_options.push_back(std::move(parsed));
   }
 
-  const auto guide = node["input_guide"];
-  if (guide) {
-    if (!guide.IsSequence()) {
-      throw std::runtime_error("DualSense input_guide must be a sequence");
-    }
-    for (const auto & entry : guide) {
-      const auto text = entry.as<std::string>();
-      if (text.empty()) {
-        throw std::runtime_error("DualSense input_guide entries must not be empty");
-      }
-      config.input_guide.push_back(text);
-    }
-  }
   return config;
 }
 
@@ -278,7 +273,7 @@ std::string DualSenseTeleopUi::dashboard(
     << "  right\n"
     << '\n'
     << paint("CONTROLS", kAnsiBoldCyan, use_color) << '\n'
-    << controls()
+    << controls(use_color)
     << "----------------------------------------------------------------------\n"
     << "  Last state   "
     << paint(
@@ -313,19 +308,22 @@ std::string DualSenseTeleopUi::selector_label(
   return option->label;
 }
 
-std::string DualSenseTeleopUi::controls() const
+std::string DualSenseTeleopUi::controls(bool use_color) const
 {
-  if (config_.input_guide.empty()) {
-    return
-      "  MODE      Circle Damping   Cross Ready   Triangle Velocity\n"
-      "  MIMIC     D-pad Left/Right select   Square run selected\n"
-      "  MOTION    Left stick move   Right stick yaw   PS API authority\n";
-  }
-
   std::ostringstream controls;
-  for (const auto & entry : config_.input_guide) {
-    controls << "  " << entry << '\n';
-  }
+  controls
+    << control_section("MODE", use_color)
+    << paint("○", kAnsiBoldRed, use_color) << " Damping   "
+    << paint("×", kAnsiBoldCyan, use_color) << " Ready pose   "
+    << paint("△", kAnsiBoldGreen, use_color) << " Velocity   "
+    << paint("□", kAnsiBoldMagenta, use_color) << " Mimic\n"
+    << control_section("VELOCITY", use_color)
+    << paint("Left stick", kAnsiBoldYellow, use_color) << " Linear X/Y   "
+    << paint("Right stick", kAnsiBoldYellow, use_color) << " Yaw\n"
+    << control_section("MIMIC", use_color)
+    << paint("◀ ▶", kAnsiBoldYellow, use_color) << " Select motion   "
+    << paint("SYSTEM", kAnsiBoldCyan, use_color) << "  "
+    << paint("PS", kAnsiBoldCyan, use_color) << " API authority\n";
   return controls.str();
 }
 
