@@ -142,6 +142,7 @@ TEST(KeyboardTeleopState, RendersReadableDashboard)
   KeyboardTeleopState state(config());
   EXPECT_TRUE(state.apply(KeyboardAction::kNextSelector));
   EXPECT_TRUE(state.apply(KeyboardAction::kForward));
+  EXPECT_TRUE(state.apply(KeyboardAction::kLeft));
   EXPECT_TRUE(state.apply(KeyboardAction::kYawRight));
 
   const auto dashboard = state.dashboard("Increase right yaw", false);
@@ -149,8 +150,15 @@ TEST(KeyboardTeleopState, RendersReadableDashboard)
   EXPECT_NE(dashboard.find("CONTROL STATE"), std::string::npos);
   EXPECT_NE(dashboard.find("MANUAL"), std::string::npos);
   EXPECT_NE(dashboard.find("[2/3]  Dance1 (201)"), std::string::npos);
-  EXPECT_NE(dashboard.find("X   forward / back    +0.25"), std::string::npos);
-  EXPECT_NE(dashboard.find("Yaw left / right      -0.25"), std::string::npos);
+  EXPECT_NE(
+    dashboard.find("X    back  [----------|--o-------]  +0.25  forward"),
+    std::string::npos);
+  EXPECT_NE(
+    dashboard.find("Y    left  [--------o-|----------]  +0.25  right"),
+    std::string::npos);
+  EXPECT_NE(
+    dashboard.find("Yaw  left  [----------|--o-------]  -0.25  right"),
+    std::string::npos);
   EXPECT_NE(dashboard.find("MODE      [1] Damping"), std::string::npos);
   EXPECT_NE(dashboard.find("Last input   Increase right yaw"), std::string::npos);
   EXPECT_EQ(dashboard.find("\033["), std::string::npos);

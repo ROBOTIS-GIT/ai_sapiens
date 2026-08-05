@@ -253,8 +253,11 @@ edge-triggered Mimic request.
 The current authority, mode request, selected mimic, velocity, and complete key
 map are redrawn after every accepted key press. The terminal dashboard groups
 mode, movement, motion selection, and system keys; normalized velocity is shown
-both numerically and on a centered bar. ANSI colors are disabled automatically
-for a dumb terminal or when the `NO_COLOR` environment variable is set.
+both numerically and on a centered bar. The Y and Yaw bars follow spatial
+direction, so a left command moves their marker left while the numeric value
+continues to show the published command convention. ANSI colors are disabled
+automatically for a dumb terminal or when the `NO_COLOR` environment variable
+is set.
 
 For manual startup without tmux:
 
