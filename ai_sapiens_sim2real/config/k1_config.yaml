@@ -43,27 +43,10 @@ authority:
   default_velocity_state: Velocity
 
 teleop_input:
-  plugin: ai_sapiens_sim2real/DualSenseTeleopInputPlugin
-  config: teleop/dualsense.yaml
+  plugin: ai_sapiens_sim2real/RadiomasterPocketTeleopInputPlugin
+  config: teleop/radiomaster_pocket.yaml
   timeout: 0.2
 
-# DualSense mapping used by teleop/dualsense.yaml. Verify the actual indices
-# with `ros2 topic echo /joy`; Linux mappings can differ by driver and
-# connection mode.
-#
-# Axes:
-#   axis 1: left stick up          -> positive linear_x
-#   axis 0: left stick left        -> positive linear_y
-#   axis 2: right stick left       -> positive angular_z
-#
-# Buttons:
-#   button 1: circle   -> DampingRequested
-#   button 0: cross    -> ReadyPoseRequested
-#   button 3: triangle -> VelocityRequested
-#   button 2: square   -> MimicRequested
-#   button 5: PS       -> API authority switch
-#   button 13/14: D-pad Left/Right -> cycle persistent mimic selector
-#     200: MimicSquat, 201: MimicDance1, 202: MimicDance2
 teleop_conditions:
   DampingRequested:
     input_code: 1
