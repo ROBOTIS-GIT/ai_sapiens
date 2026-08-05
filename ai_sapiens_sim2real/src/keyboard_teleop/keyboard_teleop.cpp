@@ -60,11 +60,11 @@ std::string axis_bar(float value)
   return '[' + bar + ']';
 }
 
-std::string format_axis(float value)
+std::string format_axis(float value, bool reverse_bar)
 {
   std::ostringstream output;
-  output << std::showpos << std::fixed << std::setprecision(2) << value
-         << ' ' << axis_bar(value);
+  output << axis_bar(reverse_bar ? -value : value)
+         << "  " << std::showpos << std::fixed << std::setprecision(2) << value;
   return output.str();
 }
 
@@ -396,9 +396,9 @@ std::string KeyboardTeleopState::dashboard(
     << paint(motion.str(), kAnsiBoldYellow, use_color) << "  >\n"
     << '\n'
     << paint("VELOCITY  (normalized -1.0 ... +1.0)", kAnsiBoldCyan, use_color) << '\n'
-    << "  X   forward / back    " << format_axis(linear_x_) << '\n'
-    << "  Y   left / right      " << format_axis(linear_y_) << '\n'
-    << "  Yaw left / right      " << format_axis(angular_z_) << '\n'
+    << "  X    back  " << format_axis(linear_x_, false) << "  forward\n"
+    << "  Y    left  " << format_axis(linear_y_, true) << "  right\n"
+    << "  Yaw  left  " << format_axis(angular_z_, true) << "  right\n"
     << '\n'
     << paint("KEYS", kAnsiBoldCyan, use_color) << '\n'
     << key_map() << '\n'
