@@ -41,6 +41,19 @@ bringup, and `ai_sapiens_sim2real` in three tmux panes:
 ./src/ai_sapiens/run_k1_tmux.sh --sim
 ```
 
+To use a RadioMaster USB transmitter as the MuJoCo RC input:
+
+```bash
+./src/ai_sapiens/run_k1_tmux.sh --sim --radiomaster-usb
+```
+
+The joystick device defaults to `/dev/input/js0`. Override it when needed:
+
+```bash
+./src/ai_sapiens/run_k1_tmux.sh --sim --radiomaster-usb \
+  --radiomaster-usb-device=/dev/input/js1
+```
+
 The Zenoh router matters: the container sets
 `RMW_IMPLEMENTATION=rmw_zenoh_cpp`, so without `rmw_zenohd` running the spawners
 never reach the controller manager and report "Failed to acquire lock".
