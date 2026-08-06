@@ -5,6 +5,8 @@
   <xacro:arg name="mock_sensor_commands" default="false" />
   <xacro:arg name="prefix" default="" />
   <xacro:arg name="model" default="k1_rev1" />
+  <xacro:arg name="radiomaster_pocket_usb" default="false" />
+  <xacro:arg name="radiomaster_pocket_usb_device" default="/dev/input/js0" />
   <xacro:include filename="$(find ai_sapiens_description)/urdf/k1_rev1/$(arg model).urdf.xacro" />
 
   <xacro:include filename="$(find ai_sapiens_description)/ros2_control/k1_rev1/k1.ros2_control.xacro" />
@@ -13,6 +15,8 @@
 
   <xacro:k1_system
     use_mock_hardware="$(arg use_mock_hardware)"
-    mock_sensor_commands="$(arg mock_sensor_commands)"/>
+    mock_sensor_commands="$(arg mock_sensor_commands)"
+    radiomaster_pocket_usb="$(arg radiomaster_pocket_usb)"
+    radiomaster_pocket_usb_device="$(arg radiomaster_pocket_usb_device)"/>
 
 </robot>
