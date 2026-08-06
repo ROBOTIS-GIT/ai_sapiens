@@ -13,10 +13,17 @@ services:
       memlock: 8428281856
     network_mode: host
     ipc: host
+    # Uncomment the gpus line and the NVIDIA variables below to render the
+    # MuJoCo viewer with hardware OpenGL on an NVIDIA GPU. Requires the NVIDIA
+    # Container Toolkit on the host; without it the viewer uses Mesa software
+    # rendering.
+    # gpus: all
     environment:
      - DISPLAY=${DISPLAY}
      - QT_X11_NO_MITSHM=1
      - RMW_IMPLEMENTATION=rmw_zenoh_cpp
+     # - NVIDIA_VISIBLE_DEVICES=all
+     # - NVIDIA_DRIVER_CAPABILITIES=graphics,display,utility
     volumes:
       - /dev:/dev
       - /dev/shm:/dev/shm
