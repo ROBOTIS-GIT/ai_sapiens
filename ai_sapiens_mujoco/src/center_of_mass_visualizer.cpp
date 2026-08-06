@@ -131,7 +131,7 @@ int append_center_of_mass_markers(
   int appended = 0;
   if (append_sphere(
       data->subtree_com + 3 * root_body_id,
-      kRobotCenterOfMassRadius, model->vis.rgba.com,
+      kRobotCenterOfMassRadius, kRobotCenterOfMassColor.data(),
       mjOBJ_UNKNOWN, -1, scene))
   {
     ++appended;

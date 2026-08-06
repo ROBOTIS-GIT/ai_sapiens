@@ -53,10 +53,6 @@ TEST(MujocoSimulation, LoadsSceneAndIndexesJoints)
   MujocoSimulation sim;
   ASSERT_NO_THROW(sim.load(scene("scene.xml"), kJoints));
   ASSERT_NE(sim.model(), nullptr);
-  EXPECT_FLOAT_EQ(sim.model()->vis.rgba.com[0], 1.0F);
-  EXPECT_FLOAT_EQ(sim.model()->vis.rgba.com[1], 0.0F);
-  EXPECT_FLOAT_EQ(sim.model()->vis.rgba.com[2], 0.0F);
-  EXPECT_FLOAT_EQ(sim.model()->vis.rgba.com[3], 1.0F);
   for (std::size_t i = 0; i < kJoints.size(); ++i) {
     EXPECT_TRUE(std::isfinite(sim.joint_state(i).position));
   }
