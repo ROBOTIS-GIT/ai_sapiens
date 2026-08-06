@@ -129,6 +129,31 @@ def test_xacro_expands_with_mock_hardware():
     } == {'mock_components/GenericSystem'}
 
 
+def test_xacro_expands_with_mujoco_hardware():
+    """Ensure the common runtime Xacro selects only the MuJoCo system."""
+    document = xacro.process_file(
+        str(XACRO_PATH),
+        mappings={
+            'sim_mujoco': 'true',
+            'mujoco_viewer': 'false',
+            'mujoco_gantry': 'true',
+        },
+    )
+    root = ET.fromstring(document.toxml())
+    controls = root.findall('ros2_control')
+
+    assert len(controls) == 1
+    assert controls[0].attrib['name'] == 'k1_mujoco'
+    assert [
+        plugin.text for plugin in root.findall('.//plugin')
+    ] == ['ai_sapiens_mujoco/MujocoSystem']
+    assert root.find(".//param[@name='viewer']").text.lower() == 'false'
+    assert root.find(".//param[@name='gantry']").text.lower() == 'true'
+    assert root.find(".//param[@name='scene_file']").text.endswith(
+        '/mujoco/k1/scene_gantry.xml'
+    )
+
+
 def test_mujoco_model_matches_urdf():
     """Keep MuJoCo kinematics, inertias, limits, and actuators synchronized."""
     _, urdf_links, urdf_joints = _urdf_model()

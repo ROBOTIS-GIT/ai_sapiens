@@ -11,14 +11,19 @@
   <xacro:include filename="$(find ai_sapiens_description)/urdf/k1_rev1/$(arg model).urdf.xacro" />
 
   <xacro:include filename="$(find ai_sapiens_description)/ros2_control/k1_rev1/k1.ros2_control.xacro" />
+  <xacro:include filename="$(find ai_sapiens_description)/ros2_control/k1_rev1/k1_mujoco.ros2_control.xacro" />
 
   <xacro:k1/>
 
-  <xacro:k1_system
-    use_mock_hardware="$(arg use_mock_hardware)"
-    mock_sensor_commands="$(arg mock_sensor_commands)"
-    sim_mujoco="$(arg sim_mujoco)"
-    mujoco_viewer="$(arg mujoco_viewer)"
-    mujoco_gantry="$(arg mujoco_gantry)"/>
+  <xacro:if value="$(arg sim_mujoco)">
+    <xacro:k1_mujoco_system
+      viewer="$(arg mujoco_viewer)"
+      gantry="$(arg mujoco_gantry)"/>
+  </xacro:if>
+  <xacro:unless value="$(arg sim_mujoco)">
+    <xacro:k1_system
+      use_mock_hardware="$(arg use_mock_hardware)"
+      mock_sensor_commands="$(arg mock_sensor_commands)"/>
+  </xacro:unless>
 
 </robot>

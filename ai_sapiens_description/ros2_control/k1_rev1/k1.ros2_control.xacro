@@ -6,34 +6,28 @@
   <xacro:include filename="$(find ai_sapiens_description)/ros2_control/k1_rev1/k1_right_leg.ros2_control.xacro" />
   <xacro:include filename="$(find ai_sapiens_description)/ros2_control/k1_rev1/k1_imu.ros2_control.xacro" />
   <xacro:include filename="$(find ai_sapiens_description)/ros2_control/k1_rev1/k1_hat.ros2_control.xacro" />
-  <xacro:include filename="$(find ai_sapiens_description)/ros2_control/k1_rev1/k1_mujoco.ros2_control.xacro" />
 
   <xacro:property name="default_use_mock_hardware" value="false" />
   <xacro:property name="default_mock_sensor_commands" value="false" />
 
-  <xacro:macro name="k1_system" params="use_mock_hardware:=^|${default_use_mock_hardware} mock_sensor_commands:=^|${default_mock_sensor_commands} sim_mujoco:=^|false mujoco_viewer:=^|true mujoco_gantry:=^|true">
-    <xacro:if value="${sim_mujoco}">
-      <xacro:k1_mujoco_system viewer="${mujoco_viewer}" gantry="${mujoco_gantry}"/>
-    </xacro:if>
-    <xacro:unless value="${sim_mujoco}">
-      <xacro:k1_right_arm_system
-        use_mock_hardware="${use_mock_hardware}"
-        mock_sensor_commands="${mock_sensor_commands}" />
-      <xacro:k1_left_arm_system
-        use_mock_hardware="${use_mock_hardware}"
-        mock_sensor_commands="${mock_sensor_commands}" />
-      <xacro:k1_left_leg_system
-        use_mock_hardware="${use_mock_hardware}"
-        mock_sensor_commands="${mock_sensor_commands}" />
-      <xacro:k1_right_leg_system
-        use_mock_hardware="${use_mock_hardware}"
-        mock_sensor_commands="${mock_sensor_commands}" />
-      <xacro:k1_imu_system
-        use_mock_hardware="${use_mock_hardware}"
-        mock_sensor_commands="${mock_sensor_commands}" />
-      <xacro:k1_hat_system
-        use_mock_hardware="${use_mock_hardware}"
-        mock_sensor_commands="${mock_sensor_commands}" />
-    </xacro:unless>
+  <xacro:macro name="k1_system" params="use_mock_hardware:=^|${default_use_mock_hardware} mock_sensor_commands:=^|${default_mock_sensor_commands}">
+    <xacro:k1_right_arm_system
+      use_mock_hardware="${use_mock_hardware}"
+      mock_sensor_commands="${mock_sensor_commands}" />
+    <xacro:k1_left_arm_system
+      use_mock_hardware="${use_mock_hardware}"
+      mock_sensor_commands="${mock_sensor_commands}" />
+    <xacro:k1_left_leg_system
+      use_mock_hardware="${use_mock_hardware}"
+      mock_sensor_commands="${mock_sensor_commands}" />
+    <xacro:k1_right_leg_system
+      use_mock_hardware="${use_mock_hardware}"
+      mock_sensor_commands="${mock_sensor_commands}" />
+    <xacro:k1_imu_system
+      use_mock_hardware="${use_mock_hardware}"
+      mock_sensor_commands="${mock_sensor_commands}" />
+    <xacro:k1_hat_system
+      use_mock_hardware="${use_mock_hardware}"
+      mock_sensor_commands="${mock_sensor_commands}" />
   </xacro:macro>
 </robot>
