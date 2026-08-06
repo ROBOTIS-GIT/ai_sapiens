@@ -35,6 +35,10 @@ def generate_launch_description():
                               description='Enable mock sensor commands.'),
         DeclareLaunchArgument('model', default_value='k1_rev1',
                               description='Model name.'),
+        DeclareLaunchArgument('radiomaster_pocket_usb', default_value='false',
+                              description='Use RadioMaster Pocket USB instead of the K1 HAT.'),
+        DeclareLaunchArgument('radiomaster_pocket_usb_device', default_value='/dev/input/js0',
+                              description='Linux joystick device read by RadioMaster hardware.'),
     ]
 
     start_rviz = LaunchConfiguration('start_rviz')
@@ -54,6 +58,11 @@ def generate_launch_description():
         'mock_sensor_commands:=', mock_sensor_commands,
         ' ',
         'model:=', model,
+        ' ',
+        'radiomaster_pocket_usb:=', LaunchConfiguration('radiomaster_pocket_usb'),
+        ' ',
+        'radiomaster_pocket_usb_device:=',
+        LaunchConfiguration('radiomaster_pocket_usb_device'),
     ])
 
     controller_manager_config = PathJoinSubstitution([

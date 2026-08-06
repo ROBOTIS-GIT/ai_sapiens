@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="k1_radiomaster_pocket_usb_system" params="device:=^|/dev/input/js0">
+    <ros2_control name="k1_radiomaster_pocket_usb" type="sensor" rw_rate="100">
+      <hardware>
+        <plugin>radiomaster_pocket_usb_hardware_interface/RadiomasterPocketUsbHardwareInterface</plugin>
+        <param name="device">${device}</param>
+        <param name="reconnect_interval_ms">1000.0</param>
+        <param name="reverse_axes">false</param>
+        <param name="rc_channel_defaults">1500,1500,1500,1500,1000,1500,1000,1000,1000,1000,1000,1000,1500,1500,1500,1500</param>
+      </hardware>
+      <sensor name="hat">
+        <state_interface name="Hardware Error Status"/>
+        <state_interface name="Realtime Tick"/>
+        <state_interface name="E-stop Active"/>
+        <state_interface name="CRSF Failsafe"/>
+        <state_interface name="CRSF Link Quality"/>
+        <state_interface name="CRSF RSSI 1"/>
+        <state_interface name="CRSF Last Frame Age"/>
+        <state_interface name="RC Channel 1"/>
+        <state_interface name="RC Channel 2"/>
+        <state_interface name="RC Channel 3"/>
+        <state_interface name="RC Channel 4"/>
+        <state_interface name="RC Channel 5"/>
+        <state_interface name="RC Channel 6"/>
+        <state_interface name="RC Channel 7"/>
+        <state_interface name="RC Channel 8"/>
+        <state_interface name="RC Channel 9"/>
+        <state_interface name="RC Channel 10"/>
+        <state_interface name="RC Channel 11"/>
+        <state_interface name="RC Channel 12"/>
+        <state_interface name="RC Channel 13"/>
+        <state_interface name="RC Channel 14"/>
+        <state_interface name="RC Channel 15"/>
+        <state_interface name="RC Channel 16"/>
+      </sensor>
+    </ros2_control>
+  </xacro:macro>
+</robot>
