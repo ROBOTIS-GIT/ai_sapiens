@@ -14,7 +14,7 @@
 //
 // Author: Kiwoong Park
 
-#include "ai_sapiens_mujoco/mujoco_system.hpp"
+#include "mujoco_hardware_interface/mujoco_hardware_interface.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -26,8 +26,12 @@
 
 #include "rclcpp/rclcpp.hpp"
 
-namespace ai_sapiens_mujoco
+namespace mujoco_hardware_interface
 {
+
+using ai_sapiens_mujoco::ImuState;
+using ai_sapiens_mujoco::JointCommand;
+using ai_sapiens_mujoco::JointState;
 
 namespace
 {
@@ -270,7 +274,8 @@ void MujocoSystem::stop_gantry_services()
   gantry_node_.reset();
 }
 
-}  // namespace ai_sapiens_mujoco
+}  // namespace mujoco_hardware_interface
 
 #include "pluginlib/class_list_macros.hpp"
-PLUGINLIB_EXPORT_CLASS(ai_sapiens_mujoco::MujocoSystem, hardware_interface::SystemInterface)
+PLUGINLIB_EXPORT_CLASS(
+  mujoco_hardware_interface::MujocoSystem, hardware_interface::SystemInterface)

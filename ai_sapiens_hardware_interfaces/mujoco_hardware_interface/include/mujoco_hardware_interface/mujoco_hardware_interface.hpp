@@ -14,8 +14,8 @@
 //
 // Author: Kiwoong Park
 
-#ifndef AI_SAPIENS_MUJOCO__MUJOCO_SYSTEM_HPP_
-#define AI_SAPIENS_MUJOCO__MUJOCO_SYSTEM_HPP_
+#ifndef MUJOCO_HARDWARE_INTERFACE__MUJOCO_HARDWARE_INTERFACE_HPP_
+#define MUJOCO_HARDWARE_INTERFACE__MUJOCO_HARDWARE_INTERFACE_HPP_
 
 #include <memory>
 #include <string>
@@ -26,12 +26,15 @@
 #include "rclcpp/executors/single_threaded_executor.hpp"
 #include "rclcpp_lifecycle/state.hpp"
 
-#include "ai_sapiens_mujoco/gantry_service_node.hpp"
 #include "ai_sapiens_mujoco/mujoco_simulation.hpp"
 #include "ai_sapiens_mujoco/mujoco_viewer.hpp"
+#include "mujoco_hardware_interface/gantry_service_node.hpp"
 
-namespace ai_sapiens_mujoco
+namespace mujoco_hardware_interface
 {
+
+using ai_sapiens_mujoco::MujocoSimulation;
+using ai_sapiens_mujoco::MujocoViewer;
 
 class MujocoSystem : public hardware_interface::SystemInterface
 {
@@ -79,6 +82,6 @@ private:
   std::unique_ptr<MujocoViewer> viewer_;
 };
 
-}  // namespace ai_sapiens_mujoco
+}  // namespace mujoco_hardware_interface
 
-#endif  // AI_SAPIENS_MUJOCO__MUJOCO_SYSTEM_HPP_
+#endif  // MUJOCO_HARDWARE_INTERFACE__MUJOCO_HARDWARE_INTERFACE_HPP_

@@ -14,8 +14,8 @@
 //
 // Author: Kiwoong Park
 
-#ifndef AI_SAPIENS_MUJOCO__GANTRY_SERVICE_NODE_HPP_
-#define AI_SAPIENS_MUJOCO__GANTRY_SERVICE_NODE_HPP_
+#ifndef MUJOCO_HARDWARE_INTERFACE__GANTRY_SERVICE_NODE_HPP_
+#define MUJOCO_HARDWARE_INTERFACE__GANTRY_SERVICE_NODE_HPP_
 
 #include <memory>
 
@@ -25,8 +25,10 @@
 
 #include "ai_sapiens_mujoco/mujoco_simulation.hpp"
 
-namespace ai_sapiens_mujoco
+namespace mujoco_hardware_interface
 {
+
+using ai_sapiens_mujoco::MujocoSimulation;
 
 /// ROS node exposing the simulation gantry as services:
 /// /mujoco_sim/gantry/set_height, /attach, and /release.
@@ -42,6 +44,6 @@ private:
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr release_service_;
 };
 
-}  // namespace ai_sapiens_mujoco
+}  // namespace mujoco_hardware_interface
 
-#endif  // AI_SAPIENS_MUJOCO__GANTRY_SERVICE_NODE_HPP_
+#endif  // MUJOCO_HARDWARE_INTERFACE__GANTRY_SERVICE_NODE_HPP_

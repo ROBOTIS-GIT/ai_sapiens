@@ -146,7 +146,7 @@ def test_xacro_expands_with_mujoco_hardware():
     assert controls[0].attrib['name'] == 'k1_mujoco'
     assert [
         plugin.text for plugin in root.findall('.//plugin')
-    ] == ['ai_sapiens_mujoco/MujocoSystem']
+    ] == ['mujoco_hardware_interface/MujocoSystem']
     assert root.find(".//param[@name='viewer']").text.lower() == 'false'
     assert root.find(".//param[@name='gantry']").text.lower() == 'true'
     assert root.find(".//param[@name='scene_file']").text.endswith(
@@ -173,7 +173,7 @@ def test_xacro_expands_with_mujoco_and_radiomaster_usb():
         'k1_radiomaster_usb',
     ]
     assert [plugin.text for plugin in root.findall('.//plugin')] == [
-        'ai_sapiens_mujoco/MujocoSystem',
+        'mujoco_hardware_interface/MujocoSystem',
         (
             'radiomaster_usb_hardware_interface/'
             'RadiomasterUsbHardwareInterface'
