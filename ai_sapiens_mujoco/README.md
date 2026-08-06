@@ -1,12 +1,14 @@
 # ai_sapiens_mujoco
 
-`ai_sapiens_mujoco` is a MuJoCo sim2sim hardware interface for the AI Sapiens
-K1. It provides a single ros2_control `SystemInterface` plugin
-(`ai_sapiens_mujoco/MujocoSystem`) that owns the MuJoCo simulation and exposes
-the same joint, IMU, and HAT (RC/BMS/watchdog) interfaces as the real hardware
-components. The upper stack — the four controllers, `ai_sapiens_sim2real`, and
-everything above them — runs unchanged against the same controllers and topics
-it sees on the real robot.
+`ai_sapiens_mujoco` is a MuJoCo sim2sim simulation library for the AI Sapiens
+K1. It provides the MuJoCo simulation, interactive viewer, and gantry service
+node consumed by the ros2_control `SystemInterface` plugin
+(`mujoco_hardware_interface/MujocoSystem`, hosted in
+`ai_sapiens_hardware_interfaces/mujoco_hardware_interface`),
+which exposes the same joint, IMU, and HAT (RC/BMS/watchdog) interfaces as the
+real hardware components. The upper stack — the four controllers,
+`ai_sapiens_sim2real`, and everything above them — runs unchanged against the
+same controllers and topics it sees on the real robot.
 
 A gantry is modeled as a mocap body weld-constrained to `torso_link`, so the
 robot can spawn hanging, be lowered until the feet touch, and be released once

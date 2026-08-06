@@ -5,7 +5,7 @@
     params="viewer:=^|true gantry:=^|true radiomaster_usb:=^|false">
     <ros2_control name="k1_mujoco" type="system">
       <hardware>
-        <plugin>ai_sapiens_mujoco/MujocoSystem</plugin>
+        <plugin>mujoco_hardware_interface/MujocoSystem</plugin>
         <xacro:if value="${gantry}">
           <param name="scene_file">$(find ai_sapiens_description)/mujoco/k1/scene_gantry.xml</param>
         </xacro:if>

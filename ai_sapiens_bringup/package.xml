@@ -9,8 +9,8 @@
   <author email="wwj@robotis.com">Woojin Wie</author>
 
   <exec_depend>ai_sapiens_description</exec_depend>
+  <exec_depend>mujoco_hardware_interface</exec_depend>
   <exec_depend>ai_sapiens_joint_group_impedance_controller</exec_depend>
-  <exec_depend>ai_sapiens_mujoco</exec_depend>
   <exec_depend>ai_sapiens_rc_broadcaster</exec_depend>
   <exec_depend>controller_manager</exec_depend>
   <exec_depend>imu_sensor_broadcaster</exec_depend>

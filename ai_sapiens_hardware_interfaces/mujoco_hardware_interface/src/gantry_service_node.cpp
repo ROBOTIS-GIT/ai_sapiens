@@ -14,13 +14,13 @@
 //
 // Author: Kiwoong Park
 
-#include "ai_sapiens_mujoco/gantry_service_node.hpp"
+#include "mujoco_hardware_interface/gantry_service_node.hpp"
 
 #include <memory>
 #include <sstream>
 #include <utility>
 
-namespace ai_sapiens_mujoco
+namespace mujoco_hardware_interface
 {
 
 GantryServiceNode::GantryServiceNode(std::shared_ptr<MujocoSimulation> sim)
@@ -71,4 +71,4 @@ GantryServiceNode::GantryServiceNode(std::shared_ptr<MujocoSimulation> sim)
     });
 }
 
-}  // namespace ai_sapiens_mujoco
+}  // namespace mujoco_hardware_interface
