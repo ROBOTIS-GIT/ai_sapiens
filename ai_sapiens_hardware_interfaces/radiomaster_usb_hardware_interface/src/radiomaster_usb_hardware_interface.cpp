@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "radiomaster_pocket_usb_hardware_interface/radiomaster_pocket_usb_hardware_interface.hpp"
+#include "radiomaster_usb_hardware_interface/radiomaster_usb_hardware_interface.hpp"
 
 #include <fcntl.h>
 #include <linux/joystick.h>
@@ -33,7 +33,7 @@
 
 #include "pluginlib/class_list_macros.hpp"
 
-namespace radiomaster_pocket_usb_hardware_interface
+namespace radiomaster_usb_hardware_interface
 {
 namespace
 {
@@ -145,7 +145,7 @@ std::array<double, kRcChannelCount> joy_axes_to_rc_channels(
   return channels;
 }
 
-hardware_interface::CallbackReturn RadiomasterPocketUsbHardwareInterface::on_init(
+hardware_interface::CallbackReturn RadiomasterUsbHardwareInterface::on_init(
   const hardware_interface::HardwareComponentInterfaceParams & params)
 {
   if (hardware_interface::SensorInterface::on_init(params) !=
@@ -188,12 +188,12 @@ hardware_interface::CallbackReturn RadiomasterPocketUsbHardwareInterface::on_ini
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
-RadiomasterPocketUsbHardwareInterface::~RadiomasterPocketUsbHardwareInterface()
+RadiomasterUsbHardwareInterface::~RadiomasterUsbHardwareInterface()
 {
   close_device(false);
 }
 
-hardware_interface::CallbackReturn RadiomasterPocketUsbHardwareInterface::on_configure(
+hardware_interface::CallbackReturn RadiomasterUsbHardwareInterface::on_configure(
   const rclcpp_lifecycle::State &)
 {
   publish_safe_states();
@@ -201,12 +201,12 @@ hardware_interface::CallbackReturn RadiomasterPocketUsbHardwareInterface::on_con
   try_open_device(steady_now_ns());
   RCLCPP_INFO(
     get_logger(),
-    "Configured RadioMaster Pocket USB hardware: sensor=%s device=%s",
+    "Configured RadioMaster USB hardware: sensor=%s device=%s",
     sensor_name_.c_str(), device_.c_str());
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
-hardware_interface::CallbackReturn RadiomasterPocketUsbHardwareInterface::on_activate(
+hardware_interface::CallbackReturn RadiomasterUsbHardwareInterface::on_activate(
   const rclcpp_lifecycle::State &)
 {
   publish_safe_states();
@@ -216,7 +216,7 @@ hardware_interface::CallbackReturn RadiomasterPocketUsbHardwareInterface::on_act
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
-hardware_interface::CallbackReturn RadiomasterPocketUsbHardwareInterface::on_deactivate(
+hardware_interface::CallbackReturn RadiomasterUsbHardwareInterface::on_deactivate(
   const rclcpp_lifecycle::State &)
 {
   close_device(false);
@@ -224,7 +224,7 @@ hardware_interface::CallbackReturn RadiomasterPocketUsbHardwareInterface::on_dea
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
-hardware_interface::CallbackReturn RadiomasterPocketUsbHardwareInterface::on_cleanup(
+hardware_interface::CallbackReturn RadiomasterUsbHardwareInterface::on_cleanup(
   const rclcpp_lifecycle::State &)
 {
   close_device(false);
@@ -236,7 +236,7 @@ hardware_interface::CallbackReturn RadiomasterPocketUsbHardwareInterface::on_cle
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
-hardware_interface::return_type RadiomasterPocketUsbHardwareInterface::read(
+hardware_interface::return_type RadiomasterUsbHardwareInterface::read(
   const rclcpp::Time &, const rclcpp::Duration &)
 {
   const std::int64_t now_ns = steady_now_ns();
@@ -255,7 +255,7 @@ hardware_interface::return_type RadiomasterPocketUsbHardwareInterface::read(
   return hardware_interface::return_type::OK;
 }
 
-bool RadiomasterPocketUsbHardwareInterface::try_open_device(std::int64_t now_ns)
+bool RadiomasterUsbHardwareInterface::try_open_device(std::int64_t now_ns)
 {
   if (joystick_fd_ >= 0) {
     return true;
@@ -305,7 +305,7 @@ bool RadiomasterPocketUsbHardwareInterface::try_open_device(std::int64_t now_ns)
   return true;
 }
 
-bool RadiomasterPocketUsbHardwareInterface::read_joydev_correction(std::uint8_t axis_count)
+bool RadiomasterUsbHardwareInterface::read_joydev_correction(std::uint8_t axis_count)
 {
   joydev_correction_.assign(axis_count, js_corr{});
   if (ioctl(joystick_fd_, JSIOCGCORR, joydev_correction_.data()) < 0) {
@@ -318,7 +318,7 @@ bool RadiomasterPocketUsbHardwareInterface::read_joydev_correction(std::uint8_t 
   return true;
 }
 
-bool RadiomasterPocketUsbHardwareInterface::read_device_events()
+bool RadiomasterUsbHardwareInterface::read_device_events()
 {
   pollfd descriptor{};
   descriptor.fd = joystick_fd_;
@@ -360,7 +360,7 @@ bool RadiomasterPocketUsbHardwareInterface::read_device_events()
   }
 }
 
-void RadiomasterPocketUsbHardwareInterface::process_axis_event(
+void RadiomasterUsbHardwareInterface::process_axis_event(
   std::uint8_t axis, std::int16_t value)
 {
   if (axis >= axes_.size()) {
@@ -370,7 +370,7 @@ void RadiomasterPocketUsbHardwareInterface::process_axis_event(
   axes_initialized_[axis] = true;
 }
 
-void RadiomasterPocketUsbHardwareInterface::close_device(bool report_disconnect)
+void RadiomasterUsbHardwareInterface::close_device(bool report_disconnect)
 {
   if (joystick_fd_ < 0) {
     return;
@@ -386,7 +386,7 @@ void RadiomasterPocketUsbHardwareInterface::close_device(bool report_disconnect)
   }
 }
 
-bool RadiomasterPocketUsbHardwareInterface::all_required_axes_initialized() const
+bool RadiomasterUsbHardwareInterface::all_required_axes_initialized() const
 {
   return std::all_of(
     axes_initialized_.begin(), axes_initialized_.end(), [](bool initialized) {
@@ -394,7 +394,7 @@ bool RadiomasterPocketUsbHardwareInterface::all_required_axes_initialized() cons
     });
 }
 
-void RadiomasterPocketUsbHardwareInterface::publish_safe_states()
+void RadiomasterUsbHardwareInterface::publish_safe_states()
 {
   for (std::size_t index = 0; index < channel_defaults_.size(); ++index) {
     set_state(
@@ -409,7 +409,7 @@ void RadiomasterPocketUsbHardwareInterface::publish_safe_states()
   set_state(sensor_name_ + "/CRSF Last Frame Age", 65535.0);
 }
 
-void RadiomasterPocketUsbHardwareInterface::publish_rc_states(
+void RadiomasterUsbHardwareInterface::publish_rc_states(
   const std::array<double, kRcChannelCount> & channels)
 {
   for (std::size_t index = 0; index < channels.size(); ++index) {
@@ -424,14 +424,14 @@ void RadiomasterPocketUsbHardwareInterface::publish_rc_states(
   set_state(sensor_name_ + "/CRSF Last Frame Age", 0.0);
 }
 
-std::int64_t RadiomasterPocketUsbHardwareInterface::steady_now_ns()
+std::int64_t RadiomasterUsbHardwareInterface::steady_now_ns()
 {
   return std::chrono::duration_cast<std::chrono::nanoseconds>(
     std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
-}  // namespace radiomaster_pocket_usb_hardware_interface
+}  // namespace radiomaster_usb_hardware_interface
 
 PLUGINLIB_EXPORT_CLASS(
-  radiomaster_pocket_usb_hardware_interface::RadiomasterPocketUsbHardwareInterface,
+  radiomaster_usb_hardware_interface::RadiomasterUsbHardwareInterface,
   hardware_interface::SensorInterface)

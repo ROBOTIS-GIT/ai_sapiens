@@ -18,7 +18,7 @@
   <exec_depend>ai_sapiens_mujoco</exec_depend>
   <exec_depend>ai_sapiens_rc_broadcaster</exec_depend>
   <exec_depend>ai_sapiens_sim2real</exec_depend>
-  <exec_depend>radiomaster_pocket_usb_hardware_interface</exec_depend>
+  <exec_depend>radiomaster_usb_hardware_interface</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

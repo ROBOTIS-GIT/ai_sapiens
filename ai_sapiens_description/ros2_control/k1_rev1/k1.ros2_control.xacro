@@ -6,12 +6,11 @@
   <xacro:include filename="$(find ai_sapiens_description)/ros2_control/k1_rev1/k1_right_leg.ros2_control.xacro" />
   <xacro:include filename="$(find ai_sapiens_description)/ros2_control/k1_rev1/k1_imu.ros2_control.xacro" />
   <xacro:include filename="$(find ai_sapiens_description)/ros2_control/k1_rev1/k1_hat.ros2_control.xacro" />
-  <xacro:include filename="$(find ai_sapiens_description)/ros2_control/k1_rev1/k1_radiomaster_pocket_usb.ros2_control.xacro" />
 
   <xacro:property name="default_use_mock_hardware" value="false" />
   <xacro:property name="default_mock_sensor_commands" value="false" />
 
-  <xacro:macro name="k1_system" params="use_mock_hardware:=^|${default_use_mock_hardware} mock_sensor_commands:=^|${default_mock_sensor_commands} radiomaster_pocket_usb:=^|false radiomaster_pocket_usb_device:=^|/dev/input/js0">
+  <xacro:macro name="k1_system" params="use_mock_hardware:=^|${default_use_mock_hardware} mock_sensor_commands:=^|${default_mock_sensor_commands}">
     <xacro:k1_right_arm_system
       use_mock_hardware="${use_mock_hardware}"
       mock_sensor_commands="${mock_sensor_commands}" />
@@ -27,13 +26,8 @@
     <xacro:k1_imu_system
       use_mock_hardware="${use_mock_hardware}"
       mock_sensor_commands="${mock_sensor_commands}" />
-    <xacro:if value="${radiomaster_pocket_usb}">
-      <xacro:k1_radiomaster_pocket_usb_system device="${radiomaster_pocket_usb_device}" />
-    </xacro:if>
-    <xacro:unless value="${radiomaster_pocket_usb}">
-      <xacro:k1_hat_system
-        use_mock_hardware="${use_mock_hardware}"
-        mock_sensor_commands="${mock_sensor_commands}" />
-    </xacro:unless>
+    <xacro:k1_hat_system
+      use_mock_hardware="${use_mock_hardware}"
+      mock_sensor_commands="${mock_sensor_commands}" />
   </xacro:macro>
 </robot>

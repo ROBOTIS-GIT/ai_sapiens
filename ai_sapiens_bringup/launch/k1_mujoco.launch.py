@@ -35,6 +35,10 @@ def generate_launch_description():
                               description='Show the MuJoCo viewer window.'),
         DeclareLaunchArgument('mujoco_gantry', default_value='true',
                               description='Spawn hanging from the gantry.'),
+        DeclareLaunchArgument('radiomaster_usb', default_value='false',
+                              description='Read RC input from a RadioMaster USB device.'),
+        DeclareLaunchArgument('radiomaster_usb_device', default_value='/dev/input/js0',
+                              description='Linux joystick device read by RadioMaster hardware.'),
     ]
 
     start_rviz = LaunchConfiguration('start_rviz')
@@ -58,6 +62,11 @@ def generate_launch_description():
         'mujoco_viewer:=', LaunchConfiguration('mujoco_viewer'),
         ' ',
         'mujoco_gantry:=', LaunchConfiguration('mujoco_gantry'),
+        ' ',
+        'radiomaster_usb:=', LaunchConfiguration('radiomaster_usb'),
+        ' ',
+        'radiomaster_usb_device:=',
+        LaunchConfiguration('radiomaster_usb_device'),
     ])
 
     controller_manager_config = PathJoinSubstitution([

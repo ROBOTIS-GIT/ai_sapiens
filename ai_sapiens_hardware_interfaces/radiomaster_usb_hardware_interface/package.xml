@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>radiomaster_pocket_usb_hardware_interface</name>
+  <name>radiomaster_usb_hardware_interface</name>
   <version>0.1.1</version>
-  <description>RadioMaster Pocket USB joystick sensor interface for AI Sapiens</description>
+  <description>RadioMaster USB joystick sensor interface for AI Sapiens</description>
   <maintainer email="abrahamola80@gmail.com">Eunsung Kim</maintainer>
   <license>Apache-2.0</license>
 

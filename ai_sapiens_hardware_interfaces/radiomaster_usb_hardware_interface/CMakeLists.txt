@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(radiomaster_pocket_usb_hardware_interface)
+project(radiomaster_usb_hardware_interface)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -12,7 +12,7 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED
-  src/radiomaster_pocket_usb_hardware_interface.cpp
+  src/radiomaster_usb_hardware_interface.cpp
 )
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -27,7 +27,7 @@ ament_target_dependencies(${PROJECT_NAME}
 )
 
 pluginlib_export_plugin_description_file(
-  hardware_interface radiomaster_pocket_usb_hardware_interface.xml)
+  hardware_interface radiomaster_usb_hardware_interface.xml)
 
 install(TARGETS ${PROJECT_NAME}
   EXPORT export_${PROJECT_NAME}

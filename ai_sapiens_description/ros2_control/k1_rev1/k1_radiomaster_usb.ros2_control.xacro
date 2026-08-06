@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <xacro:macro name="k1_radiomaster_pocket_usb_system" params="device:=^|/dev/input/js0">
-    <ros2_control name="k1_radiomaster_pocket_usb" type="sensor" rw_rate="100">
+  <xacro:macro name="k1_radiomaster_usb_system" params="device:=^|/dev/input/js0">
+    <ros2_control name="k1_radiomaster_usb" type="sensor" rw_rate="100">
       <hardware>
-        <plugin>radiomaster_pocket_usb_hardware_interface/RadiomasterPocketUsbHardwareInterface</plugin>
+        <plugin>radiomaster_usb_hardware_interface/RadiomasterUsbHardwareInterface</plugin>
         <param name="device">${device}</param>
         <param name="reconnect_interval_ms">1000.0</param>
         <param name="reverse_axes">false</param>
