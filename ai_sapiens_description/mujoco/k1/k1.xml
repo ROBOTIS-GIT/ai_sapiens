@@ -9,14 +9,14 @@
   </visual>
   <default>
     <joint damping="0" armature="0" frictionloss="0"/>
+    <!-- Visual / Collision -->
     <default class="visual">
       <geom type="mesh" contype="0" conaffinity="0" group="2" density="0"/>
     </default>
     <default class="collision">
       <geom contype="1" conaffinity="1" group="3" friction="0.8 0.02 0.001" density="0" rgba="0.45 0.65 0.85 0.35"/>
     </default>
-    <!-- Cyclo inertia-tuned joint armatures; ankle joints use the 2x variants. -->
-    <!-- QC060-200-R020-RE: 0.00564892 kg*m^2, 47.277 Nm, 200 rpm. -->
+    <!-- QC060-200-R020-RE motor: arms and ankle roll -->
     <default class="qc060">
       <joint armature="0.00564892"/>
       <motor ctrllimited="true" ctrlrange="-47.277 47.277" forcelimited="true" forcerange="-47.277 47.277"/>
@@ -24,7 +24,7 @@
     <default class="qc060_double_armature">
       <joint armature="0.01129784"/>
     </default>
-    <!-- QC080-240-R020-RE: 0.01936542 kg*m^2, 96.864 Nm, 110 rpm. -->
+    <!-- QC080-240-R020-RE motor: hips, knees, ankle pitch, and waist yaw -->
     <default class="qc080">
       <joint armature="0.01936542"/>
       <motor ctrllimited="true" ctrlrange="-96.864 96.864" forcelimited="true" forcerange="-96.864 96.864"/>
@@ -223,24 +223,29 @@
     </body>
   </worldbody>
   <actuator>
+    <!-- Left leg -->
     <motor name="left_hip_pitch_joint_motor" joint="left_hip_pitch_joint" class="qc080"/>
     <motor name="left_hip_roll_joint_motor" joint="left_hip_roll_joint" class="qc080"/>
     <motor name="left_hip_yaw_joint_motor" joint="left_hip_yaw_joint" class="qc080"/>
     <motor name="left_knee_joint_motor" joint="left_knee_joint" class="qc080"/>
     <motor name="left_ankle_pitch_joint_motor" joint="left_ankle_pitch_joint" class="qc080"/>
     <motor name="left_ankle_roll_joint_motor" joint="left_ankle_roll_joint" class="qc060"/>
+    <!-- Right leg -->
     <motor name="right_hip_pitch_joint_motor" joint="right_hip_pitch_joint" class="qc080"/>
     <motor name="right_hip_roll_joint_motor" joint="right_hip_roll_joint" class="qc080"/>
     <motor name="right_hip_yaw_joint_motor" joint="right_hip_yaw_joint" class="qc080"/>
     <motor name="right_knee_joint_motor" joint="right_knee_joint" class="qc080"/>
     <motor name="right_ankle_pitch_joint_motor" joint="right_ankle_pitch_joint" class="qc080"/>
     <motor name="right_ankle_roll_joint_motor" joint="right_ankle_roll_joint" class="qc060"/>
+    <!-- Waist -->
     <motor name="waist_yaw_joint_motor" joint="waist_yaw_joint" class="qc080"/>
+    <!-- Left arm -->
     <motor name="left_shoulder_pitch_joint_motor" joint="left_shoulder_pitch_joint" class="qc060"/>
     <motor name="left_shoulder_roll_joint_motor" joint="left_shoulder_roll_joint" class="qc060"/>
     <motor name="left_shoulder_yaw_joint_motor" joint="left_shoulder_yaw_joint" class="qc060"/>
     <motor name="left_elbow_joint_motor" joint="left_elbow_joint" class="qc060"/>
     <motor name="left_wrist_roll_joint_motor" joint="left_wrist_roll_joint" class="qc060"/>
+    <!-- Right arm -->
     <motor name="right_shoulder_pitch_joint_motor" joint="right_shoulder_pitch_joint" class="qc060"/>
     <motor name="right_shoulder_roll_joint_motor" joint="right_shoulder_roll_joint" class="qc060"/>
     <motor name="right_shoulder_yaw_joint_motor" joint="right_shoulder_yaw_joint" class="qc060"/>

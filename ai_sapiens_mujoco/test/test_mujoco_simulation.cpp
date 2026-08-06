@@ -62,6 +62,46 @@ TEST(MujocoSimulation, LoadsSceneAndIndexesJoints)
   }
 }
 
+TEST(MujocoSimulation, UsesConfiguredActuatorProperties)
+{
+  MujocoSimulation sim;
+  ASSERT_NO_THROW(sim.load(scene("scene.xml"), kJoints));
+  const mjModel * model = sim.model();
+
+  for (const auto & joint_name : kJoints) {
+    const bool is_ankle_pitch = joint_name.find("ankle_pitch") != std::string::npos;
+    const bool is_ankle_roll = joint_name.find("ankle_roll") != std::string::npos;
+    const bool is_qc060 =
+      joint_name.find("shoulder") != std::string::npos ||
+      joint_name.find("elbow") != std::string::npos ||
+      joint_name.find("wrist") != std::string::npos ||
+      is_ankle_roll;
+    const double armature =
+      is_ankle_pitch ? 0.03873084 :
+      is_ankle_roll ? 0.01129784 :
+      is_qc060 ? 0.00564892 : 0.01936542;
+    const double max_effort = is_qc060 ? 47.277 : 96.864;
+
+    const int joint_id = mj_name2id(model, mjOBJ_JOINT, joint_name.c_str());
+    const int actuator_id =
+      mj_name2id(model, mjOBJ_ACTUATOR, (joint_name + "_motor").c_str());
+    ASSERT_GE(joint_id, 0);
+    ASSERT_GE(actuator_id, 0);
+
+    const int dof_id = model->jnt_dofadr[joint_id];
+    EXPECT_DOUBLE_EQ(model->dof_armature[dof_id], armature);
+    EXPECT_DOUBLE_EQ(model->dof_damping[dof_id], 0.0);
+    EXPECT_DOUBLE_EQ(model->dof_frictionloss[dof_id], 0.0);
+    EXPECT_TRUE(model->jnt_limited[joint_id]);
+    EXPECT_TRUE(model->jnt_actfrclimited[joint_id]);
+    EXPECT_DOUBLE_EQ(model->jnt_actfrcrange[2 * joint_id], -max_effort);
+    EXPECT_DOUBLE_EQ(model->jnt_actfrcrange[2 * joint_id + 1], max_effort);
+    EXPECT_TRUE(model->actuator_forcelimited[actuator_id]);
+    EXPECT_DOUBLE_EQ(model->actuator_forcerange[2 * actuator_id], -max_effort);
+    EXPECT_DOUBLE_EQ(model->actuator_forcerange[2 * actuator_id + 1], max_effort);
+  }
+}
+
 TEST(MujocoSimulation, ThrowsOnUnknownJoint)
 {
   MujocoSimulation sim;
