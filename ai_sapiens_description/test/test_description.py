@@ -154,6 +154,60 @@ def test_xacro_expands_with_mujoco_hardware():
     )
 
 
+def test_xacro_expands_with_mujoco_and_radiomaster_usb():
+    """Ensure USB RC replaces the MuJoCo-provided hat interfaces."""
+    document = xacro.process_file(
+        str(XACRO_PATH),
+        mappings={
+            'sim_mujoco': 'true',
+            'mujoco_viewer': 'false',
+            'radiomaster_usb': 'true',
+            'radiomaster_usb_device': '/dev/input/js7',
+        },
+    )
+    root = ET.fromstring(document.toxml())
+    controls = root.findall('ros2_control')
+
+    assert [control.attrib['name'] for control in controls] == [
+        'k1_mujoco',
+        'k1_radiomaster_usb',
+    ]
+    assert [plugin.text for plugin in root.findall('.//plugin')] == [
+        'ai_sapiens_mujoco/MujocoSystem',
+        (
+            'radiomaster_usb_hardware_interface/'
+            'RadiomasterUsbHardwareInterface'
+        ),
+    ]
+    assert controls[0].find("./sensor[@name='hat']") is None
+    assert controls[1].find("./sensor[@name='hat']") is not None
+    assert controls[1].find(".//param[@name='device']").text == '/dev/input/js7'
+
+
+def test_xacro_ignores_radiomaster_usb_without_mujoco():
+    """Ensure real hardware always retains the K1 HAT system."""
+    document = xacro.process_file(
+        str(XACRO_PATH),
+        mappings={
+            'use_mock_hardware': 'true',
+            'mock_sensor_commands': 'true',
+            'radiomaster_usb': 'true',
+            'radiomaster_usb_device': '/dev/input/js7',
+        },
+    )
+    root = ET.fromstring(document.toxml())
+    controls = root.findall('ros2_control')
+
+    assert len(controls) == 6
+    assert 'k1_hat' in {control.attrib['name'] for control in controls}
+    assert 'k1_radiomaster_usb' not in {
+        control.attrib['name'] for control in controls
+    }
+    assert {
+        plugin.text for plugin in root.findall('.//plugin')
+    } == {'mock_components/GenericSystem'}
+
+
 def test_mujoco_model_matches_urdf():
     """Keep MuJoCo kinematics, inertias, limits, and actuators synchronized."""
     _, urdf_links, urdf_joints = _urdf_model()

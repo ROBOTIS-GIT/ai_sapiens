@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RADIOMASTER_POCKET_USB_HARDWARE_INTERFACE__RADIOMASTER_POCKET_USB_HARDWARE_INTERFACE_HPP_
-#define RADIOMASTER_POCKET_USB_HARDWARE_INTERFACE__RADIOMASTER_POCKET_USB_HARDWARE_INTERFACE_HPP_
+#ifndef RADIOMASTER_USB_HARDWARE_INTERFACE__RADIOMASTER_USB_HARDWARE_INTERFACE_HPP_
+#define RADIOMASTER_USB_HARDWARE_INTERFACE__RADIOMASTER_USB_HARDWARE_INTERFACE_HPP_
 
 #include <linux/joystick.h>
 
@@ -26,7 +26,7 @@
 #include "hardware_interface/sensor_interface.hpp"
 #include "rclcpp_lifecycle/state.hpp"
 
-namespace radiomaster_pocket_usb_hardware_interface
+namespace radiomaster_usb_hardware_interface
 {
 
 constexpr std::size_t kRcChannelCount = 16;
@@ -41,10 +41,10 @@ std::array<double, kRcChannelCount> joy_axes_to_rc_channels(
   const std::array<double, kRcChannelCount> & defaults,
   bool reverse_axes);
 
-class RadiomasterPocketUsbHardwareInterface : public hardware_interface::SensorInterface
+class RadiomasterUsbHardwareInterface : public hardware_interface::SensorInterface
 {
 public:
-  ~RadiomasterPocketUsbHardwareInterface() override;
+  ~RadiomasterUsbHardwareInterface() override;
 
   hardware_interface::CallbackReturn on_init(
     const hardware_interface::HardwareComponentInterfaceParams & params) override;
@@ -84,6 +84,6 @@ private:
   bool open_failure_reported_{false};
 };
 
-}  // namespace radiomaster_pocket_usb_hardware_interface
+}  // namespace radiomaster_usb_hardware_interface
 
-#endif  // RADIOMASTER_POCKET_USB_HARDWARE_INTERFACE__RADIOMASTER_POCKET_USB_HARDWARE_INTERFACE_HPP_
+#endif  // RADIOMASTER_USB_HARDWARE_INTERFACE__RADIOMASTER_USB_HARDWARE_INTERFACE_HPP_

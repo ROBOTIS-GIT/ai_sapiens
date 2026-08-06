@@ -16,6 +16,7 @@
 
 #include "ai_sapiens_mujoco/mujoco_system.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <exception>
 #include <memory>
@@ -72,6 +73,9 @@ hardware_interface::CallbackReturn MujocoSystem::on_init(
   }
 
   const auto & hw_params = info_.hardware_parameters;
+  has_hat_state_interfaces_ = std::any_of(
+    info_.sensors.begin(), info_.sensors.end(),
+    [](const auto & sensor) {return sensor.name == "hat";});
 
   const std::string scene_file = get_param(hw_params, "scene_file", "");
   if (scene_file.empty()) {
@@ -151,21 +155,23 @@ hardware_interface::CallbackReturn MujocoSystem::on_configure(
   // State interface handles exist only after export, so initial values are set
   // here rather than in on_init.
   publish_states();
-  for (std::size_t i = 0; i < rc_defaults_.size(); ++i) {
-    set_state("hat/RC Channel " + std::to_string(i + 1), rc_defaults_[i]);
+  if (has_hat_state_interfaces_) {
+    for (std::size_t i = 0; i < rc_defaults_.size(); ++i) {
+      set_state("hat/RC Channel " + std::to_string(i + 1), rc_defaults_[i]);
+    }
+    set_state("hat/Hardware Error Status", 0.0);
+    set_state("hat/E-stop Active", 0.0);
+    set_state("hat/BMS SOC", 100.0);
+    set_state("hat/BMS Voltage", 54.0);
+    set_state("hat/BMS Current", 2.0);
+    set_state("hat/BMS Temperature", 35.0);
+    set_state("hat/BMS Service Error Flags", 0.0);
+    set_state("hat/BMS Remaining Energy", 500.0);
+    set_state("hat/CRSF Failsafe", 0.0);
+    set_state("hat/CRSF Link Quality", 100.0);
+    set_state("hat/CRSF RSSI 1", 80.0);
+    set_state("hat/CRSF Last Frame Age", 1.0);
   }
-  set_state("hat/Hardware Error Status", 0.0);
-  set_state("hat/E-stop Active", 0.0);
-  set_state("hat/BMS SOC", 100.0);
-  set_state("hat/BMS Voltage", 54.0);
-  set_state("hat/BMS Current", 2.0);
-  set_state("hat/BMS Temperature", 35.0);
-  set_state("hat/BMS Service Error Flags", 0.0);
-  set_state("hat/BMS Remaining Energy", 500.0);
-  set_state("hat/CRSF Failsafe", 0.0);
-  set_state("hat/CRSF Link Quality", 100.0);
-  set_state("hat/CRSF RSSI 1", 80.0);
-  set_state("hat/CRSF Last Frame Age", 1.0);
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
@@ -236,10 +242,12 @@ void MujocoSystem::publish_states()
   set_state("imu/linear_acceleration.y", imu.accel[1]);
   set_state("imu/linear_acceleration.z", imu.accel[2]);
 
-  // rc_broadcaster expects the watchdog tick to keep changing and stay in
-  // [0, 32767].
-  set_state(
-    "hat/Realtime Tick", std::fmod(std::floor(sim_->sim_time() * 1000.0), 32768.0));
+  if (has_hat_state_interfaces_) {
+    // rc_broadcaster expects the watchdog tick to keep changing and stay in
+    // [0, 32767].
+    set_state(
+      "hat/Realtime Tick", std::fmod(std::floor(sim_->sim_time() * 1000.0), 32768.0));
+  }
 }
 
 void MujocoSystem::stop_viewer()
