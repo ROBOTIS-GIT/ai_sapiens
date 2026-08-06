@@ -125,7 +125,7 @@ TEST_F(CenterOfMassVisualizerTest, AppendsRobotAndLinkMarkers)
   }
   for (int channel = 0; channel < 4; ++channel) {
     EXPECT_FLOAT_EQ(
-      robot_com.rgba[channel], model_->vis.rgba.com[channel]);
+      robot_com.rgba[channel], kRobotCenterOfMassColor[channel]);
   }
 
   const mjvGeom & robot_link_com = scene_.geoms[1];

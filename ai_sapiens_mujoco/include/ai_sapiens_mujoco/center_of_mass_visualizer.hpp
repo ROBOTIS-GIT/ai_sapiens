@@ -24,6 +24,8 @@
 namespace ai_sapiens_mujoco
 {
 
+inline constexpr std::array<float, 4> kRobotCenterOfMassColor{
+  1.0F, 0.0F, 0.0F, 1.0F};
 inline constexpr float kRobotCenterOfMassRadius = 0.055F;
 inline constexpr float kLinkCenterOfMassMinimumRadius = 0.014F;
 inline constexpr float kLinkCenterOfMassMaximumRadius = 0.048F;
