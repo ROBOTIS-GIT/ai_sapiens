@@ -22,7 +22,7 @@
     <xacro:k1_mujoco_system
       viewer="$(arg mujoco_viewer)"
       gantry="$(arg mujoco_gantry)"
-      external_hat="$(arg radiomaster_usb)"/>
+      radiomaster_usb="$(arg radiomaster_usb)"/>
     <xacro:if value="$(arg radiomaster_usb)">
       <xacro:k1_radiomaster_usb_system
         device="$(arg radiomaster_usb_device)"/>
