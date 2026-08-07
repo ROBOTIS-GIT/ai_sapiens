@@ -155,5 +155,5 @@ neutral pose: with the default mapping
 (`ai_sapiens_sim2real/config/teleop/radiomaster_pocket.yaml`), CH7=2000 with
 CH6=1500 produces `input_code` 0 — no state-machine request — so
 `ai_sapiens_sim2real` stays in its initial state until you drive the channels
-yourself, and CH8=2000 makes `api_mode` available. The sticks (CH1/CH2/CH4)
+yourself, and CH8=2000 makes `api_mode` available. The sticks (CH1/CH3/CH4)
 sit at 1500, i.e. zero commanded velocity.
