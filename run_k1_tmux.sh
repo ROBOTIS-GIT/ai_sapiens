@@ -7,6 +7,7 @@ SIM=false
 RADIOMASTER_USB=false
 RADIOMASTER_USB_DEVICE="/dev/input/js0"
 RADIOMASTER_USB_DEVICE_SET=false
+DUALSENSE=false
 ARGS=()
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -29,12 +30,16 @@ while [ "$#" -gt 0 ]; do
       RADIOMASTER_USB_DEVICE="${1#*=}"
       RADIOMASTER_USB_DEVICE_SET=true
       ;;
+    "--dualsense")
+      DUALSENSE=true
+      ;;
     "-h"|"--help")
-      echo "Usage: $0 [session_name] [--sim] [--radiomaster-usb] [--radiomaster-usb-device=PATH]"
+      echo "Usage: $0 [session_name] [--sim] [--radiomaster-usb] [--radiomaster-usb-device=PATH] [--dualsense]"
       echo
       echo "  --sim                         Launch the MuJoCo sim2sim bringup."
       echo "  --radiomaster-usb             Use RadioMaster USB RC input in MuJoCo."
       echo "  --radiomaster-usb-device=PATH Linux joystick device (default: /dev/input/js0)."
+      echo "  --dualsense                   Use the DualSense teleop plugin and dashboard."
       exit 0
       ;;
     "--"*)
@@ -82,6 +87,13 @@ if [ "$RADIOMASTER_USB" = true ]; then
   BRINGUP_CMD+=" radiomaster_usb_device:=${RADIOMASTER_USB_DEVICE_QUOTED}"
 fi
 
+SIM2REAL_COMMAND="sleep 6; ros2 launch ai_sapiens_sim2real ai_sapiens_sim2real.launch.py"
+if [ "$DUALSENSE" = true ]; then
+  DUALSENSE_CONFIG="$(ros2 pkg prefix --share ai_sapiens_sim2real)/config/teleop/dualsense.yaml"
+  SIM2REAL_COMMAND+=" teleop_input_plugin:=ai_sapiens_sim2real/DualSenseTeleopInputPlugin"
+  SIM2REAL_COMMAND+=" teleop_input_config_path:=${DUALSENSE_CONFIG}"
+fi
+
 hold_cmd() {
   local cmd="$1"
   printf 'bash -lc %q' "$cmd; status=\$?; echo; echo \"[tmux] command exited with status \$status. Press Ctrl-D or type exit to close this pane.\"; exec bash -i"
@@ -94,11 +106,20 @@ tmux has-session -t "$SESSION_NAME" 2>/dev/null && tmux kill-session -t "$SESSIO
 tmux new-session -d -s "$SESSION_NAME" -- "$(hold_cmd 'ros2 run rmw_zenoh_cpp rmw_zenohd')"
 
 # Split right: top-right — sleep 3s then launch
-tmux split-window -h -t "$SESSION_NAME" -- "$(hold_cmd "$BRINGUP_CMD")"
+RIGHT_PANE="$(
+  tmux split-window -h -t "$SESSION_NAME" -P -F '#{pane_id}' -- \
+    "$(hold_cmd "$BRINGUP_CMD")"
+)"
 
 # Select top-left and split down: bottom-left — sleep 6s then launch
 tmux select-pane -t "$SESSION_NAME":0.0
-tmux split-window -v -t "$SESSION_NAME" -- "$(hold_cmd 'sleep 6; ros2 launch ai_sapiens_sim2real ai_sapiens_sim2real.launch.py')"
+tmux split-window -v -t "$SESSION_NAME" -- "$(hold_cmd "$SIM2REAL_COMMAND")"
+
+if [ "$DUALSENSE" = true ]; then
+  # Run joy_node and the DualSense dashboard only when explicitly requested.
+  tmux split-window -v -t "$RIGHT_PANE" -- \
+    "$(hold_cmd 'sleep 3; ros2 run ai_sapiens_sim2real run_dualsense_teleop.sh')"
+fi
 
 # Optional: balance pane sizes and attach
 tmux select-layout -t "$SESSION_NAME" tiled
