@@ -4,7 +4,9 @@ switch_match_tolerance: 50
 
 velocity_command:
   channels:
-    linear_x: {channel: CH2, invert: false}
+    # Left stick: CH3 vertical (X), CH4 horizontal (Y).
+    # Right stick: CH1 horizontal (yaw); CH2 vertical is intentionally unused.
+    linear_x: {channel: CH3, invert: false}
     linear_y: {channel: CH4, invert: true}
     angular_z: {channel: CH1, invert: true}
 
