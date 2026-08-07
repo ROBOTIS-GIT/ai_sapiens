@@ -17,9 +17,9 @@
 #ifndef AI_SAPIENS_MUJOCO__CENTER_OF_MASS_VISUALIZER_HPP_
 #define AI_SAPIENS_MUJOCO__CENTER_OF_MASS_VISUALIZER_HPP_
 
-#include <array>
-
 #include <mujoco/mujoco.h>
+
+#include <array>
 
 namespace ai_sapiens_mujoco
 {

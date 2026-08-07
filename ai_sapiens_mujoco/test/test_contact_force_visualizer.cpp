@@ -24,7 +24,8 @@
 namespace
 {
 
-constexpr char kContactModel[] = R"(
+constexpr char kContactModel[] =
+  R"(
 <mujoco>
   <option timestep="0.001"/>
   <worldbody>

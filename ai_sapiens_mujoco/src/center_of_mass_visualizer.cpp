@@ -94,7 +94,7 @@ float link_center_of_mass_radius(
   const float normalized_mass =
     scale_range > std::numeric_limits<float>::epsilon() ?
     std::clamp(
-      (mass_scale - minimum_mass_scale) / scale_range, 0.0F, 1.0F) :
+    (mass_scale - minimum_mass_scale) / scale_range, 0.0F, 1.0F) :
     0.5F;
   return
     kLinkCenterOfMassMinimumRadius +

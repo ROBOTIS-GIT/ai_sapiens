@@ -14,17 +14,18 @@
 //
 // Author: Kiwoong Park
 
+#include <fcntl.h>
+#include <termios.h>
+#include <unistd.h>
+
 #include <cerrno>
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
-#include <fcntl.h>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <string>
-#include <termios.h>
-#include <unistd.h>
 
 #include <ai_sapiens_interfaces/msg/mode_status.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>

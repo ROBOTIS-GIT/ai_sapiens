@@ -14,13 +14,14 @@
 //
 // Author: Kiwoong Park
 
+#include <unistd.h>
+
 #include <chrono>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <string>
-#include <unistd.h>
 
 #include <ai_sapiens_interfaces/msg/mode_status.hpp>
 #include <ament_index_cpp/get_package_share_directory.hpp>

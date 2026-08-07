@@ -14,6 +14,7 @@
 //
 // Author: Woojin Wie, Kiwoong Park
 
+// NOLINT(build/header_guard)
 #ifndef \
   AI_SAPIENS_JOINT_GROUP_IMPEDANCE_CONTROLLER__AI_SAPIENS_JOINT_GROUP_IMPEDANCE_CONTROLLER_HPP_
 #define \
@@ -26,6 +27,7 @@
 
 #include "ai_sapiens_interfaces/msg/joint_impedance_command.hpp"
 #include \
+  /* NOLINTNEXTLINE(whitespace/line_length) */ \
   "ai_sapiens_joint_group_impedance_controller/ai_sapiens_joint_group_impedance_controller_parameters.hpp"
 #include "controller_interface/controller_interface.hpp"
 #include "hardware_interface/loaned_command_interface.hpp"
@@ -81,5 +83,6 @@ private:
 
 }  // namespace ai_sapiens_joint_group_impedance_controller
 
+// NOLINTNEXTLINE(build/endif_comment)
 #endif \
   // AI_SAPIENS_JOINT_GROUP_IMPEDANCE_CONTROLLER__AI_SAPIENS_JOINT_GROUP_IMPEDANCE_CONTROLLER_HPP_
