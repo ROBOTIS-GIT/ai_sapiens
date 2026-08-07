@@ -116,6 +116,18 @@ add_executable(dualsense_teleop_ui_node
   src/teleop_devtools/dualsense/dualsense_teleop_ui_node.cpp
 )
 
+add_library(keyboard_teleop_core SHARED
+  src/teleop_devtools/keyboard/keyboard_teleop.cpp
+)
+
+add_library(keyboard_teleop_input_plugin SHARED
+  src/teleop_devtools/keyboard/keyboard_teleop_input_plugin.cpp
+)
+
+add_executable(keyboard_teleop_node
+  src/teleop_devtools/keyboard/keyboard_teleop_node.cpp
+)
+
 ament_target_dependencies(radiomaster_pocket_teleop_input_plugin
   rclcpp
   realtime_tools
@@ -138,12 +150,39 @@ ament_target_dependencies(dualsense_teleop_ui_node
   std_msgs
 )
 
+ament_target_dependencies(keyboard_teleop_core
+  ai_sapiens_interfaces
+)
+
+ament_target_dependencies(keyboard_teleop_input_plugin
+  rclcpp
+  realtime_tools
+  ai_sapiens_interfaces
+  pluginlib
+)
+
+ament_target_dependencies(keyboard_teleop_node
+  rclcpp
+  ai_sapiens_interfaces
+  ament_index_cpp
+)
+
 target_link_libraries(radiomaster_pocket_teleop_input_plugin
   yaml-cpp
   Eigen3::Eigen
 )
 
 target_link_libraries(dualsense_teleop_input_plugin
+  yaml-cpp
+  Eigen3::Eigen
+)
+
+target_link_libraries(keyboard_teleop_core
+  yaml-cpp
+)
+
+target_link_libraries(keyboard_teleop_input_plugin
+  keyboard_teleop_core
   yaml-cpp
   Eigen3::Eigen
 )
@@ -159,8 +198,15 @@ target_link_libraries(dualsense_teleop_ui_node
   yaml-cpp
 )
 
+target_link_libraries(keyboard_teleop_node
+  keyboard_teleop_core
+  yaml-cpp
+)
+
 pluginlib_export_plugin_description_file(${PROJECT_NAME} plugins/teleop_input_plugins.xml)
 pluginlib_export_plugin_description_file(${PROJECT_NAME} plugins/dualsense_teleop_input_plugin.xml)
+pluginlib_export_plugin_description_file(
+  ${PROJECT_NAME} plugins/keyboard_teleop_input_plugin.xml)
 
 # ============================================================================
 # Install
@@ -171,6 +217,9 @@ install(TARGETS
   dualsense_teleop_input_plugin
   dualsense_teleop_ui_core
   dualsense_teleop_ui_node
+  keyboard_teleop_core
+  keyboard_teleop_input_plugin
+  keyboard_teleop_node
   RUNTIME DESTINATION lib/${PROJECT_NAME}
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
@@ -291,6 +340,29 @@ if(BUILD_TESTING)
     test_dualsense_teleop_ui
     dualsense_teleop_ui_core
     yaml-cpp)
+
+  ament_add_gtest(
+    test_keyboard_teleop
+    test/test_keyboard_teleop.cpp)
+  target_link_libraries(
+    test_keyboard_teleop
+    keyboard_teleop_core
+    yaml-cpp)
+  ament_target_dependencies(
+    test_keyboard_teleop
+    ai_sapiens_interfaces)
+
+  ament_add_gtest(
+    test_keyboard_teleop_input_plugin
+    test/test_keyboard_teleop_input_plugin.cpp)
+  target_link_libraries(
+    test_keyboard_teleop_input_plugin
+    keyboard_teleop_input_plugin
+    yaml-cpp)
+  ament_target_dependencies(
+    test_keyboard_teleop_input_plugin
+    rclcpp
+    ai_sapiens_interfaces)
 endif()
 
 ament_package()

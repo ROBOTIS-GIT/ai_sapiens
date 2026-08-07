@@ -8,6 +8,7 @@ RADIOMASTER_USB=false
 RADIOMASTER_USB_DEVICE="/dev/input/js0"
 RADIOMASTER_USB_DEVICE_SET=false
 DUALSENSE=false
+KEYBOARD=false
 ARGS=()
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -33,13 +34,17 @@ while [ "$#" -gt 0 ]; do
     "--dualsense")
       DUALSENSE=true
       ;;
+    "--keyboard")
+      KEYBOARD=true
+      ;;
     "-h"|"--help")
-      echo "Usage: $0 [session_name] [--sim] [--radiomaster-usb] [--radiomaster-usb-device=PATH] [--dualsense]"
+      echo "Usage: $0 [session_name] [--sim] [--radiomaster-usb] [--radiomaster-usb-device=PATH] [--dualsense] [--keyboard]"
       echo
       echo "  --sim                         Launch the MuJoCo sim2sim bringup."
       echo "  --radiomaster-usb             Use RadioMaster USB RC input in MuJoCo."
       echo "  --radiomaster-usb-device=PATH Linux joystick device (default: /dev/input/js0)."
       echo "  --dualsense                   Use the DualSense teleop plugin and dashboard."
+      echo "  --keyboard                    Use the keyboard teleop plugin and publisher."
       exit 0
       ;;
     "--"*)
@@ -73,6 +78,11 @@ if [ "$RADIOMASTER_USB_DEVICE_SET" = true ] && [ -z "$RADIOMASTER_USB_DEVICE" ];
   exit 2
 fi
 
+if [ "$DUALSENSE" = true ] && [ "$KEYBOARD" = true ]; then
+  echo "Error: --dualsense and --keyboard select the same teleop plugin slot; pick one." >&2
+  exit 2
+fi
+
 SESSION_NAME="${ARGS[0]:-ai_sapiens}"
 
 BRINGUP_LAUNCH="k1.launch.py"
@@ -92,6 +102,10 @@ if [ "$DUALSENSE" = true ]; then
   DUALSENSE_CONFIG="$(ros2 pkg prefix --share ai_sapiens_sim2real)/config/teleop/dualsense.yaml"
   SIM2REAL_COMMAND+=" teleop_input_plugin:=ai_sapiens_sim2real/DualSenseTeleopInputPlugin"
   SIM2REAL_COMMAND+=" teleop_input_config_path:=${DUALSENSE_CONFIG}"
+elif [ "$KEYBOARD" = true ]; then
+  KEYBOARD_CONFIG="$(ros2 pkg prefix --share ai_sapiens_sim2real)/config/teleop/keyboard.yaml"
+  SIM2REAL_COMMAND+=" teleop_input_plugin:=ai_sapiens_sim2real/KeyboardTeleopInputPlugin"
+  SIM2REAL_COMMAND+=" teleop_input_config_path:=${KEYBOARD_CONFIG}"
 fi
 
 hold_cmd() {
@@ -119,6 +133,13 @@ if [ "$DUALSENSE" = true ]; then
   # Run joy_node and the DualSense dashboard only when explicitly requested.
   tmux split-window -v -t "$RIGHT_PANE" -- \
     "$(hold_cmd 'sleep 3; ros2 run ai_sapiens_sim2real run_dualsense_teleop.sh')"
+fi
+
+if [ "$KEYBOARD" = true ]; then
+  # Bottom-right stays attached to a TTY so raw key presses and arrow-key
+  # escape sequences reach the interactive keyboard publisher.
+  tmux split-window -v -t "$RIGHT_PANE" -- \
+    "$(hold_cmd 'sleep 3; ros2 run ai_sapiens_sim2real keyboard_teleop_node')"
 fi
 
 # Optional: balance pane sizes and attach

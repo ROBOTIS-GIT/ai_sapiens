@@ -13,6 +13,7 @@ find_package(std_msgs REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/ApiHeartbeat.msg"
   "msg/JointImpedanceCommand.msg"
+  "msg/KeyboardInput.msg"
   "msg/ModeStatus.msg"
   "msg/RcChannel.msg"
   "msg/RcStatus.msg"
