@@ -15,8 +15,8 @@ if [ -z "${SERVICE_NAME}" ]; then
     exit 1
 fi
 
-# Set ROS_DOMAIN_ID if not already set (default to 30)
-export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-30}
+# Set ROS_DOMAIN_ID if not already set (default to 0)
+export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
 export ROS_DISTRO=${ROS_DISTRO:-jazzy}
 export COLCON_WS=${COLCON_WS:-/root/ros2_ws}
 
