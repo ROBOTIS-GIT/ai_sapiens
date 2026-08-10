@@ -30,6 +30,7 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <utility>
 
 #include "pluginlib/class_list_macros.hpp"
 
@@ -42,6 +43,12 @@ constexpr const char * kDefaultRcChannels =
   "1500,1500,1500,1500,1000,1500,1000,1000,1000,1000,1000,1000,1500,1500,1500,1500";
 constexpr double kEdgeTxHidCenter = 1024.0;
 constexpr double kJoydevCorrectionShift = 16384.0;
+
+std::unordered_map<int, std::vector<js_corr>> & original_joydev_corrections()
+{
+  static std::unordered_map<int, std::vector<js_corr>> corrections;
+  return corrections;
+}
 
 std::string get_parameter(
   const std::unordered_map<std::string, std::string> & parameters,
@@ -265,7 +272,7 @@ bool RadiomasterUsbHardwareInterface::try_open_device(std::int64_t now_ns)
   }
   next_reconnect_ns_ = now_ns + static_cast<std::int64_t>(reconnect_interval_ms_ * 1.0e6);
 
-  joystick_fd_ = open(device_.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+  joystick_fd_ = open(device_.c_str(), O_RDWR | O_NONBLOCK | O_CLOEXEC);
   if (joystick_fd_ < 0) {
     if (!open_failure_reported_) {
       RCLCPP_WARN(
@@ -307,14 +314,30 @@ bool RadiomasterUsbHardwareInterface::try_open_device(std::int64_t now_ns)
 
 bool RadiomasterUsbHardwareInterface::read_joydev_correction(std::uint8_t axis_count)
 {
-  joydev_correction_.assign(axis_count, js_corr{});
-  if (ioctl(joystick_fd_, JSIOCGCORR, joydev_correction_.data()) < 0) {
+  std::vector<js_corr> original(axis_count);
+  if (ioctl(joystick_fd_, JSIOCGCORR, original.data()) < 0) {
     RCLCPP_ERROR(
       get_logger(), "Cannot read joystick correction for %s: %s",
       device_.c_str(), std::strerror(errno));
+    return false;
+  }
+
+  joydev_correction_.assign(axis_count, js_corr{});
+  for (auto & correction : joydev_correction_) {
+    correction.type = JS_CORR_NONE;
+  }
+
+  auto & original_corrections = original_joydev_corrections();
+  original_corrections.insert_or_assign(joystick_fd_, std::move(original));
+  if (ioctl(joystick_fd_, JSIOCSCORR, joydev_correction_.data()) < 0) {
+    RCLCPP_ERROR(
+      get_logger(), "Cannot disable joystick correction for %s: %s",
+      device_.c_str(), std::strerror(errno));
+    original_corrections.erase(joystick_fd_);
     joydev_correction_.clear();
     return false;
   }
+
   return true;
 }
 
@@ -375,6 +398,18 @@ void RadiomasterUsbHardwareInterface::close_device(bool report_disconnect)
   if (joystick_fd_ < 0) {
     return;
   }
+
+  auto & original_corrections = original_joydev_corrections();
+  const auto original = original_corrections.find(joystick_fd_);
+  if (original != original_corrections.end()) {
+    if (ioctl(joystick_fd_, JSIOCSCORR, original->second.data()) < 0) {
+      RCLCPP_WARN(
+        get_logger(), "Cannot restore joystick correction for %s: %s",
+        device_.c_str(), std::strerror(errno));
+    }
+    original_corrections.erase(original);
+  }
+
   ::close(joystick_fd_);
   joystick_fd_ = -1;
   joydev_correction_.clear();
