@@ -107,6 +107,8 @@ private:
   static constexpr const char * kDampingConditionName = "DampingRequested";
   static constexpr const char * kStartupReadyPoseConditionName = "ReadyPoseRequested";
   static constexpr const char * kMimicConditionName = "MimicRequested";
+  static constexpr const char * kManualMimicServiceConditionName =
+    "ManualMimicServiceAllowed";
 
   enum class TransitionReason
   {
@@ -191,6 +193,9 @@ private:
 
   bool is_api_request_available() const;
   bool is_service_request_executable(const StateRequest & request) const;
+  bool is_service_request_allowed(
+    Authority authority, const StateRequest & request) const;
+  bool is_manual_mimic_service_allowed() const;
 
   // State/behavior lookup helpers over the configured FSM.
   std::string current_state_name() const;

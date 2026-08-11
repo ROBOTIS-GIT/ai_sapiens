@@ -32,6 +32,7 @@ namespace mode_controller_test
 constexpr uint16_t kReadyPoseInputCode = 2U;
 constexpr uint16_t kVelocityInputCode = 3U;
 constexpr uint16_t kMimicInputCode = 4U;
+constexpr uint16_t kManualMimicServiceInputCode = 5U;
 constexpr uint16_t kMimicSquatSelectorCode = 200U;
 
 void ensure_rclcpp_initialized()
@@ -65,6 +66,8 @@ teleop_conditions:
     input_code: 2
   VelocityRequested:
     input_code: 3
+  ManualMimicServiceAllowed:
+    input_code: 5
   MimicRequested:
     input_code: 4
 selectors:
@@ -210,6 +213,35 @@ public:
     return controller_->status_snapshot().active_state == "MimicSquat";
   }
 
+  bool enter_manual_velocity_with_service_switch()
+  {
+    release_startup_gate();
+    shared_data_.teleop.input_code = kVelocityInputCode;
+    update_controller();
+    if (controller_->status_snapshot().active_state != "Velocity") {
+      return false;
+    }
+
+    shared_data_.teleop.input_code = kManualMimicServiceInputCode;
+    update_controller();
+    return std::string(controller_->status_snapshot().authority) == "MANUAL";
+  }
+
+  bool enter_manual_mimic_through_service()
+  {
+    if (!enter_manual_velocity_with_service_switch()) {
+      return false;
+    }
+
+    const auto result = controller_->set_mode_by_name("MimicSquat");
+    if (!result.success) {
+      return false;
+    }
+
+    update_controller();
+    return controller_->status_snapshot().active_state == "MimicSquat";
+  }
+
   std::shared_ptr<rclcpp::Node> node_;
   ai_sapiens_sim2real::SharedControlData shared_data_;
   std::unique_ptr<ai_sapiens_sim2real::RootConfig> root_config_;
@@ -219,6 +251,7 @@ public:
 }  // namespace mode_controller_test
 
 using mode_controller_test::ModeControllerFixture;
+using mode_controller_test::kManualMimicServiceInputCode;
 using mode_controller_test::kMimicInputCode;
 using mode_controller_test::kMimicSquatSelectorCode;
 using mode_controller_test::kVelocityInputCode;
@@ -311,6 +344,118 @@ TEST(ModeController, ApiAcceptsMimicServiceRequest)
   EXPECT_STREQ(status.authority, "API");
   EXPECT_EQ(status.active_state, "MimicSquat");
   EXPECT_EQ(fixture.shared_data_.mode.active_policy_name, "mimic_run");
+}
+
+TEST(ModeController, ManualNeutralSwitchAcceptsOnlyMimicServiceRequests)
+{
+  ModeControllerFixture fixture;
+  ASSERT_TRUE(fixture.enter_manual_velocity_with_service_switch());
+
+  const auto available = fixture.controller_->available_service_state_names();
+  EXPECT_EQ(available, std::vector<std::string>({"MimicSquat"}));
+  EXPECT_TRUE(fixture.controller_->status_snapshot().api_request_available);
+
+  const auto velocity_result = fixture.controller_->set_mode_by_name("Velocity");
+  EXPECT_FALSE(velocity_result.success);
+
+  const auto mimic_result = fixture.controller_->set_mode_by_name("MimicSquat");
+  ASSERT_TRUE(mimic_result.success) << mimic_result.message;
+  fixture.update_controller();
+
+  EXPECT_STREQ(fixture.controller_->status_snapshot().authority, "MANUAL");
+  EXPECT_EQ(fixture.controller_->status_snapshot().active_state, "MimicSquat");
+}
+
+TEST(ModeController, ManualVelocitySwitchRejectsMimicServiceRequest)
+{
+  ModeControllerFixture fixture;
+  fixture.release_startup_gate();
+  fixture.shared_data_.teleop.input_code = kVelocityInputCode;
+  fixture.update_controller();
+
+  const auto result = fixture.controller_->set_mode_by_name("MimicSquat");
+
+  EXPECT_FALSE(result.success);
+  EXPECT_FALSE(fixture.controller_->status_snapshot().api_request_available);
+  EXPECT_TRUE(fixture.controller_->available_service_state_names().empty());
+
+  fixture.shared_data_.teleop.input_code = 0U;
+  fixture.update_controller();
+  const auto unmapped_input_result = fixture.controller_->set_mode_by_name("MimicSquat");
+
+  EXPECT_FALSE(unmapped_input_result.success);
+  EXPECT_FALSE(fixture.controller_->status_snapshot().api_request_available);
+  EXPECT_EQ(fixture.controller_->status_snapshot().active_state, "Velocity");
+}
+
+TEST(ModeController, ManualVelocitySwitchImmediatelyStopsServiceMimic)
+{
+  ModeControllerFixture fixture;
+  ASSERT_TRUE(fixture.enter_manual_mimic_through_service());
+
+  fixture.shared_data_.teleop.input_code = kVelocityInputCode;
+  fixture.update_controller();
+
+  EXPECT_STREQ(fixture.controller_->status_snapshot().authority, "MANUAL");
+  EXPECT_EQ(fixture.controller_->status_snapshot().active_state, "Velocity");
+  EXPECT_STREQ(
+    fixture.controller_->status_snapshot().last_transition_reason,
+    "teleop_input_condition");
+}
+
+TEST(ModeController, ManualMimicSwitchDoesNotRestartServiceMimic)
+{
+  ModeControllerFixture fixture;
+  ASSERT_TRUE(fixture.enter_manual_mimic_through_service());
+  const auto transition_count = fixture.shared_data_.mode.transition_count;
+
+  fixture.shared_data_.teleop.input_code = kMimicInputCode;
+  fixture.shared_data_.teleop.selector_code = kMimicSquatSelectorCode;
+  fixture.update_controller();
+
+  EXPECT_EQ(fixture.controller_->status_snapshot().active_state, "MimicSquat");
+  EXPECT_EQ(fixture.shared_data_.mode.transition_count, transition_count);
+}
+
+TEST(ModeController, CompletedServiceMimicNeedsFreshManualMimicEdge)
+{
+  ModeControllerFixture fixture;
+  ASSERT_TRUE(fixture.enter_manual_mimic_through_service());
+
+  fixture.shared_data_.teleop.input_code = kMimicInputCode;
+  fixture.shared_data_.teleop.selector_code = kMimicSquatSelectorCode;
+  fixture.update_controller();
+  fixture.shared_data_.requests.state_name = "Velocity";
+  fixture.update_controller();
+  ASSERT_EQ(fixture.controller_->status_snapshot().active_state, "Velocity");
+
+  fixture.update_controller();
+  EXPECT_EQ(fixture.controller_->status_snapshot().active_state, "Velocity");
+
+  fixture.shared_data_.teleop.input_code = kManualMimicServiceInputCode;
+  fixture.update_controller();
+  fixture.shared_data_.teleop.input_code = kMimicInputCode;
+  fixture.update_controller();
+
+  EXPECT_EQ(fixture.controller_->status_snapshot().active_state, "MimicSquat");
+  EXPECT_STREQ(
+    fixture.controller_->status_snapshot().last_transition_reason,
+    "teleop_input_condition");
+}
+
+TEST(ModeController, ManualVelocityOverrideDiscardsPendingMimicServiceRequest)
+{
+  ModeControllerFixture fixture;
+  ASSERT_TRUE(fixture.enter_manual_velocity_with_service_switch());
+  ASSERT_TRUE(fixture.controller_->set_mode_by_name("MimicSquat").success);
+
+  fixture.shared_data_.teleop.input_code = kVelocityInputCode;
+  fixture.update_controller();
+  EXPECT_EQ(fixture.controller_->status_snapshot().active_state, "Velocity");
+
+  fixture.shared_data_.teleop.input_code = kManualMimicServiceInputCode;
+  fixture.update_controller();
+  EXPECT_EQ(fixture.controller_->status_snapshot().active_state, "Velocity");
 }
 
 TEST(ModeController, MimicCompletionRequestReturnsToVelocity)
