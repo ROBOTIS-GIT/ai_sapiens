@@ -300,8 +300,10 @@ bool ModeController::is_teleop_input_unavailable() const
   return state_->teleop.unavailable.load(std::memory_order_acquire);
 }
 
-// State selected by the current authority. Manual follows teleop transitions;
-// Api takes the pending service request. No request keeps the active state.
+// State selected by the current authority. Manual gives the physical mode switch
+// priority, then accepts a pending mimic service request only while the switch is
+// in its configured service slot. Api takes any pending service request. No
+// request keeps the active state.
 ModeController::StateResolution ModeController::resolve_authority_owned_state(
   Authority authority)
 {
@@ -309,6 +311,16 @@ ModeController::StateResolution ModeController::resolve_authority_owned_state(
 
   if (authority == Authority::Manual) {
     resolution.request = resolve_state_request_from_transitions();
+
+    if (const auto peeked = service_request_gate_.peek()) {
+      // Consume even when the operator has left the service slot. This prevents
+      // a request accepted at neutral from starting later after a 1000 override.
+      resolution.consume_service_request = true;
+      if (is_service_request_allowed(authority, *peeked)) {
+        resolution.request = *peeked;
+      }
+    }
+
     return resolution;
   }
 
@@ -505,19 +517,16 @@ ModeController::ModeRequestResult ModeController::set_mode_by_name(
     result.active_mode.c_str(),
     authority_name(authority));
 
-  const bool can_accept_service_request =
-    authority == Authority::Api &&
-    state_->teleop.api_mode_requested &&
-    is_api_heartbeat_valid();
-  if (!can_accept_service_request) {
-    result.message =
-      "service requests require active API authority, a held API switch, and a valid heartbeat";
-    return result;
-  }
-
   const auto resolved = resolve_state_request_from_name(mode_name);
   if (!resolved) {
     result.message = "unknown or abstract mode name";
+    return result;
+  }
+
+  if (!is_service_request_allowed(authority, *resolved)) {
+    result.message =
+      "service requests require API control, or a mimic target with the manual mode switch "
+      "in its service position";
     return result;
   }
 
@@ -586,10 +595,20 @@ ModeController::ModeStatusSnapshot ModeController::status_snapshot() const
 
 bool ModeController::is_api_request_available() const
 {
-  return current_authority() == Authority::Api &&
-         state_->teleop.api_mode_requested &&
-         is_api_heartbeat_valid() &&
-         !service_request_gate_.busy();
+  if (service_request_gate_.busy()) {
+    return false;
+  }
+
+  const auto authority = current_authority();
+  if (authority == Authority::Api) {
+    return state_->teleop.api_mode_requested && is_api_heartbeat_valid();
+  }
+
+  // The ROS field keeps its legacy name, but also reports the deliberately
+  // narrow manual-service window used by operator apps.
+  return authority == Authority::Manual &&
+         is_manual_mimic_service_allowed() &&
+         !available_service_state_names().empty();
 }
 
 bool ModeController::is_service_request_executable(const StateRequest & request) const
@@ -609,6 +628,24 @@ bool ModeController::is_service_request_executable(const StateRequest & request)
   return is_transition_allowed(active_behavior_kind, request.behavior_kind);
 }
 
+bool ModeController::is_service_request_allowed(
+  Authority authority, const StateRequest & request) const
+{
+  if (authority == Authority::Api) {
+    return state_->teleop.api_mode_requested && is_api_heartbeat_valid();
+  }
+
+  return authority == Authority::Manual &&
+         is_manual_mimic_service_allowed() &&
+         mode_state_machine_.is_mimic_state(request.name);
+}
+
+bool ModeController::is_manual_mimic_service_allowed() const
+{
+  return mode_state_machine_.does_teleop_input_match_condition(
+    kManualMimicServiceConditionName, make_current_teleop_input());
+}
+
 std::string ModeController::current_state_name() const
 {
   const auto * state = active_state_snapshot_.load(std::memory_order_acquire);
@@ -626,7 +663,14 @@ std::vector<std::string> ModeController::concrete_state_names() const
 
 std::vector<std::string> ModeController::available_service_state_names() const
 {
-  if (current_authority() != Authority::Api) {
+  const auto authority = current_authority();
+  const bool api_service_allowed =
+    authority == Authority::Api &&
+    state_->teleop.api_mode_requested &&
+    is_api_heartbeat_valid();
+  const bool manual_mimic_service_allowed =
+    authority == Authority::Manual && is_manual_mimic_service_allowed();
+  if (!api_service_allowed && !manual_mimic_service_allowed) {
     return {};
   }
 
@@ -637,7 +681,9 @@ std::vector<std::string> ModeController::available_service_state_names() const
       behavior_kind_for_state(name),
       TransitionReason::ServiceRequest};
 
-    if (is_service_request_executable(request)) {
+    if (is_service_request_allowed(authority, request) &&
+      is_service_request_executable(request))
+    {
       names.push_back(name);
     }
   }

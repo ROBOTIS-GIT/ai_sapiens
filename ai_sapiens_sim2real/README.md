@@ -262,9 +262,16 @@ Default runtime interfaces are:
 | Service | `/ai_sapiens/set_mode_by_name` | `ai_sapiens_interfaces/srv/SetModeByName` |
 | Service | `/ai_sapiens/list_modes` | `ai_sapiens_interfaces/srv/ListModes` |
 
-The mode request service accepts requests only under full `API` authority while
-the API switch is held and the heartbeat is valid. `ListModes` reports all
-concrete states and the subset currently available to the service.
+The mode request service accepts all reachable concrete states under full `API`
+authority while the API switch is held and the heartbeat is valid. Under
+`MANUAL` authority it accepts only mimic states while the velocity/mimic switch
+is in its middle position (CH6=`1500`, `ManualMimicServiceAllowed`, input code
+`5`).
+Moving that switch to velocity immediately overrides a service-started mimic;
+moving it to mimic leaves the running motion untouched. `ListModes` reports all
+concrete states and the subset currently available to the service. The legacy
+`ModeStatus.api_request_available` field is also true during this manual-service
+window when at least one mimic state is reachable.
 
 AI Sapiens-specific messages and services are defined in the shared
 `ai_sapiens_interfaces` package rather than this runtime package.

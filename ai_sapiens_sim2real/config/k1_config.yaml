@@ -54,6 +54,8 @@ teleop_conditions:
     input_code: 2
   VelocityRequested:
     input_code: 3
+  ManualMimicServiceAllowed:
+    input_code: 5
   MimicRequested:
     input_code: 4
 
