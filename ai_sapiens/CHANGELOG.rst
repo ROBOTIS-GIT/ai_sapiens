@@ -2,6 +2,11 @@
 Changelog for package ai_sapiens
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.2 (2026-08-12)
+------------------
+* Added the current limit parameters to the DYNAMIXEL GPIOs
+* Contributors: Wonho Yun
+
 0.1.1 (2026-07-30)
 ------------------
 * Updated the port name for the E2D2 UDP communication
