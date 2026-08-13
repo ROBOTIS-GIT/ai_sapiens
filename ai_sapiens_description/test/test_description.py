@@ -33,9 +33,7 @@ MESH_ROOT = PACKAGE_ROOT / 'meshes' / 'k1_rev1'
 
 ARMATURE_BY_CLASS = {
     'qc060': 0.00564892,
-    'qc060_double_armature': 0.01129784,
     'qc080': 0.01936542,
-    'qc080_double_armature': 0.03873084,
 }
 
 
@@ -68,10 +66,6 @@ def _is_qc060_joint(name):
 
 
 def _armature_class(name):
-    if 'ankle_pitch' in name:
-        return 'qc080_double_armature'
-    if 'ankle_roll' in name:
-        return 'qc060_double_armature'
     return 'qc060' if _is_qc060_joint(name) else 'qc080'
 
 

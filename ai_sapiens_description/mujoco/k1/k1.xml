@@ -16,16 +16,10 @@
       <joint armature="0.00564892"/>
       <motor ctrllimited="true" ctrlrange="-47.277 47.277" forcelimited="true" forcerange="-47.277 47.277"/>
     </default>
-    <default class="qc060_double_armature">
-      <joint armature="0.01129784"/>
-    </default>
     <!-- QC080-240-R020-RE motor: hips, knees, ankle pitch, and waist yaw -->
     <default class="qc080">
       <joint armature="0.01936542"/>
       <motor ctrllimited="true" ctrlrange="-96.864 96.864" forcelimited="true" forcerange="-96.864 96.864"/>
-    </default>
-    <default class="qc080_double_armature">
-      <joint armature="0.03873084"/>
     </default>
   </default>
   <asset>
@@ -85,11 +79,11 @@
               <geom class="collision" pos="0.0 0 -0.10" type="cylinder" size="0.04 0.09" name="left_knee_link_collision_0"/>
               <body name="left_ankle_pitch_link" pos="0.0 0.0 -0.294">
                 <inertial mass="6.779372600e-01" fullinertia="3.704684500e-04 4.135993600e-04 4.302869000e-04 -1.179149700e-06 4.766622000e-05 5.727227700e-07" pos="5.032473200e-03 -3.766079000e-05 2.402319500e-03"/>
-                <joint name="left_ankle_pitch_joint" class="qc080_double_armature" type="hinge" axis="0 1 0" range="-0.7854 0.7854" limited="true" actuatorfrclimited="true" actuatorfrcrange="-96.864 96.864"/>
+                <joint name="left_ankle_pitch_joint" class="qc080" type="hinge" axis="0 1 0" range="-0.7854 0.7854" limited="true" actuatorfrclimited="true" actuatorfrcrange="-96.864 96.864"/>
                 <geom class="visual" type="mesh" mesh="left_ankle_pitch_link" material="white"/>
                 <body name="left_ankle_roll_link" pos="0 0 0.0">
                   <inertial mass="6.616435000e-01" fullinertia="4.316320200e-04 1.641839900e-03 1.722959300e-03 8.340871900e-08 4.556600800e-05 -3.054166700e-08" pos="3.460414800e-02 4.987565000e-06 -4.095111700e-02"/>
-                  <joint name="left_ankle_roll_joint" class="qc060_double_armature" type="hinge" axis="1 0 0" range="-0.5236 0.5236" limited="true" actuatorfrclimited="true" actuatorfrcrange="-47.277 47.277"/>
+                  <joint name="left_ankle_roll_joint" class="qc060" type="hinge" axis="1 0 0" range="-0.5236 0.5236" limited="true" actuatorfrclimited="true" actuatorfrcrange="-47.277 47.277"/>
                   <geom class="visual" type="mesh" mesh="left_ankle_roll_link" material="dark"/>
                   <geom class="collision" pos="-0.047 0.025 -0.06" type="sphere" size="0.005" name="left_ankle_roll_link_collision_0"/>
                   <geom class="collision" pos="-0.047 -0.025 -0.06" type="sphere" size="0.005" name="left_ankle_roll_link_collision_1"/>
@@ -127,11 +121,11 @@
               <geom class="collision" pos="0.0 0 -0.10" type="cylinder" size="0.04 0.09" name="right_knee_link_collision_0"/>
               <body name="right_ankle_pitch_link" pos="0.0 0.0 -0.294">
                 <inertial mass="6.779372600e-01" fullinertia="3.704684500e-04 4.135993600e-04 4.302869000e-04 -1.179149700e-06 4.766622000e-05 5.727227700e-07" pos="5.032473200e-03 -3.766079000e-05 2.402319500e-03"/>
-                <joint name="right_ankle_pitch_joint" class="qc080_double_armature" type="hinge" axis="0 1 0" range="-0.7854 0.7854" limited="true" actuatorfrclimited="true" actuatorfrcrange="-96.864 96.864"/>
+                <joint name="right_ankle_pitch_joint" class="qc080" type="hinge" axis="0 1 0" range="-0.7854 0.7854" limited="true" actuatorfrclimited="true" actuatorfrcrange="-96.864 96.864"/>
                 <geom class="visual" type="mesh" mesh="right_ankle_pitch_link" material="white"/>
                 <body name="right_ankle_roll_link" pos="0 0 0.0">
                   <inertial mass="6.616435000e-01" fullinertia="4.316320200e-04 1.641839900e-03 1.722959300e-03 8.340871900e-08 4.556600800e-05 -3.054166700e-08" pos="3.460414800e-02 4.987565000e-06 -4.095111700e-02"/>
-                  <joint name="right_ankle_roll_joint" class="qc060_double_armature" type="hinge" axis="1 0 0" range="-0.5236 0.5236" limited="true" actuatorfrclimited="true" actuatorfrcrange="-47.277 47.277"/>
+                  <joint name="right_ankle_roll_joint" class="qc060" type="hinge" axis="1 0 0" range="-0.5236 0.5236" limited="true" actuatorfrclimited="true" actuatorfrcrange="-47.277 47.277"/>
                   <geom class="visual" type="mesh" mesh="right_ankle_roll_link" material="dark"/>
                   <geom class="collision" pos="-0.047 0.025 -0.06" type="sphere" size="0.005" name="right_ankle_roll_link_collision_0"/>
                   <geom class="collision" pos="-0.047 -0.025 -0.06" type="sphere" size="0.005" name="right_ankle_roll_link_collision_1"/>
