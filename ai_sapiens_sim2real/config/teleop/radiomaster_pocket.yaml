@@ -4,7 +4,7 @@ switch_match_tolerance: 50
 
 velocity_command:
   channels:
-    linear_x: {channel: CH2, invert: false}
+    linear_x: {channel: CH3, invert: false}
     linear_y: {channel: CH4, invert: true}
     angular_z: {channel: CH1, invert: true}
 
