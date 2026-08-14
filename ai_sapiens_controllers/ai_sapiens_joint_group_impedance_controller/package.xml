@@ -2,7 +2,7 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>ai_sapiens_joint_group_impedance_controller</name>
-  <version>0.1.1</version>
+  <version>0.1.2</version>
   <description>ros2_control joint group impedance command controller for AI Sapiens K1</description>
   <maintainer email="pyo@robotis.com">Pyo</maintainer>
   <license>Apache-2.0</license>
