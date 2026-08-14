@@ -2,6 +2,12 @@
 Changelog for package ai_sapiens_sim2real
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.2 (2026-08-12)
+------------------
+* Changed the RadioMaster Pocket ``linear_x`` channel from ``CH2`` to ``CH3``
+  to use the left stick.
+* Contributors: Kiwoong Park
+
 0.1.1 (2026-07-30)
 ------------------
 * None
