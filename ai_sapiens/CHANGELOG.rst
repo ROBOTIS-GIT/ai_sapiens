@@ -5,7 +5,9 @@ Changelog for package ai_sapiens
 0.1.2 (2026-08-12)
 ------------------
 * Added the current limit parameters to the DYNAMIXEL GPIOs
-* Contributors: Wonho Yun
+* Changed the RadioMaster Pocket ``linear_x`` channel from ``CH2`` to ``CH3``
+  to use the left stick.
+* Contributors: Wonho Yun, Kiwoong Park
 
 0.1.1 (2026-07-30)
 ------------------
