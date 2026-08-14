@@ -97,6 +97,7 @@
         <param name="MIT D Gain">0</param>
         <param name="Torque Enable">1</param>
         <param name="Torque Constant">1653</param>
+        <param name="Current Limit">4427</param>
       </gpio>
       <gpio name="dxl12">
         <param name="type">dxl</param>
@@ -116,6 +117,7 @@
         <param name="MIT D Gain">0</param>
         <param name="Torque Enable">1</param>
         <param name="Torque Constant">1653</param>
+        <param name="Current Limit">4427</param>
       </gpio>
       <gpio name="dxl13">
         <param name="type">dxl</param>
@@ -135,6 +137,7 @@
         <param name="MIT D Gain">0</param>
         <param name="Torque Enable">1</param>
         <param name="Torque Constant">1653</param>
+        <param name="Current Limit">4427</param>
       </gpio>
       <gpio name="dxl14">
         <param name="type">dxl</param>
@@ -154,6 +157,7 @@
         <param name="MIT D Gain">0</param>
         <param name="Torque Enable">1</param>
         <param name="Torque Constant">1653</param>
+        <param name="Current Limit">4427</param>
       </gpio>
       <gpio name="dxl15">
         <param name="type">dxl</param>
@@ -173,6 +177,7 @@
         <param name="MIT D Gain">0</param>
         <param name="Torque Enable">1</param>
         <param name="Torque Constant">1653</param>
+        <param name="Current Limit">4427</param>
       </gpio>
     </ros2_control>
   </xacro:macro>
