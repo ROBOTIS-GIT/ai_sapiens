@@ -805,7 +805,7 @@ def rc_command_for_scenario(name, t):
                 2000.0,
                 1000.0,
                 1050.0,
-            )  # release + Mimic switch, out-of-detent selector (tolerance 30)
+            )  # release + Mimic switch, midway between selector detents
         return 2000.0, 1000.0, 1000.0, 1000.0  # release + Velocity switch
 
     raise ValueError(f'unknown scenario: {name}')
