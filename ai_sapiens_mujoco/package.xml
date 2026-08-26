@@ -10,6 +10,9 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
+  <build_depend>libglfw3-dev</build_depend>
+
+  <depend>mujoco_vendor</depend>
   <depend>rclcpp</depend>
 
   <test_depend>ament_cmake_gtest</test_depend>

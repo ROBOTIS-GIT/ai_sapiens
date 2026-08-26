@@ -1,14 +1,18 @@
 # ai_sapiens_mujoco
 
 `ai_sapiens_mujoco` is a MuJoCo sim2sim simulation library for the AI Sapiens
-K1. It provides the MuJoCo simulation, interactive viewer, and gantry service
-node consumed by the ros2_control `SystemInterface` plugin
+K1. It provides the MuJoCo simulation and interactive viewer consumed by the
+ros2_control `SystemInterface` plugin
 (`mujoco_hardware_interface/MujocoSystem`, hosted in
 `ai_sapiens_hardware_interfaces/mujoco_hardware_interface`),
 which exposes the same joint, IMU, and HAT (RC/BMS/watchdog) interfaces as the
 real hardware components. The upper stack — the four controllers,
 `ai_sapiens_sim2real`, and everything above them — runs unchanged against the
 same controllers and topics it sees on the real robot.
+
+The hardware interface also hosts the ROS gantry service node. MuJoCo itself is
+provided through the ROS 2 `mujoco_vendor` package, and GLFW is resolved through
+rosdep like the other build dependencies.
 
 A gantry is modeled as a mocap body weld-constrained to `torso_link`, so the
 robot can spawn hanging, be lowered until the feet touch, and be released once
@@ -17,9 +21,9 @@ hanging pose while preserving the robot's joint positions.
 
 ## Container
 
-`docker/Dockerfile` installs the MuJoCo and GLFW libraries into the container
-image, so the full workspace including the simulation builds in every
-container — the standard workflow is enough:
+`docker/Dockerfile` uses rosdep to install `mujoco_vendor` and GLFW into the
+container image, so the full workspace including the simulation builds in
+every container — the standard workflow is enough:
 
 ```bash
 ./docker/container.sh start   # start the container

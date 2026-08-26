@@ -6,11 +6,9 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
-find_package(rclcpp REQUIRED)
 find_package(glfw3 REQUIRED)
-
-find_library(MUJOCO_LIBRARY mujoco REQUIRED)
-find_path(MUJOCO_INCLUDE_DIR mujoco/mujoco.h REQUIRED)
+find_package(mujoco_vendor REQUIRED)
+find_package(rclcpp REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED
   src/center_of_mass_visualizer.cpp
@@ -20,15 +18,21 @@ add_library(${PROJECT_NAME} SHARED
   src/mujoco_viewer_ui.cpp
   src/viewer_scene_styling.cpp
 )
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
-  ${MUJOCO_INCLUDE_DIR}
 )
-target_link_libraries(${PROJECT_NAME} ${MUJOCO_LIBRARY} glfw)
+target_link_libraries(${PROJECT_NAME} mujoco::mujoco glfw)
 ament_target_dependencies(${PROJECT_NAME} rclcpp)
 
-install(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION lib)
+install(TARGETS ${PROJECT_NAME}
+  EXPORT export_${PROJECT_NAME}
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
+  INCLUDES DESTINATION include
+)
 install(DIRECTORY include/ DESTINATION include)
 
 if(BUILD_TESTING)
@@ -51,7 +55,7 @@ if(BUILD_TESTING)
   target_link_libraries(test_viewer_scene_styling ${PROJECT_NAME})
 endif()
 
-ament_export_libraries(${PROJECT_NAME})
+ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_include_directories(include)
-ament_export_dependencies(rclcpp)
+ament_export_dependencies(mujoco_vendor rclcpp)
 ament_package()
