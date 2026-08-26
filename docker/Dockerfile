@@ -39,7 +39,7 @@ RUN set -eux; \
     ldconfig && \
     rm -rf /tmp/mujoco /tmp/mujoco.tgz
 
-RUN apt-get update && apt-get install -y --no-install-recommends libglfw3-dev tmux && \
+RUN apt-get update && apt-get install -y --no-install-recommends libglfw3-dev && \
     rm -rf /var/lib/apt/lists/*
 
 ENV COLCON_WS=/root/ros2_ws

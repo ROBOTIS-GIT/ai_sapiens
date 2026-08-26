@@ -151,10 +151,6 @@ sections:
 The reference configuration is
 [`config/k1_config.yaml`](config/k1_config.yaml), and its Radiomaster mapping
 is [`config/teleop/radiomaster_pocket.yaml`](config/teleop/radiomaster_pocket.yaml).
-PC-only operation can instead use
-[`config/teleop/dualsense.yaml`](config/teleop/dualsense.yaml) or
-[`config/teleop/keyboard.yaml`](config/teleop/keyboard.yaml) without changing
-the robot configuration.
 
 ### Policy assets
 
@@ -208,31 +204,6 @@ source install/setup.bash
 
 ## Run
 
-Start the ROS joystick driver and verify the controller's actual axis/button
-indices before enabling command output:
-
-```bash
-ros2 run joy joy_node --ros-args -p device_id:=0 -p deadzone:=0.0
-ros2 topic echo /joy
-```
-
-Linux mappings can vary with the driver and USB/Bluetooth connection mode. If
-they differ from the mapping documented in `config/k1_config.yaml`, update
-`config/teleop/dualsense.yaml`. The Joy driver deadzone is disabled because the
-DualSense plugin applies its configured deadzone once and renormalizes the
-remaining stick travel to `[-1, 1]`.
-
-To start the joystick driver and the live DualSense dashboard together:
-
-```bash
-ros2 run ai_sapiens_sim2real run_dualsense_teleop.sh
-```
-
-The dashboard shows joystick freshness, controller readiness, active mode and
-authority, the current request and mimic selection, normalized X/Y/Yaw gauges,
-and the configured button map. `run_k1_tmux.sh` starts this dashboard in its
-bottom-right pane.
-
 Start with command output disabled when validating a new configuration:
 
 ```bash
@@ -245,57 +216,6 @@ After hardware, controllers, inputs, and policies have been verified:
 
 ```bash
 ros2 launch ai_sapiens_sim2real ai_sapiens_sim2real.launch.py robot:=k1
-```
-
-### Keyboard teleop
-
-Build and source the workspace, then start the complete tmux layout with an
-interactive keyboard pane:
-
-```bash
-./run_k1_tmux.sh --keyboard
-```
-
-The keyboard publisher starts in Damping, publishes an advancing sequence at
-20 Hz, and restores the terminal when it exits. If the pane or publisher stops,
-the existing teleop watchdog marks the input unavailable. Velocity values are
-latched and adjusted in 0.2 normalized increments; press Space or select a mode
-to zero them. Mimic is emitted as a momentary request and then returns to a
-neutral request, so selecting another motion and pressing `4` creates a new
-edge-triggered Mimic request.
-
-| Key | Action |
-| --- | --- |
-| `1` / `2` / `3` / `4` | Request Damping / ReadyPose / Velocity / selected Mimic. |
-| `W` / `S` | Increase/decrease normalized forward velocity. |
-| `A` / `D` | Increase/decrease normalized left velocity. |
-| `Q` / `E` | Increase/decrease normalized yaw velocity. |
-| `Space` | Zero all velocity axes. |
-| `Left` / `Right` | Cycle the persistent mimic selector. |
-| `P` | Toggle API/Manual authority request; entering API zeros velocity. |
-| `H` | Reprint the current state and key map. |
-| `Ctrl-C` | Exit and restore the terminal. |
-
-The current authority, mode request, selected mimic, velocity, and complete key
-map are redrawn after every accepted key press. The terminal dashboard groups
-mode, movement, motion selection, and system keys; normalized velocity is shown
-both numerically and on a centered bar. The Y and Yaw bars follow spatial
-direction, so a left command moves their marker left while the numeric value
-continues to show the published command convention. ANSI colors are disabled
-automatically for a dumb terminal or when the `NO_COLOR` environment variable
-is set.
-
-For manual startup without tmux:
-
-```bash
-ros2 run ai_sapiens_sim2real keyboard_teleop_node
-
-KEYBOARD_TELEOP_CONFIG="$(
-  ros2 pkg prefix --share ai_sapiens_sim2real
-)/config/teleop/keyboard.yaml"
-ros2 launch ai_sapiens_sim2real ai_sapiens_sim2real.launch.py \
-  teleop_input_plugin:=ai_sapiens_sim2real/KeyboardTeleopInputPlugin \
-  teleop_input_config_path:="${KEYBOARD_TELEOP_CONFIG}"
 ```
 
 Useful launch arguments include:
@@ -315,8 +235,6 @@ Useful launch arguments include:
 | `api_heartbeat_topic` | `/ai_sapiens/api_heartbeat` | API heartbeat input. |
 | `api_heartbeat_timeout` | `0.2` | Advancing-sequence watchdog timeout. |
 | `cmd_vel_topic` | `/cmd_vel` | API velocity command input. |
-| `teleop_input_plugin` | empty | Optional plugin override; empty uses `k1_config.yaml`. |
-| `teleop_input_config_path` | empty | Optional plugin-YAML override used with the plugin override. |
 | `set_mode_by_name_service` | `/ai_sapiens/set_mode_by_name` | Set mode service. |
 | `status_log_enabled` | `false` | Enables periodic control-loop status logs. |
 | `detailed_status_log` | `false` | Adds sensor/action previews to status logs. |
@@ -336,7 +254,7 @@ Default runtime interfaces are:
 | --- | --- | --- |
 | Input | `/imu_sensor_broadcaster/imu` | `sensor_msgs/msg/Imu` |
 | Input | `/joint_states` | `sensor_msgs/msg/JointState` |
-| Input | `/joy` | `sensor_msgs/msg/Joy` |
+| Input | `/ai_sapiens_rc/status` | `ai_sapiens_interfaces/msg/RcStatus` |
 | Input | `/ai_sapiens/api_heartbeat` | `ai_sapiens_interfaces/msg/ApiHeartbeat` |
 | Input | `/cmd_vel` | `geometry_msgs/msg/Twist` |
 | Output | `/joint_group_impedance_controller/commands` | `ai_sapiens_interfaces/msg/JointImpedanceCommand` |

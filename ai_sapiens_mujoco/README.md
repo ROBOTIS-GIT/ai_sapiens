@@ -12,8 +12,8 @@ same controllers and topics it sees on the real robot.
 
 A gantry is modeled as a mocap body weld-constrained to `torso_link`, so the
 robot can spawn hanging, be lowered until the feet touch, and be released once
-a policy is walking. The weld can also be reattached at the robot's current
-pose without snapping it back to its initial pose.
+a policy is walking. Reattaching restores the floating base to the last upright
+hanging pose while preserving the robot's joint positions.
 
 ## Container
 
@@ -45,7 +45,14 @@ The joystick device defaults to `/dev/input/js0`. Override it when needed:
 
 ```bash
 ./src/ai_sapiens/run_k1_tmux.sh --sim --radiomaster-usb \
-  --radiomaster-usb-device=/dev/input/js1
+  --device=/dev/input/js1
+```
+
+The same option selects the DualSense joystick device:
+
+```bash
+./src/ai_sapiens/run_k1_tmux.sh --sim --dualsense \
+  --device=/dev/input/js1
 ```
 
 The Zenoh router matters: the container sets
@@ -89,14 +96,14 @@ ros2 service call /mujoco_sim/gantry/set_height ai_sapiens_interfaces/srv/SetGan
 # 4. Detach the robot once it is walking.
 ros2 service call /mujoco_sim/gantry/release std_srvs/srv/Trigger
 
-# Reattach at the robot's current pose when another hanging test is needed.
+# Restore the robot to the last upright hanging pose and reattach it.
 ros2 service call /mujoco_sim/gantry/attach std_srvs/srv/Trigger
 ```
 
 | Service | Type | Behavior |
 | --- | --- | --- |
 | `/mujoco_sim/gantry/set_height` | `ai_sapiens_interfaces/srv/SetGantryHeight` | Move the hook to an absolute height (m, world frame) at `speed` m/s (`speed <= 0` selects the default 0.05 m/s). Fails while released. |
-| `/mujoco_sim/gantry/attach` | `std_srvs/srv/Trigger` | Align the hook with the robot's current torso pose and activate the weld. |
+| `/mujoco_sim/gantry/attach` | `std_srvs/srv/Trigger` | Restore the floating base under the last active gantry pose, clear its velocity, and activate the weld. Joint positions are preserved. |
 | `/mujoco_sim/gantry/release` | `std_srvs/srv/Trigger` | Deactivate the weld and detach the robot. |
 
 ## Viewer

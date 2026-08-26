@@ -32,17 +32,11 @@ import subprocess
 import sys
 import time
 
+import yaml
+
 LOG_DIR = Path('/tmp/ai_sapiens_mode_smoke')
-RC_TOPIC = '/ai_sapiens_rc/status'
-RC_INTERFACE_NAMES = [
-    'RC Channel 1',
-    'RC Channel 2',
-    'RC Channel 4',
-    'RC Channel 6',
-    'RC Channel 7',
-    'RC Channel 8',
-    'RC Channel 11',
-]
+ROOT_CONFIG_PATH = Path(__file__).resolve().parent.parent / 'config' / 'k1_config.yaml'
+RC_CHANNEL_IDS = range(1, 17)
 
 
 @dataclass(frozen=True)
@@ -60,6 +54,14 @@ class Scenario:
     duration: float
     expected_sequence: tuple[ExpectedEvent, ...]
     service_mode: str | None = None
+
+
+@dataclass(frozen=True)
+class RcCommand:
+    input_condition: str | None
+    api_mode: bool = False
+    selector_state: str = 'MimicSquat'
+    selector_valid: bool = True
 
 
 SCENARIOS = {
@@ -312,10 +314,10 @@ SCENARIOS = {
             ),
         ),
     ),
-    # Release blocked by motion intent even when the selector is out of detent
-    # (selector_code=0). The Mimic switch is held while RC Channel 11 is invalid,
-    # so the release must stay blocked (motion intent = MimicRequested itself).
-    # Moving to a non-motion switch then releases.
+    # Release blocked by motion intent even when the selector is out of detent.
+    # The Mimic switch is held while the selector is invalid, so the release must
+    # stay blocked (motion intent = MimicRequested itself). Moving to a non-motion
+    # switch then releases.
     'api_mimic_release_blocked_invalid_selector': Scenario(
         name='api_mimic_release_blocked_invalid_selector',
         duration=20.0,
@@ -331,6 +333,174 @@ SCENARIOS = {
         ),
     ),
 }
+
+
+class RcConfigEncoder:
+
+    def __init__(self, root_config_path):
+        self.root_config_path = Path(root_config_path)
+        root_config = self.load_yaml(self.root_config_path)
+
+        teleop_config_path = self.root_config_path.parent / root_config[
+            'teleop_input'
+        ]['config']
+        self.teleop_config = self.load_yaml(teleop_config_path)
+        self.topic = self.teleop_config['topic']
+        self.switch_tolerance = float(
+            self.teleop_config.get('switch_match_tolerance', 50.0)
+        )
+
+        self.condition_codes = {
+            name: int(condition['input_code'])
+            for name, condition in root_config['teleop_conditions'].items()
+        }
+        self.input_code_positions = self.read_input_code_positions(
+            self.teleop_config['input_code']['channels']
+        )
+        self.api_conditions = self.read_condition_map(
+            self.teleop_config.get('api_mode', {}).get('when', {})
+        )
+        if not self.api_conditions:
+            raise ValueError(f'{teleop_config_path} must configure api_mode')
+
+        selector_config = self.teleop_config['selector_code']
+        self.selector_channel = self.parse_channel(selector_config['channel'])
+        self.selector_tolerance = float(selector_config.get('tolerance', 20.0))
+        self.selector_pwm_by_code = {
+            int(code): float(pwm) for pwm, code in selector_config['table'].items()
+        }
+        self.selector_codes_by_state = self.read_selector_states(root_config)
+        self.invalid_selector_pwm = self.find_invalid_selector_pwm()
+
+        required_codes = set(self.condition_codes.values())
+        missing_codes = sorted(required_codes - self.input_code_positions.keys())
+        if missing_codes:
+            raise ValueError(
+                f'{teleop_config_path} cannot encode input codes {missing_codes}'
+            )
+        neutral_codes = self.input_code_positions.keys() - required_codes
+        if not neutral_codes:
+            raise ValueError(f'{teleop_config_path} has no neutral input-code mapping')
+        self.neutral_input_code = min(neutral_codes)
+
+    @staticmethod
+    def load_yaml(path):
+        with path.open(encoding='utf-8') as stream:
+            config = yaml.safe_load(stream)
+        if not isinstance(config, dict):
+            raise ValueError(f'{path} must contain a YAML map')
+        return config
+
+    @staticmethod
+    def parse_channel(channel_name):
+        digits = ''.join(
+            character for character in str(channel_name) if character.isdigit()
+        )
+        if not digits or not 1 <= int(digits) <= 16:
+            raise ValueError(f'invalid RC channel: {channel_name}')
+        return int(digits)
+
+    def read_condition_map(self, condition_map):
+        return [
+            (self.parse_channel(channel), float(value))
+            for channel, value in condition_map.items()
+        ]
+
+    def read_input_code_positions(self, channel_map):
+        positions_by_code = {}
+
+        def visit(nested_channels, parent_positions):
+            for channel_name, positions in nested_channels.items():
+                channel = self.parse_channel(channel_name)
+                for pwm, branch in positions.items():
+                    channel_positions = dict(parent_positions)
+                    channel_positions[channel] = float(pwm)
+                    if isinstance(branch, dict):
+                        visit(branch, channel_positions)
+                    else:
+                        code = int(branch)
+                        if code in positions_by_code:
+                            raise ValueError(
+                                f'input code {code} has multiple RC mappings'
+                            )
+                        positions_by_code[code] = channel_positions
+
+        visit(channel_map, {})
+        return positions_by_code
+
+    @staticmethod
+    def read_selector_states(root_config):
+        states = {}
+        for selector in root_config.get('selectors', {}).values():
+            for code, state in selector.get('table', {}).items():
+                if state in states:
+                    raise ValueError(f'selector state {state} has multiple codes')
+                states[state] = int(code)
+        return states
+
+    def find_invalid_selector_pwm(self):
+        positions = sorted(self.selector_pwm_by_code.values())
+        for left, right in zip(positions, positions[1:]):
+            candidate = (left + right) / 2.0
+            if all(
+                abs(candidate - position) > self.selector_tolerance
+                for position in positions
+            ):
+                return candidate
+        raise ValueError(
+            'selector_code.table has no out-of-detent value for smoke test'
+        )
+
+    def encode(self, command):
+        input_code = (
+            self.neutral_input_code
+            if command.input_condition is None
+            else self.condition_codes[command.input_condition]
+        )
+        assignments = dict(self.input_code_positions[input_code])
+
+        if command.api_mode:
+            for channel, pwm in self.api_conditions:
+                self.assign(assignments, channel, pwm, 'API mode')
+        elif self.api_conditions:
+            self.disable_api_mode(assignments)
+
+        if command.selector_valid:
+            selector_code = self.selector_codes_by_state[command.selector_state]
+            selector_pwm = self.selector_pwm_by_code[selector_code]
+        else:
+            selector_pwm = self.invalid_selector_pwm
+        self.assign(assignments, self.selector_channel, selector_pwm, 'selector')
+
+        channel_values = {channel: 1500.0 for channel in RC_CHANNEL_IDS}
+        channel_values.update(assignments)
+        return channel_values
+
+    def disable_api_mode(self, assignments):
+        for channel, target in self.api_conditions:
+            current = assignments.get(channel)
+            if current is not None and abs(current - target) > self.switch_tolerance:
+                return
+            if current is None:
+                assignments[channel] = self.unmatched_pwm(target)
+                return
+        raise ValueError('input mapping cannot represent API mode off')
+
+    def unmatched_pwm(self, target):
+        candidates = (1000.0, 1500.0, 2000.0)
+        candidate = max(candidates, key=lambda value: abs(value - target))
+        if abs(candidate - target) <= self.switch_tolerance:
+            raise ValueError(f'cannot choose an API-off value for target {target}')
+        return candidate
+
+    @staticmethod
+    def assign(assignments, channel, pwm, purpose):
+        existing = assignments.get(channel)
+        if existing is not None and existing != pwm:
+            raise ValueError(
+                f'{purpose} conflicts with another mapping on RC channel {channel}'
+            )
+        assignments[channel] = pwm
 
 
 def run_process(args, log_path):
@@ -498,12 +668,13 @@ def run_driver(scenario_name, service_mode):
     from ai_sapiens_interfaces.srv import SetModeByName
 
     scenario = SCENARIOS[scenario_name]
+    rc_config = RcConfigEncoder(ROOT_CONFIG_PATH)
 
     class Driver(Node):
 
         def __init__(self):
             super().__init__(f'{scenario_name}_driver')
-            self.rc_pub = self.create_publisher(RcStatus, RC_TOPIC, 10)
+            self.rc_pub = self.create_publisher(RcStatus, rc_config.topic, 10)
             self.hb_pub = self.create_publisher(
                 ApiHeartbeat, '/ai_sapiens/api_heartbeat', 10
             )
@@ -529,7 +700,7 @@ def run_driver(scenario_name, service_mode):
             t = self.elapsed()
             command = rc_command_for_scenario(scenario_name, t)
             if command is not None:
-                self.publish_rc(*command)
+                self.publish_rc(command)
             if should_publish_heartbeat(scenario_name, t):
                 self.publish_heartbeat()
             if service_mode and not self.service_sent and self.has_api_authority():
@@ -537,20 +708,12 @@ def run_driver(scenario_name, service_mode):
             if t > scenario.duration:
                 self.finish()
 
-        def publish_rc(self, ch7, ch6, ch8, ch11=1000.0):
-            values = {
-                'RC Channel 1': 1500.0,
-                'RC Channel 2': 1500.0,
-                'RC Channel 4': 1500.0,
-                'RC Channel 6': ch6,
-                'RC Channel 7': ch7,
-                'RC Channel 8': ch8,
-                'RC Channel 11': ch11,
-            }
+        def publish_rc(self, command):
+            values = rc_config.encode(command)
             msg = RcStatus()
             msg.header.stamp = self.get_clock().now().to_msg()
             msg.sensor_name = 'hat'
-            msg.status_topic_name = RC_TOPIC
+            msg.status_topic_name = rc_config.topic
             msg.hardware_error_status = 0
             msg.realtime_tick = self.realtime_tick
             self.realtime_tick += 1
@@ -567,14 +730,15 @@ def run_driver(scenario_name, service_mode):
             msg.rc_link_ok = True
             msg.is_control_input_safe = True
             msg.channels = [
-                self.make_rc_channel(name, values[name]) for name in RC_INTERFACE_NAMES
+                self.make_rc_channel(channel, values[channel])
+                for channel in RC_CHANNEL_IDS
             ]
             self.rc_pub.publish(msg)
 
-        def make_rc_channel(self, name, pwm):
+        def make_rc_channel(self, channel_id, pwm):
             channel = RcChannel()
-            channel.rc_channel = int(name.rsplit(' ', 1)[1])
-            channel.name = name
+            channel.rc_channel = channel_id
+            channel.name = f'RC Channel {channel_id}'
             channel.valid = True
             channel.rc_us = int(round(pwm))
             channel.axis = self.normalize_pwm(pwm)
@@ -658,155 +822,139 @@ def run_driver(scenario_name, service_mode):
 def rc_command_for_scenario(name, t):
     if name == 'manual_sequence':
         if t < 5.0:
-            return 1000.0, 1000.0, 1000.0
+            return RcCommand('DampingRequested')
         if t < 13.0:
-            return 1500.0, 1000.0, 1000.0
+            return RcCommand('ReadyPoseRequested')
         if t < 21.0:
-            return 2000.0, 1000.0, 1000.0
+            return RcCommand('VelocityRequested')
         if t < 29.0:
-            return 2000.0, 2000.0, 1000.0
-        return 2000.0, 1000.0, 1000.0
+            return RcCommand('MimicRequested')
+        return RcCommand('VelocityRequested')
 
     if name == 'manual_mimic_mid_retrigger':
         if t < 5.0:
-            return 1000.0, 1000.0, 1000.0
+            return RcCommand('DampingRequested')
         if t < 13.0:
-            return 1500.0, 1000.0, 1000.0
+            return RcCommand('ReadyPoseRequested')
         if t < 21.0:
-            return 2000.0, 1000.0, 1000.0
+            return RcCommand('VelocityRequested')
         if t < 29.0:
-            return 2000.0, 2000.0, 1000.0
+            return RcCommand('MimicRequested')
         if t < 31.0:
-            return 2000.0, 1000.0, 1000.0
+            return RcCommand('VelocityRequested')
         if t < 34.0:
-            return 2000.0, 1500.0, 1000.0
-        return 2000.0, 2000.0, 1000.0
+            return RcCommand(None)
+        return RcCommand('MimicRequested')
 
     if name == 'manual_ready_watchdog':
-        return (1500.0, 1000.0, 1000.0) if t < 7.0 else None
+        return RcCommand('ReadyPoseRequested') if t < 7.0 else None
 
     if name == 'manual_velocity_watchdog':
         if t < 9.0:
-            return 1500.0, 1000.0, 1000.0
+            return RcCommand('ReadyPoseRequested')
         if t < 9.1:
-            return 2000.0, 1000.0, 1000.0
+            return RcCommand('VelocityRequested')
         return None
 
     if name == 'manual_mimic_watchdog':
         if t < 8.0:
-            return 1500.0, 1000.0, 1000.0
+            return RcCommand('ReadyPoseRequested')
         if t < 16.0:
-            return 2000.0, 1000.0, 1000.0
+            return RcCommand('VelocityRequested')
         if t < 23.0:
-            return 2000.0, 2000.0, 1000.0
+            return RcCommand('MimicRequested')
         return None
 
     if name == 'manual_mimic_damping_switch':
         if t < 8.0:
-            return 1500.0, 1000.0, 1000.0
+            return RcCommand('ReadyPoseRequested')
         if t < 16.0:
-            return 2000.0, 1000.0, 1000.0
+            return RcCommand('VelocityRequested')
         if t < 23.0:
-            return 2000.0, 2000.0, 1000.0
-        return 1000.0, 1000.0, 1000.0
+            return RcCommand('MimicRequested')
+        return RcCommand('DampingRequested')
 
     if name in ('api_heartbeat_watchdog_ready', 'api_teleop_watchdog_ready'):
         if name == 'api_teleop_watchdog_ready' and t >= 12.0:
             return None
-        ch8 = 2000.0 if t >= 6.0 else 1000.0
-        return 1500.0, 1000.0, ch8
+        return RcCommand('ReadyPoseRequested', api_mode=t >= 6.0)
 
     if name == 'api_mimic_heartbeat_watchdog':
-        ch8 = 2000.0 if t >= 6.0 else 1000.0
         if t < 12.0:
-            return 1500.0, 1000.0, ch8
-        return 2000.0, 2000.0, ch8
+            return RcCommand('ReadyPoseRequested', api_mode=t >= 6.0)
+        return RcCommand('MimicRequested', api_mode=t >= 6.0)
 
     if name == 'api_mimic_heartbeat_watchdog_ready_switch':
-        ch8 = 2000.0 if t >= 6.0 else 1000.0
-        return 1500.0, 1000.0, ch8
+        return RcCommand('ReadyPoseRequested', api_mode=t >= 6.0)
 
     if name == 'api_release_handoff':
         # Enter API from ReadyPose (rising edge at t=6, API at t~9), park the switch
         # at the Velocity position, then drop the API switch at t=11 to release.
-        ch8 = 2000.0 if 6.0 <= t < 11.0 else 1000.0
+        api_mode = 6.0 <= t < 11.0
         if t < 10.0:
-            return 1500.0, 1000.0, ch8  # ReadyPose position
-        return 2000.0, 1000.0, ch8  # Velocity position (handoff target)
+            return RcCommand('ReadyPoseRequested', api_mode=api_mode)
+        return RcCommand('VelocityRequested', api_mode=api_mode)
 
     if name == 'api_damping_switch':
         # Enter API from ReadyPose, then throw the damping kill switch at t=12.
         if t < 12.0:
-            ch8 = 2000.0 if t >= 6.0 else 1000.0
-            return 1500.0, 1000.0, ch8
-        return 1000.0, 1000.0, 1000.0  # damping position, API switch off
+            return RcCommand('ReadyPoseRequested', api_mode=t >= 6.0)
+        return RcCommand('DampingRequested')
 
     if name == 'api_mimic_release_blocked':
         # API + MimicSquat (via service). Release with the switch still at Mimic
         # (blocked, stays API), then move the switch to Velocity to release.
         if t < 14.0:
-            ch8 = 2000.0 if t >= 6.0 else 1000.0
-            return 1500.0, 1000.0, ch8  # ReadyPose position while entering API
+            return RcCommand('ReadyPoseRequested', api_mode=t >= 6.0)
         if t < 18.0:
-            return 2000.0, 2000.0, 1000.0  # API off + Mimic switch -> release blocked
-        return 2000.0, 1000.0, 1000.0  # API off + Velocity switch -> release
+            return RcCommand('MimicRequested')
+        return RcCommand('VelocityRequested')
 
     if name == 'api_entry_rejected_then_retoggle':
         # Rising edge at t=6 lands before the heartbeat (starts t=8) -> rejected.
         # Switch stays up while heartbeat appears -> consumed edge must not re-fire.
         # Move to Velocity (still MANUAL) at t=10, then down/up retoggle at t=14/16.
         if t < 14.0:
-            ch8 = 2000.0 if t >= 6.0 else 1000.0
-            ch7, ch6 = (1500.0, 1000.0) if t < 10.0 else (2000.0, 1000.0)
-            return ch7, ch6, ch8
-        ch8 = 1000.0 if t < 16.0 else 2000.0  # down then fresh up edge
-        return 2000.0, 1000.0, ch8
+            condition = 'ReadyPoseRequested' if t < 10.0 else 'VelocityRequested'
+            return RcCommand(condition, api_mode=t >= 6.0)
+        return RcCommand('VelocityRequested', api_mode=t >= 16.0)
 
     if name == 'api_entry_rejected_in_motion':
         # ReadyPose -> MimicSquat, then raise the API switch from a motion state ->
         # rejected. Move to Velocity (still MANUAL) to prove no entry happened.
         if t < 4.0:
-            return 1500.0, 1000.0, 1000.0  # ReadyPose
+            return RcCommand('ReadyPoseRequested')
         if t < 14.0:
-            ch8 = 2000.0 if t >= 8.0 else 1000.0
-            return 2000.0, 2000.0, ch8  # MimicSquat; API switch up at t=8 (rejected)
-        return 2000.0, 1000.0, 2000.0  # Velocity switch, API switch still up
+            return RcCommand('MimicRequested', api_mode=t >= 8.0)
+        return RcCommand('VelocityRequested', api_mode=True)
 
     if name == 'api_no_entry_on_boot_switch_high':
         # API switch up from boot (t=0). No rising edge -> no entry despite a valid
         # heartbeat. Velocity at t=10 proves MANUAL; down/up retoggle at t=14/16.
         if t < 14.0:
-            ch7, ch6 = (1500.0, 1000.0) if t < 10.0 else (2000.0, 1000.0)
-            return ch7, ch6, 2000.0
-        ch8 = 1000.0 if t < 16.0 else 2000.0  # down then fresh up edge
-        return 2000.0, 1000.0, ch8
+            condition = 'ReadyPoseRequested' if t < 10.0 else 'VelocityRequested'
+            return RcCommand(condition, api_mode=True)
+        return RcCommand('VelocityRequested', api_mode=t >= 16.0)
 
     if name == 'api_release_and_loss_same_tick':
         # API + MimicSquat (via service), then release the switch to a motion position
         # while the heartbeat stops (see should_publish_heartbeat) -> release + loss
         # together. The loss path must win and substitute Velocity.
         if t < 14.0:
-            ch8 = 2000.0 if t >= 6.0 else 1000.0
-            return 1500.0, 1000.0, ch8  # ReadyPose while entering API
-        return 2000.0, 2000.0, 1000.0  # release (API off) + Mimic switch position
+            return RcCommand('ReadyPoseRequested', api_mode=t >= 6.0)
+        return RcCommand('MimicRequested')
 
     if name == 'api_mimic_release_blocked_invalid_selector':
-        # API + MimicSquat (via service). Release with the Mimic switch held but RC
-        # Channel 11 out of detent (selector_code=0); motion intent must still
-        # block. Then move to Velocity to release. The whole release phase must
-        # finish before the ~6 s squat motion completes, because completion ends
-        # the mimic state and dissolves the block on its own.
+        # API + MimicSquat (via service). Release with the Mimic switch held but
+        # the selector out of detent; motion intent must still block.
+        # Then move to Velocity to release. The whole release phase must finish
+        # before the ~6 s squat motion completes, because completion ends the mimic
+        # state and dissolves the block on its own.
         if t < 11.0:
-            ch8 = 2000.0 if t >= 6.0 else 1000.0
-            return 1500.0, 1000.0, ch8, 1000.0  # ReadyPose while entering API
+            return RcCommand('ReadyPoseRequested', api_mode=t >= 6.0)
         if t < 14.0:
-            return (
-                2000.0,
-                2000.0,
-                1000.0,
-                1050.0,
-            )  # release + Mimic switch, midway between selector detents
-        return 2000.0, 1000.0, 1000.0, 1000.0  # release + Velocity switch
+            return RcCommand('MimicRequested', selector_valid=False)
+        return RcCommand('VelocityRequested')
 
     raise ValueError(f'unknown scenario: {name}')
 
