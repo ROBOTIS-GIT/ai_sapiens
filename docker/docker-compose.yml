@@ -39,4 +39,3 @@ services:
       - ../:/root/ros2_ws/src/ai_sapiens
       - /var/run/robotis/agent_sockets/ai_sapiens:/var/run/agent
     privileged: true
-
