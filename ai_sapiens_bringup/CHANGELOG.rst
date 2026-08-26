@@ -4,9 +4,7 @@ Changelog for package ai_sapiens_bringup
 
 0.2.0 (2026-08-26)
 ------------------
-* Added dedicated K1 MuJoCo bringup with optional viewer, gantry, and
-  RadioMaster USB input.
-* Added an end-to-end launch test for the MuJoCo controller stack.
+* Added MuJoCo sim2sim bringup for K1.
 * Contributors: Kiwoong Park
 
 0.1.2 (2026-08-12)
