@@ -18,6 +18,8 @@
 
 #include <array>
 #include <cmath>
+#include <limits>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -103,6 +105,38 @@ TEST(MujocoSimulation, ThrowsOnMissingScene)
 {
   MujocoSimulation sim;
   EXPECT_THROW(sim.load("/nonexistent/scene.xml", kJoints), std::runtime_error);
+}
+
+TEST(MujocoSimulation, FailedLoadLeavesSimulationReusable)
+{
+  MujocoSimulation sim;
+  EXPECT_THROW(sim.load(scene("scene.xml"), {"no_such_joint"}), std::runtime_error);
+  EXPECT_NO_THROW(sim.load(scene("scene.xml"), kJoints));
+  EXPECT_NE(sim.model(), nullptr);
+}
+
+TEST(MujocoSimulation, RejectsLoadingASecondScene)
+{
+  MujocoSimulation sim;
+  sim.load(scene("scene.xml"), kJoints);
+  const mjModel * loaded_model = sim.model();
+
+  EXPECT_THROW(sim.load(scene("scene_gantry.xml"), kJoints), std::logic_error);
+  EXPECT_EQ(sim.model(), loaded_model);
+  EXPECT_TRUE(std::isfinite(sim.joint_state(0).position));
+}
+
+TEST(MujocoSimulation, RejectsNonFiniteHangHeight)
+{
+  MujocoSimulation sim;
+  sim.load(scene("scene_gantry.xml"), kJoints);
+
+  EXPECT_THROW(
+    sim.set_hang_height(std::numeric_limits<double>::quiet_NaN()),
+    std::invalid_argument);
+  EXPECT_THROW(
+    sim.set_hang_height(std::numeric_limits<double>::infinity()),
+    std::invalid_argument);
 }
 
 TEST(MujocoSimulation, AdvanceAccumulatesTime)
@@ -236,6 +270,22 @@ TEST(MujocoSimulationGantry, LowerBringsRobotDown)
     sim.advance(0.001);
   }
   EXPECT_LT(sim.data()->qpos[2], start_z - 0.05);
+}
+
+TEST(MujocoSimulationGantry, RejectsNonFiniteTarget)
+{
+  MujocoSimulation sim;
+  sim.load(scene("scene_gantry.xml"), kJoints);
+  sim.set_hang_height(0.90);
+  const double initial_height = sim.gantry_height();
+
+  EXPECT_FALSE(
+    sim.gantry_set_target(
+      std::numeric_limits<double>::quiet_NaN(), 0.2));
+  EXPECT_FALSE(
+    sim.gantry_set_target(
+      initial_height, std::numeric_limits<double>::infinity()));
+  EXPECT_DOUBLE_EQ(sim.gantry_height(), initial_height);
 }
 
 TEST(MujocoSimulationGantry, ReleaseAndAttachToggleWeld)

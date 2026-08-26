@@ -45,7 +45,8 @@ public:
   explicit MujocoViewer(std::shared_ptr<MujocoSimulation> sim);
   ~MujocoViewer();
 
-  /// Launch the render thread. No-op if already started.
+  /// Launch the render thread. No-op while it is already running.
+  /// A viewer closed by the user can be started again.
   void start();
 
   /// Ask the render thread to exit and join it.

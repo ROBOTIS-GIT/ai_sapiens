@@ -55,12 +55,17 @@ class MujocoSimulation
 public:
   ~MujocoSimulation();
 
-  /// Load a MuJoCo scene and index the given joints. Throws std::runtime_error.
+  /// Load one MuJoCo scene and index the given joints.
+  ///
+  /// Throws std::runtime_error when loading or validation fails, and
+  /// std::logic_error if a scene is already loaded. A failed first load leaves
+  /// the simulation reusable.
   void load(
     const std::string & scene_path,
     const std::vector<std::string> & joint_names);
 
   /// Call once before stepping; shifts the floating base and gantry mocap.
+  /// Throws std::invalid_argument when pelvis_z is not finite.
   void set_hang_height(double pelvis_z);
 
   void set_command(std::size_t joint_index, const JointCommand & cmd);

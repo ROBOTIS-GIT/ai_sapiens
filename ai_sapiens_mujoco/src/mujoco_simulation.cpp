@@ -17,8 +17,11 @@
 #include "ai_sapiens_mujoco/mujoco_simulation.hpp"
 
 #include <algorithm>
+#include <cmath>
+#include <memory>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace ai_sapiens_mujoco
@@ -37,18 +40,40 @@ MujocoSimulation::~MujocoSimulation()
 void MujocoSimulation::load(
   const std::string & scene_path, const std::vector<std::string> & joint_names)
 {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (model_ || data_) {
+    throw std::logic_error("MuJoCo scene is already loaded");
+  }
+
   char error[1024] = {0};
-  model_ = mj_loadXML(scene_path.c_str(), nullptr, error, sizeof(error));
-  if (!model_) {
+  using ModelPtr = std::unique_ptr<mjModel, decltype(&mj_deleteModel)>;
+  using DataPtr = std::unique_ptr<mjData, decltype(&mj_deleteData)>;
+  ModelPtr loaded_model(
+    mj_loadXML(scene_path.c_str(), nullptr, error, sizeof(error)),
+    &mj_deleteModel);
+  if (!loaded_model) {
     throw std::runtime_error("MuJoCo failed to load '" + scene_path + "': " + error);
   }
-  data_ = mj_makeData(model_);
+
+  DataPtr loaded_data(mj_makeData(loaded_model.get()), &mj_deleteData);
+  if (!loaded_data) {
+    throw std::runtime_error("MuJoCo failed to allocate simulation data");
+  }
+
+  std::vector<int> qpos_addresses;
+  std::vector<int> qvel_addresses;
+  std::vector<int> actuator_ids;
+  qpos_addresses.reserve(joint_names.size());
+  qvel_addresses.reserve(joint_names.size());
+  actuator_ids.reserve(joint_names.size());
+
   for (const auto & name : joint_names) {
-    const int jid = mj_name2id(model_, mjOBJ_JOINT, name.c_str());
+    const int jid = mj_name2id(loaded_model.get(), mjOBJ_JOINT, name.c_str());
     if (jid < 0) {
       throw std::runtime_error("Joint '" + name + "' not found in MuJoCo model");
     }
-    const int aid = mj_name2id(model_, mjOBJ_ACTUATOR, (name + "_motor").c_str());
+    const int aid =
+      mj_name2id(loaded_model.get(), mjOBJ_ACTUATOR, (name + "_motor").c_str());
     if (aid < 0) {
       throw std::runtime_error("Actuator '" + name + "_motor' not found in MuJoCo model");
     }
@@ -57,21 +82,28 @@ void MujocoSimulation::load(
     // into ctrl as an explicit torque. MuJoCo can then integrate the velocity
     // bias implicitly while still applying the actuator force limit to the
     // complete feedforward + PD effort.
-    model_->actuator_biastype[aid] = mjBIAS_AFFINE;
-    model_->actuator_ctrllimited[aid] = 0;
-    mju_zero(model_->actuator_biasprm + aid * mjNBIAS, mjNBIAS);
+    loaded_model->actuator_biastype[aid] = mjBIAS_AFFINE;
+    loaded_model->actuator_ctrllimited[aid] = 0;
+    mju_zero(loaded_model->actuator_biasprm + aid * mjNBIAS, mjNBIAS);
 
-    qpos_adr_.push_back(model_->jnt_qposadr[jid]);
-    qvel_adr_.push_back(model_->jnt_dofadr[jid]);
-    act_id_.push_back(aid);
+    qpos_addresses.push_back(loaded_model->jnt_qposadr[jid]);
+    qvel_addresses.push_back(loaded_model->jnt_dofadr[jid]);
+    actuator_ids.push_back(aid);
   }
-  commands_.resize(joint_names.size());
-  const int quat_id = mj_name2id(model_, mjOBJ_SENSOR, "imu_quat");
-  const int gyro_id = mj_name2id(model_, mjOBJ_SENSOR, "imu_gyro");
-  const int acc_id = mj_name2id(model_, mjOBJ_SENSOR, "imu_acc");
+
+  const int quat_id = mj_name2id(loaded_model.get(), mjOBJ_SENSOR, "imu_quat");
+  const int gyro_id = mj_name2id(loaded_model.get(), mjOBJ_SENSOR, "imu_gyro");
+  const int acc_id = mj_name2id(loaded_model.get(), mjOBJ_SENSOR, "imu_acc");
   if (quat_id < 0 || gyro_id < 0 || acc_id < 0) {
     throw std::runtime_error("IMU sensors (imu_quat/imu_gyro/imu_acc) missing from model");
   }
+
+  model_ = loaded_model.release();
+  data_ = loaded_data.release();
+  qpos_adr_ = std::move(qpos_addresses);
+  qvel_adr_ = std::move(qvel_addresses);
+  act_id_ = std::move(actuator_ids);
+  commands_.assign(joint_names.size(), JointCommand{});
   imu_quat_adr_ = model_->sensor_adr[quat_id];
   imu_gyro_adr_ = model_->sensor_adr[gyro_id];
   imu_acc_adr_ = model_->sensor_adr[acc_id];
@@ -137,6 +169,12 @@ void MujocoSimulation::load(
 void MujocoSimulation::set_hang_height(double pelvis_z)
 {
   std::lock_guard<std::mutex> lock(mutex_);
+  if (!model_ || !data_) {
+    throw std::logic_error("MuJoCo scene is not loaded");
+  }
+  if (!std::isfinite(pelvis_z)) {
+    throw std::invalid_argument("Hang height must be finite");
+  }
   const double dz = pelvis_z - data_->qpos[2];  // freejoint z is qpos[2]
   data_->qpos[2] += dz;
   if (gantry_mocap_ >= 0) {
@@ -243,6 +281,7 @@ bool MujocoSimulation::gantry_set_target(double height_m, double speed_mps)
 {
   std::lock_guard<std::mutex> lock(mutex_);
   if (
+    !std::isfinite(height_m) || !std::isfinite(speed_mps) ||
     gantry_mocap_ < 0 || gantry_eq_ < 0 ||
     data_->eq_active[gantry_eq_] == 0 || gantry_released_)
   {

@@ -1,4 +1,6 @@
+// Copyright 2021 DeepMind Technologies Limited
 // Copyright 2026 ROBOTIS CO., LTD.
+// Portions adapted from MuJoCo's sample/basic.cc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -63,6 +65,15 @@ bool modifier_pressed(GLFWwindow * window, int left_key, int right_key)
     glfwGetKey(window, right_key) == GLFW_PRESS;
 }
 
+// MuJoCo's basic viewer avoids glfwTerminate on Linux because some NVIDIA
+// driver versions can crash while tearing down GLFW process-global state.
+void terminate_glfw_if_safe()
+{
+#if defined(__APPLE__) || defined(_WIN32)
+  glfwTerminate();
+#endif
+}
+
 }  // namespace
 
 MujocoViewer::MujocoViewer(std::shared_ptr<MujocoSimulation> sim)
@@ -88,7 +99,10 @@ MujocoViewer::~MujocoViewer()
 void MujocoViewer::start()
 {
   if (thread_.joinable()) {
-    return;
+    if (running_) {
+      return;
+    }
+    thread_.join();
   }
   running_ = true;
   thread_ = std::thread([this] {run();});
@@ -106,6 +120,7 @@ void MujocoViewer::run()
 {
   if (!glfwInit()) {
     RCLCPP_ERROR(viewer_logger(), "Failed to initialize GLFW; viewer disabled");
+    running_ = false;
     return;
   }
 
@@ -113,7 +128,8 @@ void MujocoViewer::run()
     glfwCreateWindow(1200, 900, "AI Sapiens K1 - MuJoCo", nullptr, nullptr);
   if (!window) {
     RCLCPP_ERROR(viewer_logger(), "Failed to create GLFW window; viewer disabled");
-    glfwTerminate();
+    terminate_glfw_if_safe();
+    running_ = false;
     return;
   }
   glfwMakeContextCurrent(window);
@@ -197,7 +213,8 @@ void MujocoViewer::run()
   mjv_freeScene(&scn_);
   mjr_freeContext(&con_);
   glfwDestroyWindow(window);
-  glfwTerminate();
+  terminate_glfw_if_safe();
+  running_ = false;
 }
 
 void MujocoViewer::key_callback(
