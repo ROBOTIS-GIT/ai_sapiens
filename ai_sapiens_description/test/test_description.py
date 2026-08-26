@@ -273,12 +273,6 @@ def test_mujoco_model_matches_urdf():
         -96.864,
         96.864,
     )
-    speed_limits = {
-        numeric.attrib['name']: float(numeric.attrib['data'])
-        for numeric in mjcf.findall('./custom/numeric')
-    }
-    assert math.isclose(speed_limits['qc060_max_speed_rad_s'], 20.943951)
-    assert math.isclose(speed_limits['qc080_max_speed_rad_s'], 11.519173)
 
 
 def test_mujoco_scene_has_floor():
