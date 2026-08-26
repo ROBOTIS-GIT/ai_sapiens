@@ -45,6 +45,7 @@ ui:
   mode_status_topic: /test/mode_status
 )";
 
+// cppcheck-suppress syntaxError
 TEST(DualSenseTeleopUiConfig, ParsesDashboardConfiguration)
 {
   const auto config = DualSenseTeleopUiConfig::from_yaml(YAML::Load(kConfig));

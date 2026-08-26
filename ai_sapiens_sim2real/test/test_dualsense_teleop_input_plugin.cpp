@@ -84,6 +84,7 @@ YAML::Node navigation_config()
   return config;
 }
 
+// cppcheck-suppress syntaxError
 TEST(DualSenseTeleopConfig, ResolvesOnlyConfiguredRootSelectorEntries)
 {
   const auto teleop = YAML::Load(

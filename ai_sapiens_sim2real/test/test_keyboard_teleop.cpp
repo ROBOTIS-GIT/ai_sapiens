@@ -49,6 +49,7 @@ KeyboardTeleopConfig config()
   return KeyboardTeleopConfig::from_yaml(YAML::Load(kConfig));
 }
 
+// cppcheck-suppress syntaxError
 TEST(KeyboardTeleopConfig, ResolvesOnlyConfiguredRootSelectorEntries)
 {
   const auto teleop = YAML::Load(

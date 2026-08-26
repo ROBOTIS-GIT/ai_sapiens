@@ -84,6 +84,7 @@ protected:
   std::unique_ptr<mjData, DataDeleter> data_;
 };
 
+// cppcheck-suppress syntaxError
 TEST_F(ContactForceVisualizerTest, ComputesUpwardNormalForceLineAtEachGroundContact)
 {
   ai_sapiens_mujoco::ContactNormalForceLine line;

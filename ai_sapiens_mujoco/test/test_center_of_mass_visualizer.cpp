@@ -102,6 +102,7 @@ protected:
 
 }  // namespace
 
+// cppcheck-suppress syntaxError
 TEST_F(CenterOfMassVisualizerTest, AppendsRobotAndLinkMarkers)
 {
   option_.flags[mjVIS_COM] = 1;

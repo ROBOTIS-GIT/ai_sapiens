@@ -91,6 +91,7 @@ protected:
   std::shared_ptr<TestableKeyboardPlugin> plugin_;
 };
 
+// cppcheck-suppress syntaxError
 TEST_F(KeyboardTeleopInputPluginTest, MapsValidKeyboardInput)
 {
   auto message = valid_message(1);

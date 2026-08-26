@@ -123,6 +123,7 @@ protected:
 
 }  // namespace
 
+// cppcheck-suppress syntaxError
 TEST_F(ViewerSceneStylingTest, MakesOnlyVisualGroupTranslucentWhenComIsActive)
 {
   option_.geomgroup[kCollisionGeomGroup] = 1;

@@ -150,6 +150,7 @@ protected:
   bool node_added_{false};
 };
 
+// cppcheck-suppress syntaxError
 TEST_F(JointGroupImpedanceControllerTest, EmptyJointParameterFailsConfiguration)
 {
   ASSERT_NO_FATAL_FAILURE(initialize());
