@@ -12,4 +12,5 @@ Changelog for package ai_sapiens_mujoco
   forces, diagnostics, and mouse perturbations.
 * Separated the MuJoCo ``ros2_control`` system interface into the
   ``mujoco_hardware_interface`` package.
+* Integrated MuJoCo through the ROS 2 ``mujoco_vendor`` package.
 * Contributors: Kiwoong Park

@@ -2,6 +2,16 @@
 Changelog for package ai_sapiens
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.2.0 (2026-08-26)
+------------------
+* Added K1 MuJoCo sim2sim support with a ``ros2_control`` hardware interface,
+  interactive viewer, gantry controls, and simulation diagnostics.
+* Added RadioMaster USB hardware input and DualSense and keyboard teleoperation
+  plugins for development and sim2sim testing.
+* Added the new MuJoCo and RadioMaster hardware interface packages to the
+  metapackage, together with their launch and validation tests.
+* Contributors: Kiwoong Park, Eunsung Kim
+
 0.1.2 (2026-08-12)
 ------------------
 * Added the current limit parameters to the DYNAMIXEL GPIOs

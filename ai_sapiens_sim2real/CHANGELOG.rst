@@ -2,6 +2,15 @@
 Changelog for package ai_sapiens_sim2real
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.2.0 (2026-08-26)
+------------------
+* Added DualSense and keyboard teleoperation input plugins with interactive
+  terminal dashboards and persistent mimic selection.
+* Added configurable teleoperation mappings for DualSense, keyboard, and
+  RadioMaster Pocket controllers.
+* Expanded unit and mode-transition smoke tests for the new input paths.
+* Contributors: Kiwoong Park
+
 0.1.2 (2026-08-12)
 ------------------
 * Changed the RadioMaster Pocket ``linear_x`` channel from ``CH2`` to ``CH3``
