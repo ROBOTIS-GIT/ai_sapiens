@@ -129,7 +129,7 @@ def test_xacro_expands_with_mock_hardware():
 
 
 def test_xacro_expands_with_mujoco_hardware():
-    """Ensure the common runtime Xacro selects only the MuJoCo system."""
+    """Ensure the MuJoCo system carries the robot only, with no simulated RC."""
     document = xacro.process_file(
         str(XACRO_PATH),
         mappings={
@@ -141,11 +141,14 @@ def test_xacro_expands_with_mujoco_hardware():
     root = ET.fromstring(document.toxml())
     controls = root.findall('ros2_control')
 
-    assert len(controls) == 1
-    assert controls[0].attrib['name'] == 'k1_mujoco'
+    assert [control.attrib['name'] for control in controls] == ['k1_mujoco']
     assert [
         plugin.text for plugin in root.findall('.//plugin')
     ] == ['mujoco_hardware_interface/MujocoSystem']
+    assert controls[0].find("./sensor[@name='imu']") is not None
+    assert controls[0].find("./sensor[@name='hat']") is None
+    assert root.find(".//param[@name='rc_channel_defaults']") is None
+
     assert root.find(".//param[@name='viewer']").text.lower() == 'false'
     assert root.find(".//param[@name='gantry']").text.lower() == 'true'
     assert root.find(".//param[@name='scene_file']").text.endswith(
@@ -154,7 +157,7 @@ def test_xacro_expands_with_mujoco_hardware():
 
 
 def test_xacro_expands_with_mujoco_and_radiomaster_usb():
-    """Ensure USB RC replaces the MuJoCo-provided hat interfaces."""
+    """Ensure a USB transmitter adds the HAT the MuJoCo system does not provide."""
     document = xacro.process_file(
         str(XACRO_PATH),
         mappings={

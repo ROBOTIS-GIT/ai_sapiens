@@ -117,7 +117,8 @@ def generate_launch_description():
         package='controller_manager',
         executable='spawner',
         arguments=['rc_broadcaster'],
-        output='screen'
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('radiomaster_usb'))
     )
 
     joint_group_impedance_controller_spawner = Node(

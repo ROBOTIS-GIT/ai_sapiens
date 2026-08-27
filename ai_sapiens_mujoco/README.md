@@ -59,6 +59,12 @@ The same option selects the DualSense joystick device:
   --device=/dev/input/js1
 ```
 
+To drive the robot without any controller attached:
+
+```bash
+./src/ai_sapiens/run_k1_tmux.sh --sim --keyboard
+```
+
 The Zenoh router matters: the container sets
 `RMW_IMPLEMENTATION=rmw_zenoh_cpp`, so without `rmw_zenohd` running the spawners
 never reach the controller manager and report "Failed to acquire lock".
@@ -159,12 +165,4 @@ and normally driven through the launch arguments above:
 | `viewer` | `true` | Start the GLFW viewer thread. |
 | `gantry` | `true` | Spawn hanging from the gantry at `hang_height`. |
 | `hang_height` | `0.90` | Pelvis height (m) at spawn when hanging. |
-| `rc_channel_defaults` | `1500,1500,1500,1500,1000,1500,2000,2000,1000,1000,1000,1000,1500,1500,1500,1500` | Simulated RC channel values (CH1–CH16) reported through the `hat` sensor. |
 
-The `rc_channel_defaults` string simulates a RadioMaster transmitter in a
-neutral pose: with the default mapping
-(`ai_sapiens_sim2real/config/teleop/radiomaster_pocket.yaml`), CH7=2000 with
-CH6=1500 produces `input_code` 0 — no state-machine request — so
-`ai_sapiens_sim2real` stays in its initial state until you drive the channels
-yourself, and CH8=2000 makes `api_mode` available. The sticks (CH1/CH3/CH4)
-sit at 1500, i.e. zero commanded velocity.

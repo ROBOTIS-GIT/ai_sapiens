@@ -2,7 +2,7 @@
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
   <xacro:macro
     name="k1_mujoco_system"
-    params="viewer:=^|true gantry:=^|true radiomaster_usb:=^|false">
+    params="viewer:=^|true gantry:=^|true">
     <ros2_control name="k1_mujoco" type="system">
       <hardware>
         <plugin>mujoco_hardware_interface/MujocoSystem</plugin>
@@ -15,7 +15,6 @@
         <param name="viewer">${viewer}</param>
         <param name="gantry">${gantry}</param>
         <param name="hang_height">0.90</param>
-        <param name="rc_channel_defaults">1500,1500,1500,1500,1000,1500,2000,2000,1000,1000,1000,1000,1500,1500,1500,1500</param>
       </hardware>
 
       <xacro:macro name="mj_joint" params="name">
@@ -65,40 +64,6 @@
         <state_interface name="orientation.y"/>
         <state_interface name="orientation.z"/>
       </sensor>
-
-      <xacro:unless value="${radiomaster_usb}">
-        <sensor name="hat">
-          <state_interface name="Hardware Error Status"/>
-          <state_interface name="Realtime Tick"/>
-          <state_interface name="E-stop Active"/>
-          <state_interface name="BMS SOC"/>
-          <state_interface name="BMS Voltage"/>
-          <state_interface name="BMS Current"/>
-          <state_interface name="BMS Temperature"/>
-          <state_interface name="BMS Service Error Flags"/>
-          <state_interface name="BMS Remaining Energy"/>
-          <state_interface name="CRSF Failsafe"/>
-          <state_interface name="CRSF Link Quality"/>
-          <state_interface name="CRSF RSSI 1"/>
-          <state_interface name="CRSF Last Frame Age"/>
-          <state_interface name="RC Channel 1"/>
-          <state_interface name="RC Channel 2"/>
-          <state_interface name="RC Channel 3"/>
-          <state_interface name="RC Channel 4"/>
-          <state_interface name="RC Channel 5"/>
-          <state_interface name="RC Channel 6"/>
-          <state_interface name="RC Channel 7"/>
-          <state_interface name="RC Channel 8"/>
-          <state_interface name="RC Channel 9"/>
-          <state_interface name="RC Channel 10"/>
-          <state_interface name="RC Channel 11"/>
-          <state_interface name="RC Channel 12"/>
-          <state_interface name="RC Channel 13"/>
-          <state_interface name="RC Channel 14"/>
-          <state_interface name="RC Channel 15"/>
-          <state_interface name="RC Channel 16"/>
-        </sensor>
-      </xacro:unless>
     </ros2_control>
   </xacro:macro>
 </robot>

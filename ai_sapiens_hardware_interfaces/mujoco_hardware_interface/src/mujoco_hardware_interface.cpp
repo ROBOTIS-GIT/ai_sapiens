@@ -16,11 +16,9 @@
 
 #include "mujoco_hardware_interface/mujoco_hardware_interface.hpp"
 
-#include <algorithm>
 #include <cmath>
 #include <exception>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -36,9 +34,6 @@ using ai_sapiens_mujoco::JointState;
 
 namespace
 {
-
-constexpr const char * kDefaultRcChannels =
-  "1500,1500,1500,1500,1000,1500,2000,2000,1000,1000,1000,1000,1500,1500,1500,1500";
 
 std::string get_param(
   const std::unordered_map<std::string, std::string> & params,
@@ -78,9 +73,6 @@ hardware_interface::CallbackReturn MujocoSystem::on_init(
   }
 
   const auto & hw_params = info_.hardware_parameters;
-  has_hat_state_interfaces_ = std::any_of(
-    info_.sensors.begin(), info_.sensors.end(),
-    [](const auto & sensor) {return sensor.name == "hat";});
 
   const std::string scene_file = get_param(hw_params, "scene_file", "");
   if (scene_file.empty()) {
@@ -97,26 +89,6 @@ hardware_interface::CallbackReturn MujocoSystem::on_init(
     return hardware_interface::CallbackReturn::ERROR;
   }
 
-  const std::string rc_defaults_str =
-    get_param(hw_params, "rc_channel_defaults", kDefaultRcChannels);
-  rc_defaults_.clear();
-  std::stringstream rc_stream(rc_defaults_str);
-  std::string token;
-  while (std::getline(rc_stream, token, ',')) {
-    try {
-      rc_defaults_.push_back(std::stod(token));
-    } catch (const std::exception & e) {
-      RCLCPP_FATAL(
-        get_logger(), "Invalid 'rc_channel_defaults' entry '%s': %s", token.c_str(), e.what());
-      return hardware_interface::CallbackReturn::ERROR;
-    }
-  }
-  if (rc_defaults_.size() != 16) {
-    RCLCPP_FATAL(
-      get_logger(), "'rc_channel_defaults' must contain 16 values, got %zu",
-      rc_defaults_.size());
-    return hardware_interface::CallbackReturn::ERROR;
-  }
 
   joint_names_.clear();
   for (const auto & joint : info_.joints) {
@@ -160,23 +132,6 @@ hardware_interface::CallbackReturn MujocoSystem::on_configure(
   // State interface handles exist only after export, so initial values are set
   // here rather than in on_init.
   publish_states();
-  if (has_hat_state_interfaces_) {
-    for (std::size_t i = 0; i < rc_defaults_.size(); ++i) {
-      set_state("hat/RC Channel " + std::to_string(i + 1), rc_defaults_[i]);
-    }
-    set_state("hat/Hardware Error Status", 0.0);
-    set_state("hat/E-stop Active", 0.0);
-    set_state("hat/BMS SOC", 100.0);
-    set_state("hat/BMS Voltage", 54.0);
-    set_state("hat/BMS Current", 2.0);
-    set_state("hat/BMS Temperature", 35.0);
-    set_state("hat/BMS Service Error Flags", 0.0);
-    set_state("hat/BMS Remaining Energy", 500.0);
-    set_state("hat/CRSF Failsafe", 0.0);
-    set_state("hat/CRSF Link Quality", 100.0);
-    set_state("hat/CRSF RSSI 1", 80.0);
-    set_state("hat/CRSF Last Frame Age", 1.0);
-  }
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
@@ -246,13 +201,6 @@ void MujocoSystem::publish_states()
   set_state("imu/linear_acceleration.x", imu.accel[0]);
   set_state("imu/linear_acceleration.y", imu.accel[1]);
   set_state("imu/linear_acceleration.z", imu.accel[2]);
-
-  if (has_hat_state_interfaces_) {
-    // rc_broadcaster expects the watchdog tick to keep changing and stay in
-    // [0, 32767].
-    set_state(
-      "hat/Realtime Tick", std::fmod(std::floor(sim_->sim_time() * 1000.0), 32768.0));
-  }
 }
 
 void MujocoSystem::stop_viewer()

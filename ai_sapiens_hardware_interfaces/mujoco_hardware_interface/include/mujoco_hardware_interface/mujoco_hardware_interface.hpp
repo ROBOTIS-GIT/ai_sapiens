@@ -66,8 +66,6 @@ private:
 
   std::shared_ptr<MujocoSimulation> sim_;
   std::vector<std::string> joint_names_;
-  std::vector<double> rc_defaults_;   // 16 values
-  bool has_hat_state_interfaces_{true};
   bool viewer_enabled_{false};
   bool gantry_enabled_{true};
   double hang_height_{0.90};

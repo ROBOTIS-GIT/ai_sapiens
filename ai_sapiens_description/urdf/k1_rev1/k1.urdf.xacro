@@ -21,8 +21,7 @@
   <xacro:if value="$(arg sim_mujoco)">
     <xacro:k1_mujoco_system
       viewer="$(arg mujoco_viewer)"
-      gantry="$(arg mujoco_gantry)"
-      radiomaster_usb="$(arg radiomaster_usb)"/>
+      gantry="$(arg mujoco_gantry)"/>
     <xacro:if value="$(arg radiomaster_usb)">
       <xacro:k1_radiomaster_usb_system
         device="$(arg radiomaster_usb_device)"/>
