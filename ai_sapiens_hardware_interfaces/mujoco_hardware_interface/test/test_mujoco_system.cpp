@@ -66,22 +66,19 @@ TEST_F(MujocoSystemTest, FullCycleThroughResourceManager)
   // All expected interfaces exist.
   EXPECT_TRUE(rm.state_interface_exists("left_knee_joint/position"));
   EXPECT_TRUE(rm.state_interface_exists("imu/orientation.w"));
-  EXPECT_TRUE(rm.state_interface_exists("hat/RC Channel 7"));
+  EXPECT_FALSE(rm.state_interface_exists("hat/RC Channel 7"));
   EXPECT_TRUE(rm.command_interface_exists("left_knee_joint/proportional"));
 
   auto pos_cmd = rm.claim_command_interface("left_knee_joint/position");
   auto kp_cmd = rm.claim_command_interface("left_knee_joint/proportional");
   auto kd_cmd = rm.claim_command_interface("left_knee_joint/derivative");
   auto pos_state = rm.claim_state_interface("left_knee_joint/position");
-  auto tick_state = rm.claim_state_interface("hat/Realtime Tick");
-  auto ch7_state = rm.claim_state_interface("hat/RC Channel 7");
 
   ASSERT_TRUE(pos_cmd.set_value(0.8));
   ASSERT_TRUE(kp_cmd.set_value(120.0));
   ASSERT_TRUE(kd_cmd.set_value(3.0));
 
   const rclcpp::Duration period = rclcpp::Duration::from_seconds(0.001);
-  const double tick_before = tick_state.get_optional().value();
   rclcpp::Time t(0, 0);
   for (int i = 0; i < 2000; ++i) {
     t += period;
@@ -89,8 +86,6 @@ TEST_F(MujocoSystemTest, FullCycleThroughResourceManager)
     rm.write(t, period);
   }
   EXPECT_NEAR(pos_state.get_optional().value(), 0.8, 0.05);
-  EXPECT_NE(tick_state.get_optional().value(), tick_before);   // watchdog tick advances
-  EXPECT_DOUBLE_EQ(ch7_state.get_optional().value(), 2000.0);  // default -> input_code 0
 }
 
 TEST_F(MujocoSystemTest, GantryServices)
