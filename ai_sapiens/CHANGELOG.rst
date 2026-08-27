@@ -10,6 +10,7 @@ Changelog for package ai_sapiens
   plugins for development and sim2sim testing.
 * Added the new MuJoCo and RadioMaster hardware interface packages to the
   metapackage, together with their launch and validation tests.
+* Changed the IP address used for E2D2 UDP communication.
 * Contributors: Kiwoong Park, Eunsung Kim
 
 0.1.2 (2026-08-12)
