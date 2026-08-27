@@ -19,6 +19,7 @@
 #include <chrono>
 #include <cstdio>
 #include <memory>
+#include <stdexcept>
 #include <string>
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
@@ -37,6 +38,9 @@ std::string run_xacro()
     "/urdf/k1_rev1/k1.urdf.xacro sim_mujoco:=true mujoco_viewer:=false mujoco_gantry:=true";
   std::string out;
   FILE * pipe = popen(cmd.c_str(), "r");
+  if (pipe == nullptr) {
+    throw std::runtime_error("Failed to start xacro command");
+  }
   char buf[4096];
   while (fgets(buf, sizeof(buf), pipe)) {out += buf;}
   EXPECT_EQ(pclose(pipe), 0);
