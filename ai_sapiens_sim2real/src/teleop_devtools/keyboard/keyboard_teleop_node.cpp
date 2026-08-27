@@ -132,9 +132,10 @@ public:
         ui_status_.transition_reason = message->last_transition_reason;
       });
     terminal_ = std::make_unique<TerminalGuard>();
+    clear_screen_ = isatty(STDOUT_FILENO);
     const char * term = std::getenv("TERM");
     use_color_ =
-      isatty(STDOUT_FILENO) &&
+      clear_screen_ &&
       std::getenv("NO_COLOR") == nullptr &&
       (term == nullptr || std::string(term) != "dumb");
 
@@ -206,15 +207,17 @@ private:
       ui_status.mode_status_fresh =
         status_age <= std::chrono::duration<double>(config_.ui_stale_timeout);
     }
-    std::cout << "\033[2J\033[H"
-              << state_->dashboard(last_action_, ui_status, use_color_)
-              << std::flush;
+    if (clear_screen_) {
+      std::cout << "\033[2J\033[H";
+    }
+    std::cout << state_->dashboard(last_action_, ui_status, use_color_) << std::flush;
   }
 
   KeyboardTeleopConfig config_;
   std::unique_ptr<KeyboardTeleopState> state_;
   KeyboardInputDecoder decoder_;
   uint32_t sequence_{0};
+  bool clear_screen_{false};
   bool use_color_{false};
   std::string last_action_{"Started safely in Damping"};
   KeyboardTeleopUiStatus ui_status_;
