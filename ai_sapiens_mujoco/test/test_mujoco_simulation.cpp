@@ -67,13 +67,13 @@ TEST(MujocoSimulation, UsesConfiguredActuatorProperties)
   const mjModel * model = sim.model();
 
   for (const auto & joint_name : kJoints) {
-    const bool is_qc060 =
+    const bool is_qc060_200_r020_re =
       joint_name.find("shoulder") != std::string::npos ||
       joint_name.find("elbow") != std::string::npos ||
       joint_name.find("wrist") != std::string::npos ||
       joint_name.find("ankle_roll") != std::string::npos;
-    const double armature = is_qc060 ? 0.00564892 : 0.01936542;
-    const double max_effort = is_qc060 ? 47.277 : 96.864;
+    const double armature = is_qc060_200_r020_re ? 0.00564892 : 0.01936542;
+    const double max_effort = is_qc060_200_r020_re ? 47.277 : 96.864;
 
     const int joint_id = mj_name2id(model, mjOBJ_JOINT, joint_name.c_str());
     const int actuator_id =

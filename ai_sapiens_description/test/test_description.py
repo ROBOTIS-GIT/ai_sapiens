@@ -31,9 +31,12 @@ MJCF_PATH = PACKAGE_ROOT / 'mujoco' / 'k1' / 'k1.xml'
 SCENE_PATH = PACKAGE_ROOT / 'mujoco' / 'k1' / 'scene.xml'
 MESH_ROOT = PACKAGE_ROOT / 'meshes' / 'k1_rev1'
 
+ACTUATOR_QC060_200_R020_RE = 'QC060-200-R020-RE'
+ACTUATOR_QC080_240_R020_RE = 'QC080-240-R020-RE'
+
 ARMATURE_BY_CLASS = {
-    'qc060': 0.00564892,
-    'qc080': 0.01936542,
+    ACTUATOR_QC060_200_R020_RE: 0.00564892,
+    ACTUATOR_QC080_240_R020_RE: 0.01936542,
 }
 
 
@@ -61,12 +64,14 @@ def _is_positive_definite(inertia):
     return ixx > 0.0 and minor_2 > 0.0 and determinant > 0.0
 
 
-def _is_qc060_joint(name):
+def _is_qc060_200_r020_re_joint(name):
     return any(part in name for part in ('shoulder', 'elbow', 'wrist', 'ankle_roll'))
 
 
 def _armature_class(name):
-    return 'qc060' if _is_qc060_joint(name) else 'qc080'
+    if _is_qc060_200_r020_re_joint(name):
+        return ACTUATOR_QC060_200_R020_RE
+    return ACTUATOR_QC080_240_R020_RE
 
 
 def test_urdf_structure_and_inertias():
@@ -253,9 +258,9 @@ def test_mujoco_model_matches_urdf():
         actual_position = _values(bodies[child].attrib.get('pos', '0 0 0'))
         assert actual_position == expected_position
 
-        expected_class = 'qc060' if _is_qc060_joint(name) else 'qc080'
+        expected_class = _armature_class(name)
         assert motors[name].attrib['class'] == expected_class
-        assert mjcf_joint.attrib['class'] == _armature_class(name)
+        assert mjcf_joint.attrib['class'] == expected_class
 
     defaults = {
         default.attrib['class']: default
@@ -265,11 +270,13 @@ def test_mujoco_model_matches_urdf():
         actual_armature = float(defaults[class_name].find('joint').attrib['armature'])
         assert math.isclose(actual_armature, expected_armature)
 
-    assert _values(defaults['qc060'].find('motor').attrib['ctrlrange']) == (
+    qc060_defaults = defaults[ACTUATOR_QC060_200_R020_RE]
+    qc080_defaults = defaults[ACTUATOR_QC080_240_R020_RE]
+    assert _values(qc060_defaults.find('motor').attrib['ctrlrange']) == (
         -47.277,
         47.277,
     )
-    assert _values(defaults['qc080'].find('motor').attrib['ctrlrange']) == (
+    assert _values(qc080_defaults.find('motor').attrib['ctrlrange']) == (
         -96.864,
         96.864,
     )
