@@ -29,4 +29,14 @@ jobs:
         with:
           linter: ${{ matrix.linter }}
           distribution: rolling
-          package-name: "*"
+          package-name: |
+            ai_sapiens
+            ai_sapiens_bringup
+            ai_sapiens_interfaces
+            ai_sapiens_joint_group_impedance_controller
+            ai_sapiens_rc_broadcaster
+            ai_sapiens_description
+            ai_sapiens_mujoco
+            ai_sapiens_sim2real
+            mujoco_hardware_interface
+            radiomaster_usb_hardware_interface

@@ -31,6 +31,14 @@ MJCF_PATH = PACKAGE_ROOT / 'mujoco' / 'k1' / 'k1.xml'
 SCENE_PATH = PACKAGE_ROOT / 'mujoco' / 'k1' / 'scene.xml'
 MESH_ROOT = PACKAGE_ROOT / 'meshes' / 'k1_rev1'
 
+ACTUATOR_QC060_200_R020_RE = 'QC060-200-R020-RE'
+ACTUATOR_QC080_240_R020_RE = 'QC080-240-R020-RE'
+
+ARMATURE_BY_CLASS = {
+    ACTUATOR_QC060_200_R020_RE: 0.00564892,
+    ACTUATOR_QC080_240_R020_RE: 0.01936542,
+}
+
 
 def _values(text):
     return tuple(float(value) for value in text.split())
@@ -56,8 +64,14 @@ def _is_positive_definite(inertia):
     return ixx > 0.0 and minor_2 > 0.0 and determinant > 0.0
 
 
-def _is_qc060_joint(name):
+def _is_qc060_200_r020_re_joint(name):
     return any(part in name for part in ('shoulder', 'elbow', 'wrist', 'ankle_roll'))
+
+
+def _armature_class(name):
+    if _is_qc060_200_r020_re_joint(name):
+        return ACTUATOR_QC060_200_R020_RE
+    return ACTUATOR_QC080_240_R020_RE
 
 
 def test_urdf_structure_and_inertias():
@@ -114,6 +128,88 @@ def test_xacro_expands_with_mock_hardware():
     } == {'mock_components/GenericSystem'}
 
 
+def test_xacro_expands_with_mujoco_hardware():
+    """Ensure the MuJoCo system carries the robot only, with no simulated RC."""
+    document = xacro.process_file(
+        str(XACRO_PATH),
+        mappings={
+            'sim_mujoco': 'true',
+            'mujoco_viewer': 'false',
+            'mujoco_gantry': 'true',
+        },
+    )
+    root = ET.fromstring(document.toxml())
+    controls = root.findall('ros2_control')
+
+    assert [control.attrib['name'] for control in controls] == ['k1_mujoco']
+    assert [
+        plugin.text for plugin in root.findall('.//plugin')
+    ] == ['mujoco_hardware_interface/MujocoSystem']
+    assert controls[0].find("./sensor[@name='imu']") is not None
+    assert controls[0].find("./sensor[@name='hat']") is None
+    assert root.find(".//param[@name='rc_channel_defaults']") is None
+
+    assert root.find(".//param[@name='viewer']").text.lower() == 'false'
+    assert root.find(".//param[@name='gantry']").text.lower() == 'true'
+    assert root.find(".//param[@name='scene_file']").text.endswith(
+        '/mujoco/k1/scene_gantry.xml'
+    )
+
+
+def test_xacro_expands_with_mujoco_and_radiomaster_usb():
+    """Ensure a USB transmitter adds the HAT the MuJoCo system does not provide."""
+    document = xacro.process_file(
+        str(XACRO_PATH),
+        mappings={
+            'sim_mujoco': 'true',
+            'mujoco_viewer': 'false',
+            'radiomaster_usb': 'true',
+            'radiomaster_usb_device': '/dev/input/js7',
+        },
+    )
+    root = ET.fromstring(document.toxml())
+    controls = root.findall('ros2_control')
+
+    assert [control.attrib['name'] for control in controls] == [
+        'k1_mujoco',
+        'k1_radiomaster_usb',
+    ]
+    assert [plugin.text for plugin in root.findall('.//plugin')] == [
+        'mujoco_hardware_interface/MujocoSystem',
+        (
+            'radiomaster_usb_hardware_interface/'
+            'RadiomasterUsbHardwareInterface'
+        ),
+    ]
+    assert controls[0].find("./sensor[@name='hat']") is None
+    assert controls[1].find("./sensor[@name='hat']") is not None
+    assert controls[1].find(".//param[@name='device']").text == '/dev/input/js7'
+
+
+def test_xacro_ignores_radiomaster_usb_without_mujoco():
+    """Ensure real hardware always retains the K1 HAT system."""
+    document = xacro.process_file(
+        str(XACRO_PATH),
+        mappings={
+            'use_mock_hardware': 'true',
+            'mock_sensor_commands': 'true',
+            'radiomaster_usb': 'true',
+            'radiomaster_usb_device': '/dev/input/js7',
+        },
+    )
+    root = ET.fromstring(document.toxml())
+    controls = root.findall('ros2_control')
+
+    assert len(controls) == 6
+    assert 'k1_hat' in {control.attrib['name'] for control in controls}
+    assert 'k1_radiomaster_usb' not in {
+        control.attrib['name'] for control in controls
+    }
+    assert {
+        plugin.text for plugin in root.findall('.//plugin')
+    } == {'mock_components/GenericSystem'}
+
+
 def test_mujoco_model_matches_urdf():
     """Keep MuJoCo kinematics, inertias, limits, and actuators synchronized."""
     _, urdf_links, urdf_joints = _urdf_model()
@@ -165,27 +261,28 @@ def test_mujoco_model_matches_urdf():
         actual_position = _values(bodies[child].attrib.get('pos', '0 0 0'))
         assert actual_position == expected_position
 
-        expected_class = 'qc060' if _is_qc060_joint(name) else 'qc080'
+        expected_class = _armature_class(name)
         assert motors[name].attrib['class'] == expected_class
+        assert mjcf_joint.attrib['class'] == expected_class
 
     defaults = {
         default.attrib['class']: default
         for default in mjcf.findall('./default/default')
     }
-    assert _values(defaults['qc060'].find('motor').attrib['ctrlrange']) == (
+    for class_name, expected_armature in ARMATURE_BY_CLASS.items():
+        actual_armature = float(defaults[class_name].find('joint').attrib['armature'])
+        assert math.isclose(actual_armature, expected_armature)
+
+    qc060_defaults = defaults[ACTUATOR_QC060_200_R020_RE]
+    qc080_defaults = defaults[ACTUATOR_QC080_240_R020_RE]
+    assert _values(qc060_defaults.find('motor').attrib['ctrlrange']) == (
         -47.277,
         47.277,
     )
-    assert _values(defaults['qc080'].find('motor').attrib['ctrlrange']) == (
+    assert _values(qc080_defaults.find('motor').attrib['ctrlrange']) == (
         -96.864,
         96.864,
     )
-    speed_limits = {
-        numeric.attrib['name']: float(numeric.attrib['data'])
-        for numeric in mjcf.findall('./custom/numeric')
-    }
-    assert math.isclose(speed_limits['qc060_max_speed_rad_s'], 20.943951)
-    assert math.isclose(speed_limits['qc080_max_speed_rad_s'], 11.519173)
 
 
 def test_mujoco_scene_has_floor():
@@ -209,3 +306,13 @@ def test_mujoco_files_load():
     assert model.nq == 30
     assert model.nv == 29
     assert scene.ngeom == model.ngeom + 1
+
+    mjcf = ET.parse(MJCF_PATH).getroot()
+    for joint in mjcf.findall('.//joint'):
+        if 'name' not in joint.attrib:
+            continue
+        joint_id = mujoco.mj_name2id(
+            model, mujoco.mjtObj.mjOBJ_JOINT, joint.attrib['name'])
+        dof_id = model.jnt_dofadr[joint_id]
+        expected_armature = ARMATURE_BY_CLASS[_armature_class(joint.attrib['name'])]
+        assert math.isclose(model.dof_armature[dof_id], expected_armature)

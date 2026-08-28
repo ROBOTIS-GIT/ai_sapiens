@@ -1,0 +1,69 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro
+    name="k1_mujoco_system"
+    params="viewer:=^|true gantry:=^|true">
+    <ros2_control name="k1_mujoco" type="system">
+      <hardware>
+        <plugin>mujoco_hardware_interface/MujocoSystem</plugin>
+        <xacro:if value="${gantry}">
+          <param name="scene_file">$(find ai_sapiens_description)/mujoco/k1/scene_gantry.xml</param>
+        </xacro:if>
+        <xacro:unless value="${gantry}">
+          <param name="scene_file">$(find ai_sapiens_description)/mujoco/k1/scene.xml</param>
+        </xacro:unless>
+        <param name="viewer">${viewer}</param>
+        <param name="gantry">${gantry}</param>
+        <param name="hang_height">0.90</param>
+      </hardware>
+
+      <xacro:macro name="mj_joint" params="name">
+        <joint name="${name}">
+          <command_interface name="position"/>
+          <command_interface name="feedforward"/>
+          <command_interface name="proportional"/>
+          <command_interface name="derivative"/>
+          <state_interface name="position"/>
+          <state_interface name="velocity"/>
+          <state_interface name="effort"/>
+        </joint>
+      </xacro:macro>
+      <xacro:mj_joint name="left_hip_pitch_joint"/>
+      <xacro:mj_joint name="left_hip_roll_joint"/>
+      <xacro:mj_joint name="left_hip_yaw_joint"/>
+      <xacro:mj_joint name="left_knee_joint"/>
+      <xacro:mj_joint name="left_ankle_pitch_joint"/>
+      <xacro:mj_joint name="left_ankle_roll_joint"/>
+      <xacro:mj_joint name="right_hip_pitch_joint"/>
+      <xacro:mj_joint name="right_hip_roll_joint"/>
+      <xacro:mj_joint name="right_hip_yaw_joint"/>
+      <xacro:mj_joint name="right_knee_joint"/>
+      <xacro:mj_joint name="right_ankle_pitch_joint"/>
+      <xacro:mj_joint name="right_ankle_roll_joint"/>
+      <xacro:mj_joint name="waist_yaw_joint"/>
+      <xacro:mj_joint name="left_shoulder_pitch_joint"/>
+      <xacro:mj_joint name="left_shoulder_roll_joint"/>
+      <xacro:mj_joint name="left_shoulder_yaw_joint"/>
+      <xacro:mj_joint name="left_elbow_joint"/>
+      <xacro:mj_joint name="left_wrist_roll_joint"/>
+      <xacro:mj_joint name="right_shoulder_pitch_joint"/>
+      <xacro:mj_joint name="right_shoulder_roll_joint"/>
+      <xacro:mj_joint name="right_shoulder_yaw_joint"/>
+      <xacro:mj_joint name="right_elbow_joint"/>
+      <xacro:mj_joint name="right_wrist_roll_joint"/>
+
+      <sensor name="imu">
+        <state_interface name="linear_acceleration.x"/>
+        <state_interface name="linear_acceleration.y"/>
+        <state_interface name="linear_acceleration.z"/>
+        <state_interface name="angular_velocity.x"/>
+        <state_interface name="angular_velocity.y"/>
+        <state_interface name="angular_velocity.z"/>
+        <state_interface name="orientation.w"/>
+        <state_interface name="orientation.x"/>
+        <state_interface name="orientation.y"/>
+        <state_interface name="orientation.z"/>
+      </sensor>
+    </ros2_control>
+  </xacro:macro>
+</robot>

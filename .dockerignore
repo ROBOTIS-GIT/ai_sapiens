@@ -1,3 +1,7 @@
+.git
+build
+install
+log
 docker/*
 !docker/s6-services/
 !docker/s6-agent/

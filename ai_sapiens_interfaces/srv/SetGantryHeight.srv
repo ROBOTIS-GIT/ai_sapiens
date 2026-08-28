@@ -1,0 +1,7 @@
+# Move the simulation gantry hook to an absolute height (m, world frame)
+# at the given speed (m/s). speed <= 0 selects the default (0.05 m/s).
+float64 height
+float64 speed
+---
+bool success
+string message

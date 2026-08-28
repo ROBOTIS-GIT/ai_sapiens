@@ -2,6 +2,9 @@ services:
   ai_sapiens:
     container_name: ai_sapiens
     image: robotis/ai-sapiens:arm64
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
     pull_policy: missing
     tty: true
     restart: always
@@ -13,6 +16,16 @@ services:
       memlock: 8428281856
     network_mode: host
     ipc: host
+    # Comment out this block (the 7 lines below) on hosts without the
+    # NVIDIA Container Toolkit; otherwise the container fails to start.
+    # Only NVIDIA GPUs need this block; other GPUs render through Mesa.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu, graphics, display, utility]
     environment:
      - DISPLAY=${DISPLAY}
      - QT_X11_NO_MITSHM=1
