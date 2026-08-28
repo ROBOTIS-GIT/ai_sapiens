@@ -180,6 +180,7 @@ protected:
   std::vector<StateInterface> state_handles_;
 };
 
+// cppcheck-suppress syntaxError
 TEST_F(AiSapiensRcBroadcasterTest, RejectsInvalidNumericParameter)
 {
   ASSERT_EQ(

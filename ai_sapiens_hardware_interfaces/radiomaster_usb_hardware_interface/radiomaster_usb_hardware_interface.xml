@@ -1,0 +1,11 @@
+<library path="radiomaster_usb_hardware_interface">
+  <class
+    name="radiomaster_usb_hardware_interface/RadiomasterUsbHardwareInterface"
+    type="radiomaster_usb_hardware_interface::RadiomasterUsbHardwareInterface"
+    base_class_type="hardware_interface::SensorInterface">
+    <description>
+      Reads a RadioMaster Linux joystick device and exports K1 HAT-compatible RC state
+      interfaces without a ROS Joy node.
+    </description>
+  </class>
+</library>

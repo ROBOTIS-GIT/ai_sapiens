@@ -1,0 +1,12 @@
+<library path="mujoco_hardware_interface">
+  <class
+    name="mujoco_hardware_interface/MujocoSystem"
+    type="mujoco_hardware_interface::MujocoSystem"
+    base_class_type="hardware_interface::SystemInterface">
+    <description>
+      MuJoCo sim2sim system interface for AI Sapiens K1. Owns the MuJoCo
+      simulation from ai_sapiens_mujoco and exports the same joint, IMU, and
+      HAT interfaces as the real hardware components.
+    </description>
+  </class>
+</library>

@@ -1,0 +1,55 @@
+<?xml version="1.0"?>
+<mujoco model="AI Sapiens K1 gantry scene">
+  <include file="k1.xml"/>
+
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global azimuth="-130" elevation="-20"/>
+  </visual>
+
+  <asset>
+    <texture
+      type="skybox"
+      builtin="gradient"
+      rgb1="0.3 0.5 0.7"
+      rgb2="0 0 0"
+      width="512"
+      height="3072"/>
+    <texture
+      name="groundplane"
+      type="2d"
+      builtin="checker"
+      rgb1="0.2 0.3 0.4"
+      rgb2="0.1 0.2 0.3"
+      mark="edge"
+      markrgb="0.8 0.8 0.8"
+      width="300"
+      height="300"/>
+    <material
+      name="groundplane"
+      texture="groundplane"
+      texuniform="true"
+      texrepeat="5 5"
+      reflectance="0.2"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 0 1.5" dir="0 0 -1" directional="true"/>
+    <geom
+      name="floor"
+      type="plane"
+      size="0 0 0.05"
+      material="groundplane"/>
+    <body name="gantry" mocap="true" pos="0 0 1.60">
+      <geom name="gantry_beam" type="box" size="0.35 0.03 0.03"
+            contype="0" conaffinity="0" rgba="0.95 0.65 0.10 1"/>
+      <geom name="gantry_cable" type="cylinder" size="0.006 0.28" pos="0 0 -0.31"
+            contype="0" conaffinity="0" rgba="0.15 0.15 0.15 1"/>
+    </body>
+  </worldbody>
+
+  <equality>
+    <weld name="gantry_weld" body1="gantry" body2="torso_link"/>
+  </equality>
+</mujoco>

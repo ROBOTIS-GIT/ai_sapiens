@@ -1,0 +1,35 @@
+topic: /joy
+# joy_node is launched with deadzone=0.0; this plugin applies the deadzone and
+# renormalizes the remaining stick travel back to [-1, 1].
+deadzone: 0.08
+
+velocity_command:
+  axes:
+    linear_x: {index: 1, invert: false}
+    linear_y: {index: 0, invert: false}
+    angular_z: {index: 2, invert: false}
+
+api_mode:
+  when:
+    button: 5
+    pressed: true
+
+input_code:
+  initial_code: 1
+  buttons:
+    - {button: 1, code: 1, label: Damping}
+    - {button: 0, code: 2, label: ReadyPose}
+    - {button: 3, code: 3, label: Velocity}
+    # Mimic creates a press edge, then returns to Neutral so the motion keeps running.
+    - {button: 2, code: 4, label: Mimic, latch: false}
+
+selector_navigation:
+  previous_button: 13  # D-pad Left
+  next_button: 14      # D-pad Right
+  selector: mimic_selector
+  status_topic: /dualsense_teleop/selector_status
+
+ui:
+  update_rate: 10.0
+  stale_timeout: 0.5
+  mode_status_topic: /ai_sapiens/mode_status
