@@ -150,6 +150,10 @@ OperatorCommandInputOptions RootConfig::operator_command_input_options() const
       if (teleop_input["timeout"]) {
         options.teleop_input_timeout = teleop_input["timeout"].as<double>();
       }
+      options.teleop_vel_command_timeout = options.teleop_input_timeout;
+      if (teleop_input["vel_command_timeout"]) {
+        options.teleop_vel_command_timeout = teleop_input["vel_command_timeout"].as<double>();
+      }
     });
 
   (void)load_yaml_file(options.teleop_input_config_path, "teleop input plugin config");

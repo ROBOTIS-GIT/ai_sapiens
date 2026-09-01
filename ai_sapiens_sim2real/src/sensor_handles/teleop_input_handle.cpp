@@ -48,20 +48,34 @@ TeleopInputHandle::TeleopInputHandle(
   ModeRequests * requests,
   const AxisRanges * active_velocity_command_ranges,
   std::shared_ptr<TeleopInputPluginBase> plugin,
-  double timeout_seconds)
+  double timeout_seconds,
+  double vel_command_timeout_seconds)
 : node_(std::move(node)),
   teleop_(teleop),
   requests_(requests),
   active_velocity_command_ranges_(active_velocity_command_ranges),
   plugin_(std::move(plugin)),
   plugin_output_ranges_(plugin_->output_axis_ranges()),
-  timeout_(timeout_seconds)
+  timeout_(timeout_seconds),
+  vel_command_timeout_(vel_command_timeout_seconds)
 {
   if (timeout_seconds <= 0.0) {
     throw std::runtime_error("Teleop input watchdog timeout must be positive");
   }
+  if (vel_command_timeout_seconds <= 0.0) {
+    throw std::runtime_error("Teleop velocity command timeout must be positive");
+  }
+  if (vel_command_timeout_seconds > timeout_seconds) {
+    throw std::runtime_error(
+            "Teleop velocity command timeout must not exceed the input watchdog timeout");
+  }
 
-  RCLCPP_INFO(node_->get_logger(), "[TeleopInputHandle] plugin(%s)", plugin_->name().c_str());
+  RCLCPP_INFO(
+    node_->get_logger(),
+    "[TeleopInputHandle] plugin(%s) vel_command_timeout(%.3fs) timeout(%.3fs)",
+    plugin_->name().c_str(),
+    vel_command_timeout_seconds,
+    timeout_seconds);
 }
 
 Eigen::Vector3f TeleopInputHandle::normalize_plugin_output(
@@ -79,7 +93,10 @@ void TeleopInputHandle::update(const rclcpp::Time & /*time*/)
 {
   TeleopInputCommand command;
   const bool has_accepted_command = plugin_->read_latest_accepted_command(command);
-  const bool is_command_timed_out = has_accepted_command && is_command_stale(command);
+  const auto command_age = std::chrono::steady_clock::now() - command.received_at;
+  const bool is_command_timed_out = has_accepted_command && command_age > timeout_;
+  const bool is_velocity_command_timed_out =
+    has_accepted_command && command_age > vel_command_timeout_;
   const bool is_input_unavailable = !has_accepted_command || is_command_timed_out;
 
   copy_command_state(command, has_accepted_command, is_input_unavailable);
@@ -90,6 +107,12 @@ void TeleopInputHandle::update(const rclcpp::Time & /*time*/)
   }
 
   unavailable_logged_ = false;
+
+  if (is_velocity_command_timed_out) {
+    teleop_->velocity_commands.setZero();
+    teleop_->velocity_command_normalized.setZero();
+    return;
+  }
 
   bool out_of_range = false;
   const Eigen::Vector3f normalized = normalize_plugin_output(command.velocity, out_of_range);
@@ -105,11 +128,6 @@ void TeleopInputHandle::update(const rclcpp::Time & /*time*/)
   teleop_->velocity_commands.x() = scale_unit_to_axis(normalized.x(), active.linear_x);
   teleop_->velocity_commands.y() = scale_unit_to_axis(normalized.y(), active.linear_y);
   teleop_->velocity_commands.z() = scale_unit_to_axis(normalized.z(), active.angular_z);
-}
-
-bool TeleopInputHandle::is_command_stale(const TeleopInputCommand & command) const
-{
-  return std::chrono::steady_clock::now() - command.received_at > timeout_;
 }
 
 void TeleopInputHandle::copy_command_state(
