@@ -57,6 +57,8 @@ struct NodeOptions
   std::string api_heartbeat_topic;
   double api_heartbeat_timeout{0.2};
   std::string cmd_vel_topic;
+  std::string teleop_input_plugin;
+  std::string teleop_input_config_path;
   std::string set_mode_by_name_service;
   std::string list_modes_service;
   std::string mode_status_topic;

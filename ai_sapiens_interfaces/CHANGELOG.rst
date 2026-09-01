@@ -2,6 +2,12 @@
 Changelog for package ai_sapiens_interfaces
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.2.0 (2026-08-26)
+------------------
+* Added the ``KeyboardInput`` message for keyboard teleoperation.
+* Added the ``SetGantryHeight`` service for MuJoCo gantry control.
+* Contributors: Kiwoong Park
+
 0.1.2 (2026-08-12)
 ------------------
 * None

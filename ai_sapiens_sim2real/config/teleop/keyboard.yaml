@@ -1,0 +1,17 @@
+topic: /keyboard_teleop/input
+publish_rate: 20.0
+velocity_step: 0.2
+
+input_code:
+  damping: 1
+  ready_pose: 2
+  velocity: 3
+  mimic: 4
+
+selector_navigation:
+  selector: mimic_selector
+
+ui:
+  update_rate: 10.0
+  stale_timeout: 0.5
+  mode_status_topic: /ai_sapiens/mode_status

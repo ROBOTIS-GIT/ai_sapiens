@@ -1,0 +1,10 @@
+<library path="dualsense_teleop_input_plugin">
+  <class
+    name="ai_sapiens_sim2real/DualSenseTeleopInputPlugin"
+    type="ai_sapiens_sim2real::DualSenseTeleopInputPlugin"
+    base_class_type="ai_sapiens_sim2real::TeleopInputPluginBase">
+    <description>
+      DualSense teleop input plugin for converting sensor_msgs/Joy messages to sim2real teleop input.
+    </description>
+  </class>
+</library>

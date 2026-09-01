@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>radiomaster_usb_hardware_interface</name>
+  <version>0.2.0</version>
+  <description>RadioMaster USB joystick sensor interface for AI Sapiens</description>
+  <maintainer email="pyo@robotis.com">Pyo</maintainer>
+  <license>Apache-2.0</license>
+  <author email="kes@robotis.com">Eunsung Kim</author>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>hardware_interface</depend>
+  <depend>pluginlib</depend>
+  <depend>rclcpp</depend>
+  <depend>rclcpp_lifecycle</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

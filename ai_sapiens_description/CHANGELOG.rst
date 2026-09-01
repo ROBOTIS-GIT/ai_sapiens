@@ -2,6 +2,16 @@
 Changelog for package ai_sapiens_description
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.2.0 (2026-08-26)
+------------------
+* Updated the K1 MJCF with per-actuator reflected armatures, IMU sensors, and
+  MuJoCo Menagerie-compatible model and scene structure.
+* Added a gantry scene and separate ``ros2_control`` descriptions for MuJoCo
+  simulation and RadioMaster USB input.
+* Added validation tests for the K1 MuJoCo scenes and ros2_control variants.
+* Changed the IP address used for E2D2 UDP communication.
+* Contributors: Kiwoong Park, Eunsung Kim
+
 0.1.2 (2026-08-12)
 ------------------
 * Added the current limit parameters to the DYNAMIXEL GPIOs
