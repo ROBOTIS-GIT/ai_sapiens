@@ -82,6 +82,7 @@ protected:
   AxisRanges active_ranges_;
 };
 
+// cppcheck-suppress syntaxError
 TEST_F(TeleopInputHandleTest, ZerosStaleVelocityBeforeInputFailsafe)
 {
   TeleopInputHandle handle(
