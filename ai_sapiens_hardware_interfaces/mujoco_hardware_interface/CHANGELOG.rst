@@ -2,6 +2,10 @@
 Changelog for package mujoco_hardware_interface
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.2.1 (2026-09-01)
+------------------
+* None
+
 0.2.0 (2026-08-26)
 ------------------
 * Added a MuJoCo ``ros2_control`` system interface for AI Sapiens K1.

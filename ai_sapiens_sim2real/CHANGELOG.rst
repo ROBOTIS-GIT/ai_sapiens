@@ -2,6 +2,13 @@
 Changelog for package ai_sapiens_sim2real
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.2.1 (2026-09-01)
+------------------
+* Added a separate timeout that zeros stale manual velocity commands before
+  the full teleoperation input-loss failsafe.
+* Preserved existing timeout behavior when ``vel_command_timeout`` is omitted.
+* Contributors: Kiwoong Park
+
 0.2.0 (2026-08-26)
 ------------------
 * Added DualSense and keyboard teleoperation input plugins with interactive
