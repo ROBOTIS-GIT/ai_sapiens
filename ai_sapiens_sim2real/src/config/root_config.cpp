@@ -16,6 +16,7 @@
 
 #include "ai_sapiens_sim2real/config/root_config.hpp"
 
+#include <cmath>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -95,6 +96,24 @@ bool is_mimic_behavior(const YAML::Node & behavior_node)
   return behavior_node["kind"].as<std::string>() == "mimic";
 }
 
+void require_positive_finite_timeout(double timeout, const std::string & path)
+{
+  if (!std::isfinite(timeout) || timeout <= 0.0) {
+    throw std::runtime_error(path + " must be finite and positive");
+  }
+}
+
+void validate_teleop_timeouts(const OperatorCommandInputOptions & options)
+{
+  require_positive_finite_timeout(options.teleop_input_timeout, "teleop_input.timeout");
+  require_positive_finite_timeout(
+    options.teleop_vel_command_timeout, "teleop_input.vel_command_timeout");
+  if (options.teleop_vel_command_timeout > options.teleop_input_timeout) {
+    throw std::runtime_error(
+            "teleop_input.vel_command_timeout must not exceed teleop_input.timeout");
+  }
+}
+
 }  // namespace
 
 RootConfig::RootConfig(const std::filesystem::path & path)
@@ -154,6 +173,7 @@ OperatorCommandInputOptions RootConfig::operator_command_input_options() const
       if (teleop_input["vel_command_timeout"]) {
         options.teleop_vel_command_timeout = teleop_input["vel_command_timeout"].as<double>();
       }
+      validate_teleop_timeouts(options);
     });
 
   (void)load_yaml_file(options.teleop_input_config_path, "teleop input plugin config");

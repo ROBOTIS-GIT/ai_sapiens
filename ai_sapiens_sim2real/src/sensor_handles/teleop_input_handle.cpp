@@ -17,6 +17,7 @@
 #include "ai_sapiens_sim2real/sensor_handles/teleop_input_handle.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <stdexcept>
 #include <utility>
 
@@ -59,11 +60,11 @@ TeleopInputHandle::TeleopInputHandle(
   timeout_(timeout_seconds),
   vel_command_timeout_(vel_command_timeout_seconds)
 {
-  if (timeout_seconds <= 0.0) {
-    throw std::runtime_error("Teleop input watchdog timeout must be positive");
+  if (!std::isfinite(timeout_seconds) || timeout_seconds <= 0.0) {
+    throw std::runtime_error("Teleop input watchdog timeout must be finite and positive");
   }
-  if (vel_command_timeout_seconds <= 0.0) {
-    throw std::runtime_error("Teleop velocity command timeout must be positive");
+  if (!std::isfinite(vel_command_timeout_seconds) || vel_command_timeout_seconds <= 0.0) {
+    throw std::runtime_error("Teleop velocity command timeout must be finite and positive");
   }
   if (vel_command_timeout_seconds > timeout_seconds) {
     throw std::runtime_error(

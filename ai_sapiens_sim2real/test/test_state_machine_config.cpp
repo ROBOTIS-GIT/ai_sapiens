@@ -134,7 +134,11 @@ authority:
 )"
   );
   const std::string marker = "  config: test_plugin.yaml\n";
-  yaml.insert(yaml.find(marker) + marker.size(), timeout_fields);
+  const auto marker_position = yaml.find(marker);
+  if (marker_position == std::string::npos) {
+    throw std::logic_error("teleop input config marker is missing from the test fixture");
+  }
+  yaml.insert(marker_position + marker.size(), timeout_fields);
   return yaml;
 }
 
@@ -143,6 +147,23 @@ void write_test_plugin_config()
   const auto path = std::filesystem::temp_directory_path() / "test_plugin.yaml";
   std::ofstream file(path);
   file << "{}\n";
+}
+
+void expect_teleop_timeouts_rejected(
+  const std::string & timeout_fields,
+  const std::string & expected_error)
+{
+  write_test_plugin_config();
+  RootConfig root_config(
+    write_temp_config(root_config_with_teleop_timeouts(timeout_fields)));
+
+  try {
+    static_cast<void>(root_config.operator_command_input_options());
+    FAIL() << "Expected teleop timeout configuration to be rejected";
+  } catch (const std::runtime_error & error) {
+    EXPECT_NE(std::string(error.what()).find(expected_error), std::string::npos)
+      << error.what();
+  }
 }
 
 void expect_root_config_rejected(const std::string & authority)
@@ -228,6 +249,33 @@ TEST(RootConfig, ReadsExplicitTeleopVelocityTimeout)
 
   EXPECT_DOUBLE_EQ(options.teleop_input_timeout, 0.2);
   EXPECT_DOUBLE_EQ(options.teleop_vel_command_timeout, 0.1);
+}
+
+TEST(RootConfig, RejectsInvalidTeleopTimeoutsWithConfigPaths)
+{
+  expect_teleop_timeouts_rejected(
+    "  timeout: 0.0\n", "teleop_input.timeout must be finite and positive");
+  expect_teleop_timeouts_rejected(
+    "  timeout: -0.1\n", "teleop_input.timeout must be finite and positive");
+  expect_teleop_timeouts_rejected(
+    "  timeout: .nan\n", "teleop_input.timeout must be finite and positive");
+  expect_teleop_timeouts_rejected(
+    "  timeout: .inf\n", "teleop_input.timeout must be finite and positive");
+  expect_teleop_timeouts_rejected(
+    "  vel_command_timeout: 0.0\n  timeout: 1.0\n",
+    "teleop_input.vel_command_timeout must be finite and positive");
+  expect_teleop_timeouts_rejected(
+    "  vel_command_timeout: -0.1\n  timeout: 1.0\n",
+    "teleop_input.vel_command_timeout must be finite and positive");
+  expect_teleop_timeouts_rejected(
+    "  vel_command_timeout: .nan\n  timeout: 1.0\n",
+    "teleop_input.vel_command_timeout must be finite and positive");
+  expect_teleop_timeouts_rejected(
+    "  vel_command_timeout: .inf\n  timeout: 1.0\n",
+    "teleop_input.vel_command_timeout must be finite and positive");
+  expect_teleop_timeouts_rejected(
+    "  vel_command_timeout: 1.1\n  timeout: 1.0\n",
+    "teleop_input.vel_command_timeout must not exceed teleop_input.timeout");
 }
 
 TEST(AuthorityConfigValidation, AcceptsZeroWarmupAndNeutralThreshold)

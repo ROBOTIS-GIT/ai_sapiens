@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -106,6 +107,49 @@ TEST_F(TeleopInputHandleTest, RejectsVelocityTimeoutLongerThanInputTimeout)
   EXPECT_THROW(
     TeleopInputHandle(
       node_, &teleop_, &requests_, &active_ranges_, plugin_, 0.1, 0.2),
+    std::runtime_error);
+}
+
+TEST_F(TeleopInputHandleTest, RejectsNonPositiveTimeouts)
+{
+  EXPECT_THROW(
+    TeleopInputHandle(
+      node_, &teleop_, &requests_, &active_ranges_, plugin_, 0.0, 0.1),
+    std::runtime_error);
+  EXPECT_THROW(
+    TeleopInputHandle(
+      node_, &teleop_, &requests_, &active_ranges_, plugin_, -1.0, 0.1),
+    std::runtime_error);
+  EXPECT_THROW(
+    TeleopInputHandle(
+      node_, &teleop_, &requests_, &active_ranges_, plugin_, 1.0, 0.0),
+    std::runtime_error);
+  EXPECT_THROW(
+    TeleopInputHandle(
+      node_, &teleop_, &requests_, &active_ranges_, plugin_, 1.0, -0.1),
+    std::runtime_error);
+}
+
+TEST_F(TeleopInputHandleTest, RejectsNonFiniteTimeouts)
+{
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  const double infinity = std::numeric_limits<double>::infinity();
+
+  EXPECT_THROW(
+    TeleopInputHandle(
+      node_, &teleop_, &requests_, &active_ranges_, plugin_, nan, 0.1),
+    std::runtime_error);
+  EXPECT_THROW(
+    TeleopInputHandle(
+      node_, &teleop_, &requests_, &active_ranges_, plugin_, infinity, 0.1),
+    std::runtime_error);
+  EXPECT_THROW(
+    TeleopInputHandle(
+      node_, &teleop_, &requests_, &active_ranges_, plugin_, 1.0, nan),
+    std::runtime_error);
+  EXPECT_THROW(
+    TeleopInputHandle(
+      node_, &teleop_, &requests_, &active_ranges_, plugin_, 1.0, infinity),
     std::runtime_error);
 }
 
