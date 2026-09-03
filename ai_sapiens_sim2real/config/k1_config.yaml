@@ -45,6 +45,7 @@ authority:
 teleop_input:
   plugin: ai_sapiens_sim2real/RadiomasterPocketTeleopInputPlugin
   config: teleop/radiomaster_pocket.yaml
+  vel_command_timeout: 0.2
   timeout: 0.2
 
 teleop_conditions:

@@ -140,7 +140,7 @@ sections:
 | --- | --- |
 | `robot_joint_order` | Command and feedback order shared by the runtime. |
 | `policy_asset_roots` | Search roots for named policy assets. |
-| `teleop_input` | Plugin, plugin YAML, and watchdog timeout. |
+| `teleop_input` | Plugin, plugin YAML, velocity-command timeout, and watchdog timeout. |
 | `teleop_conditions` | Semantic input conditions such as Damping or Velocity. |
 | `selectors` | Selector-code to concrete-state mappings. |
 | `state_machine` | Initial state, states, parents, and transitions. |
@@ -151,6 +151,10 @@ sections:
 The reference configuration is
 [`config/k1_config.yaml`](config/k1_config.yaml), and its Radiomaster mapping
 is [`config/teleop/radiomaster_pocket.yaml`](config/teleop/radiomaster_pocket.yaml).
+`teleop_input.vel_command_timeout` zeros a stale manual velocity command without
+marking the teleop input unavailable. `teleop_input.timeout` triggers the full
+input-loss failsafe. The velocity timeout must not exceed the input timeout; when
+it is omitted, it inherits the input timeout for backward compatibility.
 
 ### Policy assets
 
