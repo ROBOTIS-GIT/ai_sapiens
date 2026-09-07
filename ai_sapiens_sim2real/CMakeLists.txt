@@ -321,6 +321,13 @@ if(BUILD_TESTING)
   # AxisRange: zero-preserving normalize/scale/clamp helpers (header-only).
   ament_add_gtest(test_axis_range test/test_axis_range.cpp)
 
+  # TeleopInputHandle: zero stale velocity before the full input-loss failsafe.
+  ament_add_gtest(test_teleop_input_handle
+    test/test_teleop_input_handle.cpp
+    src/sensor_handles/teleop_input_handle.cpp)
+  ament_target_dependencies(test_teleop_input_handle rclcpp realtime_tools)
+  target_link_libraries(test_teleop_input_handle Eigen3::Eigen)
+
   ament_add_gtest(
     test_dualsense_teleop_input_plugin
     test/test_dualsense_teleop_input_plugin.cpp)

@@ -2,6 +2,10 @@
 Changelog for package ai_sapiens_description
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.2.1 (2026-09-01)
+------------------
+* None
+
 0.2.0 (2026-08-26)
 ------------------
 * Updated the K1 MJCF with per-actuator reflected armatures, IMU sensors, and

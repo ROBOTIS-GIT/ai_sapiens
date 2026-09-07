@@ -2,6 +2,10 @@
 Changelog for package ai_sapiens_mujoco
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.2.1 (2026-09-01)
+------------------
+* None
+
 0.2.0 (2026-08-26)
 ------------------
 * Added the K1 MuJoCo simulation and viewer for sim2sim testing with

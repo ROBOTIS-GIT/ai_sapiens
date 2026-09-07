@@ -40,14 +40,14 @@ public:
     ModeRequests * requests,
     const AxisRanges * active_velocity_command_ranges,
     std::shared_ptr<TeleopInputPluginBase> plugin,
-    double timeout_seconds);
+    double timeout_seconds,
+    double vel_command_timeout_seconds);
 
   void update(const rclcpp::Time & /*time*/) override;
   std::string get_name() const override;
   bool is_ready() const override;
 
 private:
-  bool is_command_stale(const TeleopInputCommand & command) const;
   void copy_command_state(
     const TeleopInputCommand & command,
     bool has_accepted_command,
@@ -67,6 +67,7 @@ private:
   // The plugin's declared output range, queried once after configure().
   AxisRanges plugin_output_ranges_;
   std::chrono::duration<double> timeout_;
+  std::chrono::duration<double> vel_command_timeout_;
   bool unavailable_logged_{false};
 };
 

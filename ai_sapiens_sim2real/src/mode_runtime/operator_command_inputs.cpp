@@ -47,7 +47,8 @@ OperatorCommandInputs add_operator_command_input_handles(
         &state->requests,
         &state->active_velocity_command_ranges,
         inputs.teleop_input_plugin,
-        options.teleop_input_timeout),
+        options.teleop_input_timeout,
+        options.teleop_vel_command_timeout),
     true);
   control_loop->add_sensor_handle(
     std::make_shared<ApiHeartbeatHandle>(

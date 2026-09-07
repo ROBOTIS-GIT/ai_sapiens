@@ -2,6 +2,10 @@
 Changelog for package radiomaster_usb_hardware_interface
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.2.1 (2026-09-01)
+------------------
+* None
+
 0.2.0 (2026-08-26)
 ------------------
 * Added a ``ros2_control`` sensor interface that reads RadioMaster controllers

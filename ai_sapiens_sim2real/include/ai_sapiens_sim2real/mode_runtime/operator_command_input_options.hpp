@@ -28,6 +28,7 @@ struct OperatorCommandInputOptions
   std::string teleop_input_plugin;
   std::string teleop_input_config_path;
   double teleop_input_timeout{0.2};
+  double teleop_vel_command_timeout{0.2};
 
   // API heartbeat gates service/cmd_vel authority in API mode.
   std::string api_heartbeat_topic{"/ai_sapiens/api_heartbeat"};
