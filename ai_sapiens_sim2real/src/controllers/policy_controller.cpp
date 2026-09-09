@@ -52,6 +52,7 @@ void PolicyController::update(
   const rclcpp::Duration & period)
 {
   if (decision.active_behavior_kind != BehaviorKind::Policy) {
+    policy_was_active_ = false;
     return;
   }
 
@@ -77,7 +78,8 @@ void PolicyController::update(
   // transition; if one happened since our last enter, the active runtime
   // must start a fresh policy episode before it can update.
   if (entered_transition_count_ != decision.transition_count) {
-    runtime->enter();
+    runtime->enter(policy_was_active_);
+    policy_was_active_ = true;
     entered_transition_count_ = decision.transition_count;
   }
 
@@ -91,6 +93,7 @@ void PolicyController::reset()
   }
 
   entered_transition_count_ = 0;
+  policy_was_active_ = false;
   std::fill(policy_->last_action.begin(), policy_->last_action.end(), 0.0f);
 }
 

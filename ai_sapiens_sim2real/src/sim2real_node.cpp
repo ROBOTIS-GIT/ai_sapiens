@@ -193,6 +193,11 @@ void Sim2RealNode::initialize_shared_control_data()
   shared_data_->joint_map.controller_joint_names = runtime_config_.controller_joints;
   const size_t num_joints = runtime_config_.controller_joints.size();
   shared_data_->resize(num_joints, num_joints);
+  shared_data_->policy_action_transition = root_config_->policy_action_transition();
+  RCLCPP_INFO(
+    node_->get_logger(), "Policy action transition: %s, duration=%.3f s",
+    shared_data_->policy_action_transition.enabled ? "enabled" : "disabled",
+    shared_data_->policy_action_transition.duration);
   RCLCPP_INFO(node_->get_logger(), "Configured %zu controller joints", num_joints);
 }
 

@@ -125,6 +125,27 @@ RootConfig::RootConfig(const std::filesystem::path & path)
     path_, "root config",
     [&] {
       require_root_sections(document_);
+      const auto transition = document_["policy_action_transition"];
+      if (transition.IsDefined()) {
+        require_yaml_map(transition, "policy_action_transition");
+        try {
+          if (transition["enabled"].IsDefined()) {
+            policy_action_transition_.enabled = transition["enabled"].as<bool>();
+          }
+          if (transition["duration"].IsDefined()) {
+            policy_action_transition_.duration = transition["duration"].as<double>();
+          }
+        } catch (const YAML::Exception &) {
+          throw std::runtime_error(
+            "policy_action_transition requires boolean enabled and numeric duration");
+        }
+        if (!std::isfinite(policy_action_transition_.duration) ||
+          policy_action_transition_.duration < 0.0)
+        {
+          throw std::runtime_error(
+            "policy_action_transition.duration must be finite and non-negative");
+        }
+      }
 
       controller_joints_ = read_controller_joint_names(document_);
 

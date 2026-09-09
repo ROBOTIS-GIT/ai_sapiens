@@ -557,3 +557,30 @@ state_behaviors:
 )"),
     std::runtime_error);
 }
+
+TEST(RootConfig, ReadsActionTransitionOptions)
+{
+  const auto base = root_config_with_teleop_timeouts("  timeout: 0.7\n");
+  const RootConfig defaults(write_temp_config(base));
+  EXPECT_FALSE(defaults.policy_action_transition().enabled);
+  EXPECT_DOUBLE_EQ(defaults.policy_action_transition().duration, 0.2);
+  const RootConfig enabled(write_temp_config(base +
+    "\npolicy_action_transition: {enabled: true, duration: 0.15}\n"));
+  EXPECT_TRUE(enabled.policy_action_transition().enabled);
+  EXPECT_DOUBLE_EQ(enabled.policy_action_transition().duration, 0.15);
+  const RootConfig disabled(write_temp_config(base +
+    "\npolicy_action_transition: {enabled: false, duration: 0.0}\n"));
+  EXPECT_FALSE(disabled.policy_action_transition().enabled);
+  EXPECT_DOUBLE_EQ(disabled.policy_action_transition().duration, 0.0);
+}
+
+TEST(RootConfig, RejectsInvalidActionTransitionOptions)
+{
+  const auto base = root_config_with_teleop_timeouts("  timeout: 0.7\n");
+  for (const auto & value : {"{enabled: invalid}", "{duration: -0.1}",
+      "{duration: .nan}", "{duration: .inf}", "{duration: invalid}", "false"})
+  {
+    EXPECT_THROW(RootConfig(write_temp_config(base +
+      "\npolicy_action_transition: " + value + "\n")), std::runtime_error);
+  }
+}

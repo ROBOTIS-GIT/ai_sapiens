@@ -112,10 +112,13 @@ void JointCommandPublisher::publish(const rclcpp::Time & time)
     const bool can_store_published_action = controller_index < output_->published_action.size();
     if (can_store_published_action) {
       output_->published_action[controller_index] = val;
+      output_->published_stiffness[controller_index] = output_->stiffness[controller_index];
+      output_->published_damping[controller_index] = output_->damping[controller_index];
     }
   }
 
   publisher_->publish(msg_);
+  output_->has_published_action = true;
 }
 
 std::string JointCommandPublisher::get_name() const

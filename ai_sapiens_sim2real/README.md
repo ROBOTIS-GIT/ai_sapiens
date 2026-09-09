@@ -156,6 +156,33 @@ marking the teleop input unavailable. `teleop_input.timeout` triggers the full
 input-loss failsafe. The velocity timeout must not exceed the input timeout; when
 it is omitted, it inherits the input timeout for backward compatibility.
 
+### Joint targets during policy transitions
+
+```yaml
+policy_action_transition:
+  enabled: true
+  duration: 0.3  # seconds; 0 disables interpolation
+```
+
+Restart the node after editing the root YAML. Omitting this section defaults to
+disabled; the example K1 configuration enables a 0.3-second transition. This only
+applies to policy-to-policy changes (including locomotion/mimic in either
+direction), not posture/damping entry or the initial policy startup.
+
+The start is the last published joint target after position limiting (or the
+previous output if nothing has been published). The destination policy keeps
+inferring. At the control rate, its scaled/offset joint targets are blended with
+that fixed start using `alpha = 3*s*s - 2*s*s*s`, where `s` runs from zero to one.
+Targets are validated before blending and publisher position limits still apply.
+New policy limits can still clip the transition if the old target is outside
+their range. Inference failure holds the output until valid inference resumes.
+Stiffness (kp) and damping (kd) use the same smoothstep and timer as joint targets,
+starting from the last published gains. Switching again during a transition
+captures the gains actually sent, so it starts from the intermediate values.
+Disabling this section switches both joint targets and gains immediately.
+Raw last-action observations and motion timing are unchanged. This reduces
+command discontinuity but does not guarantee balance during a skill change.
+
 ### Policy assets
 
 An `asset` entry is resolved below each `policy_asset_roots` directory:

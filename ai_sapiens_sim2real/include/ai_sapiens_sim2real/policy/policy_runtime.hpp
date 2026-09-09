@@ -70,7 +70,7 @@ public:
   virtual ~PolicyRuntime();
 
   void reset();
-  void enter();
+  void enter(bool from_policy = false);
   void update(const rclcpp::Duration & period);
   const std::string & state_name() const;
   size_t observation_size() const
@@ -148,6 +148,9 @@ private:
   PolicyJointContext joint_context_;
   JointProperties joint_properties_;
   ActionPipeline action_pipeline_;
+  ActionTransition action_transition_;
+  std::vector<float> target_action_;
+  bool target_action_ready_{false};
 
   std::unique_ptr<OnnxInference> inference_;
   std::unique_ptr<ObservationManager> obs_manager_;
