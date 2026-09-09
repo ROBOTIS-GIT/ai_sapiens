@@ -64,7 +64,7 @@ selectors:
       200: MimicSquat
       201: MimicDance1
       202: MimicDance2
-      203: MimicAdapterDance
+      # 203:
       # 204:
       # 205:
       # 206:
@@ -128,9 +128,6 @@ state_machine:
     MimicDance2:
       parent: Mimic
       run: mimic_dance2
-    MimicAdapterDance:
-      parent: Mimic
-      run: mimic_adapter_dance
 
 state_behaviors:
   damping:
@@ -206,9 +203,3 @@ state_behaviors:
     kind: mimic
     asset: mimic/dance2
     motion: dance2.csv
-
-  mimic_adapter_dance:
-    kind: mimic
-    asset: mimic/adapter_dance
-    motion: K1_Dance1_adapter.csv
-    fps: 50
