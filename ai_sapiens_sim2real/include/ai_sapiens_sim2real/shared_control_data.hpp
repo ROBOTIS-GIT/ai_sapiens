@@ -27,6 +27,7 @@
 #include <Eigen/Dense>  // NOLINT(build/include_order)
 
 #include "ai_sapiens_sim2real/authority.hpp"
+#include "ai_sapiens_sim2real/policy/action_transition.hpp"
 #include "ai_sapiens_sim2real/config/sim2real_config.hpp"
 
 namespace ai_sapiens_sim2real
@@ -151,6 +152,9 @@ struct BehaviorOutput
 {
   std::vector<float> processed_action;
   std::vector<float> published_action;
+  std::vector<float> published_stiffness;
+  std::vector<float> published_damping;
+  bool has_published_action{false};
   std::vector<float> feedforward;
   std::vector<float> stiffness;
   std::vector<float> damping;
@@ -182,6 +186,7 @@ struct PolicyState
 struct SharedControlData
 {
   SensorData sensors;
+  ActionTransitionConfig policy_action_transition;
   TeleopInput teleop;
   ApiInput api;
   JointIndexMap joint_map;
@@ -208,6 +213,9 @@ struct SharedControlData
     output.default_joint_pos.resize(num_joints);
     output.processed_action.resize(action_size);
     output.published_action.resize(action_size);
+    output.published_stiffness.assign(action_size, 0.0f);
+    output.published_damping.assign(action_size, 0.0f);
+    output.has_published_action = false;
     output.feedforward.resize(action_size);
     output.stiffness.resize(action_size);
     output.damping.resize(action_size);

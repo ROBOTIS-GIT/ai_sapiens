@@ -72,6 +72,8 @@ PolicyRuntime::PolicyRuntime(
   gait_clock_ = make_gait_clock(sim2real_config.observations(), step_dt_);
   validate_observation_size(observation_size);
   obs_buffer_[onnx_input_name_].resize(observation_size);
+  target_action_.resize(joint_context_.policy_joint_names.size());
+  action_transition_.resize(target_action_.size());
   log_ready(observation_size);
 }
 
@@ -79,14 +81,28 @@ PolicyRuntime::~PolicyRuntime() = default;
 
 void PolicyRuntime::reset()
 {
+  action_transition_.reset();
+  target_action_ready_ = false;
   accumulated_period_ = step_dt_;
   if (obs_manager_) {
     obs_manager_->reset();
   }
 }
 
-void PolicyRuntime::enter()
+void PolicyRuntime::enter(bool from_policy)
 {
+  target_action_ready_ = false;
+  action_transition_.reset();
+  const auto & transition = shared_data_->policy_action_transition;
+  if (from_policy && transition.enabled && transition.duration > 0.0) {
+    action_transition_.begin(
+      output_->has_published_action ? output_->published_action : output_->processed_action,
+      joint_context_.policy_to_controller, transition.duration);
+    action_transition_.capture_gains(
+      output_->has_published_action ? output_->published_stiffness : output_->stiffness,
+      output_->has_published_action ? output_->published_damping : output_->damping,
+      joint_context_.policy_to_controller);
+  }
   install_joint_properties();
   install_velocity_command_ranges();
   reset_episode_state();
@@ -114,8 +130,10 @@ void PolicyRuntime::install_joint_properties() const
     output_->default_joint_pos[static_cast<Eigen::Index>(controller_index)] =
       joint_properties_.default_position[policy_index];
     output_->feedforward[controller_index] = 0.0f;
-    output_->stiffness[controller_index] = joint_properties_.stiffness[policy_index];
-    output_->damping[controller_index] = joint_properties_.damping[policy_index];
+    output_->stiffness[controller_index] =
+      action_transition_.stiffness(policy_index, joint_properties_.stiffness[policy_index]);
+    output_->damping[controller_index] =
+      action_transition_.damping(policy_index, joint_properties_.damping[policy_index]);
     output_->action_scale[controller_index] = action_properties.scale[policy_index];
     output_->action_offset[controller_index] = action_properties.offset[policy_index];
     output_->position_limits[controller_index] =
@@ -164,23 +182,39 @@ void PolicyRuntime::advance_clocks()
 
 void PolicyRuntime::update(const rclcpp::Duration & period)
 {
-  if (!advance_policy_tick(period)) {
-    return;
+  // Advance at the control rate, even between slower policy inferences. The first
+  // successful inference starts at alpha=0, irrespective of its scheduling delay.
+  if (target_action_ready_) {
+    action_transition_.advance(period.seconds());
+  }
+  if (advance_policy_tick(period)) {
+    if (!prepare_observation()) {
+      target_action_ready_ = false;
+      return;
+    }
+
+    resolve_active_velocity_command();
+    compute_observation();
+
+    if (const auto raw_action = run_policy_inference()) {
+      const auto & processed_action = action_pipeline_.process(*raw_action);
+      write_processed_action(*raw_action, processed_action);
+    } else {
+      target_action_ready_ = false;  // Keep the last command on inference failure.
+    }
+    advance_clocks();
   }
 
-  if (!prepare_observation()) {
-    return;
+  if (target_action_ready_) {
+    for (size_t j = 0; j < target_action_.size(); ++j) {
+      output_->processed_action[joint_context_.policy_to_controller[j]] =
+        action_transition_.position(j, target_action_[j]);
+      output_->stiffness[joint_context_.policy_to_controller[j]] =
+        action_transition_.stiffness(j, joint_properties_.stiffness[j]);
+      output_->damping[joint_context_.policy_to_controller[j]] =
+        action_transition_.damping(j, joint_properties_.damping[j]);
+    }
   }
-
-  resolve_active_velocity_command();
-  compute_observation();
-
-  if (const auto raw_action = run_policy_inference()) {
-    const auto & processed_action = action_pipeline_.process(*raw_action);
-    write_processed_action(*raw_action, processed_action);
-  }
-
-  advance_clocks();
 }
 
 bool PolicyRuntime::advance_policy_tick(const rclcpp::Duration & period)
@@ -287,6 +321,7 @@ void PolicyRuntime::write_processed_action(
   {
     const float value = processed_action[policy_index];
     if (!std::isfinite(value) || std::abs(value) > kAbsActionLimitRad) {
+      target_action_ready_ = false;
       requests_->action_limit_exceeded = true;
       log_action_limit_once(policy_index, raw_action[policy_index], value);
       return;
@@ -295,14 +330,10 @@ void PolicyRuntime::write_processed_action(
 
   action_limit_logged_ = false;
 
-  // Scatter only after the whole action is known to be safe. Slots for joints
-  // this policy does not control keep the previous behavior's command.
-  for (size_t policy_index = 0; policy_index < policy_joint_count;
-    ++policy_index)
-  {
-    const size_t controller_index = joint_context_.policy_to_controller[policy_index];
-    output_->processed_action[controller_index] = processed_action[policy_index];
-  }
+  // Validate the unblended target before accepting it; interpolation must never
+  // mask an invalid policy output. update() scatters only this policy's joints.
+  std::copy(processed_action.begin(), processed_action.end(), target_action_.begin());
+  target_action_ready_ = true;
 
   // The buffer is controller-sized; this policy uses the first joint_names.size() slots.
   std::copy(raw_action.begin(), raw_action.end(), policy_->last_action.begin());

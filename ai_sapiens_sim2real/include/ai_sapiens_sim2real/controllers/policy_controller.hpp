@@ -80,6 +80,7 @@ private:
   std::unordered_map<std::string, std::unique_ptr<PolicyRuntime>> runtimes_;
   // SharedControlData::mode.transition_count value at our last runtime enter.
   uint64_t entered_transition_count_{0};
+  bool policy_was_active_{false};
 };
 
 }  // namespace ai_sapiens_sim2real
