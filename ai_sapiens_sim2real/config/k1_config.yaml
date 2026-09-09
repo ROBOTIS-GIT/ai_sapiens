@@ -23,7 +23,7 @@ robot_joint_order:  # Corresponds to ai_sapiens_bringup/config/k1_rev1/k1_rev1_c
 - right_elbow_joint
 - right_wrist_roll_joint
 
-# Smooth joint targets and kp/kd on policy -> policy changes; duration is in seconds.
+# Smooth joint targets and kp/kd on posture/policy -> policy changes; duration is in seconds.
 # Set enabled: false (or duration: 0.0) for direct switching.
 policy_action_transition:
   enabled: true

@@ -80,7 +80,8 @@ private:
   std::unordered_map<std::string, std::unique_ptr<PolicyRuntime>> runtimes_;
   // SharedControlData::mode.transition_count value at our last runtime enter.
   uint64_t entered_transition_count_{0};
-  bool policy_was_active_{false};
+  // True after a posture or policy command; false at startup/reset or in damping.
+  bool can_blend_from_previous_{false};
 };
 
 }  // namespace ai_sapiens_sim2real

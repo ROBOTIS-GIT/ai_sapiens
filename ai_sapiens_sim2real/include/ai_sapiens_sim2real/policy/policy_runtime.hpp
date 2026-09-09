@@ -70,7 +70,7 @@ public:
   virtual ~PolicyRuntime();
 
   void reset();
-  void enter(bool from_policy = false);
+  void enter(bool blend_from_previous = false);
   void update(const rclcpp::Duration & period);
   const std::string & state_name() const;
   size_t observation_size() const
