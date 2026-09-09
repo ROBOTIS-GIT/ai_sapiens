@@ -25,7 +25,7 @@ services:
           devices:
             - driver: nvidia
               count: all
-              capabilities: [gpu, compute, graphics, display, utility]
+              capabilities: [gpu, graphics, display, utility]
     environment:
      - DISPLAY=${DISPLAY}
      - QT_X11_NO_MITSHM=1
