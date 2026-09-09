@@ -338,3 +338,37 @@ The `mode_runtime` directory contains focused state-machine, authority runtime,
 and startup helpers.
 `SharedControlData` is the explicit data boundary between callbacks, mode
 selection, policy execution, and command publication.
+
+## Adapter dance (CSV reference)
+
+`MimicAdapterDance` uses selector value `203`, asset `mimic/adapter_dance`, and
+`params/K1_Dance1_adapter.csv`. Restart the stack after rebuilding to load the
+new state. Existing Mimic states retain their CSV interpolation and action path.
+
+The policy configuration explicitly selects `runtime_type: opentrack_anyadapter`.
+This activates `obs [1,126]`, channel-major `history [1,75,79]`, and reference
+residual actions for this 23-joint asset. The policy ONNX and its external
+`.onnx.data` weights must both be present. Motion loading uses only CSV.
+
+The extended CSV has named position, saved velocity, and four foot-height
+columns plus `ref_root_height`. Its quaternion columns are `root_qx/qy/qz/qw`.
+Adapter playback selects discrete frames at 50 Hz; it does not recalculate
+velocities or use legacy interpolation. Motion FPS must match policy `step_dt`.
+On each entry, history is filled from current joint/IMU state and previous
+targets start at current joint positions. History stores the pre-action state
+paired with the newly committed target, in oldest-to-newest order.
+
+The runtime reads `SharedControlData` and writes the existing impedance-command
+output, so simulation and hardware share the inference code. Reference heights
+come from CSV, not robot position estimation. Hardware deployment still needs
+verification of pelvis IMU axes, joint calibration, timing, actuator limits,
+and entry transitions. MuJoCo pause synchronization is not added here: policy
+time follows the existing control loop, so exit the policy before pausing and
+re-enter it after resetting the simulation.
+
+Implementation was validated against legacy CSV interpolation, Adapter frame
+lookup, independent history inference, joint-order mapping, re-entry, and
+non-finite sensor rejection. An offline check connected the C++ runtime to the
+K1 MuJoCo model with affine PD for all 559 frames (joint RMSE about 0.117 rad).
+The temporary checks were removed after validation. ROS transport latency,
+GUI entry transitions, and physical hardware operation remain unverified.

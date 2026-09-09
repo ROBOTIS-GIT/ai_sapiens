@@ -69,7 +69,7 @@ PolicyRuntime::PolicyRuntime(
   load_onnx_model();
   const size_t observation_size =
     create_observation_manager(sim2real_config, shared_data, reference_motion);
-  gait_clock_ = make_gait_clock(sim2real_config.observations(), step_dt_);
+  if (!adapter_) {gait_clock_ = make_gait_clock(sim2real_config.observations(), step_dt_);}
   validate_observation_size(observation_size);
   obs_buffer_[onnx_input_name_].resize(observation_size);
   log_ready(observation_size);
@@ -80,9 +80,7 @@ PolicyRuntime::~PolicyRuntime() = default;
 void PolicyRuntime::reset()
 {
   accumulated_period_ = step_dt_;
-  if (obs_manager_) {
-    obs_manager_->reset();
-  }
+  if (adapter_) {reset_adapter_history();} else if (obs_manager_) {obs_manager_->reset();}
 }
 
 void PolicyRuntime::enter()
@@ -91,7 +89,7 @@ void PolicyRuntime::enter()
   install_velocity_command_ranges();
   reset_episode_state();
   on_enter();
-  obs_manager_->reset();  // after on_enter(): seeds history from the state it sets
+  if (adapter_) {reset_adapter_history();} else {obs_manager_->reset();} // after on_enter(): seeds history from the state it sets
 }
 
 void PolicyRuntime::install_joint_properties() const
@@ -131,6 +129,7 @@ void PolicyRuntime::install_velocity_command_ranges() const
 void PolicyRuntime::reset_episode_state()
 {
   policy_->episode_time = 0.0f;
+  adapter_steps_ = 0;
   action_limit_logged_ = false;
   if (policy_->last_action.size() < joint_context_.policy_joint_names.size()) {
     throw std::runtime_error("Policy state '" + state_name_ + "' last_action buffer too small");
@@ -159,7 +158,9 @@ bool PolicyRuntime::prepare_observation()
 
 void PolicyRuntime::advance_clocks()
 {
-  policy_->episode_time += static_cast<float>(step_dt_);
+  if (adapter_) {policy_->episode_time = static_cast<float>(++adapter_steps_ * step_dt_);} else {
+    policy_->episode_time += static_cast<float>(step_dt_);
+  }
 }
 
 void PolicyRuntime::update(const rclcpp::Duration & period)
@@ -173,11 +174,20 @@ void PolicyRuntime::update(const rclcpp::Duration & period)
   }
 
   resolve_active_velocity_command();
-  compute_observation();
+  try {
+    compute_observation();
+  } catch (const std::exception & e) {
+    if (!adapter_) {throw;}
+    requests_->damping = true;
+    RCLCPP_ERROR(node_->get_logger(), "Adapter observation failed: %s", e.what());
+    return;
+  }
 
   if (const auto raw_action = run_policy_inference()) {
-    const auto & processed_action = action_pipeline_.process(*raw_action);
-    write_processed_action(*raw_action, processed_action);
+    const auto processed_action = process_action(*raw_action);
+    if (write_processed_action(*raw_action, processed_action) && adapter_) {
+      commit_adapter_history(processed_action);
+    }
   }
 
   advance_clocks();
@@ -220,8 +230,92 @@ void PolicyRuntime::resolve_active_velocity_command()
   }
 }
 
+std::vector<float> PolicyRuntime::process_action(const std::vector<float> & raw_action)
+{
+  return action_pipeline_.process(raw_action);
+}
+
+std::vector<float> PolicyRuntime::adapter_state_frame() const
+{
+  const size_t count = joint_context_.policy_joint_names.size();
+  std::vector<float> frame(6 + 3 * count);
+  for (size_t axis = 0; axis < 3; ++axis) {
+    frame[axis] = sensors_->angular_velocity[axis] * joint_vel_scale_;
+    frame[3 + axis] = sensors_->projected_gravity[axis];
+  }
+  for (size_t i = 0; i < count; ++i) {
+    const auto controller = joint_context_.policy_to_controller[i];
+    frame[6 + i] = sensors_->joint_pos[controller] - joint_properties_.default_position[i];
+    frame[6 + count + i] = sensors_->joint_vel[controller] * joint_vel_scale_;
+    frame[6 + 2 * count + i] = last_motor_targets_.at(i);
+  }
+  return frame;
+}
+
+void PolicyRuntime::reset_adapter_history()
+{
+  const size_t count = joint_context_.policy_joint_names.size();
+  last_motor_targets_.resize(count);
+  for (size_t i = 0; i < count; ++i) {
+    last_motor_targets_[i] = sensors_->joint_pos[joint_context_.policy_to_controller[i]];
+  }
+  adapter_current_frame_ = adapter_state_frame();
+  adapter_history_.assign(history_length_, adapter_current_frame_);
+}
+
+void PolicyRuntime::compute_adapter_observation()
+{
+  if (adapter_history_.size() != static_cast<size_t>(history_length_)) {
+    throw std::runtime_error("Adapter history is not initialized");
+  }
+  adapter_current_frame_ = adapter_state_frame();
+  const size_t count = joint_context_.policy_joint_names.size();
+  const auto ref_q = adapter_reference_->joint_pos();
+  const auto ref_dq = adapter_reference_->joint_vel();
+  auto & obs = obs_buffer_["obs"];
+  obs.clear();
+  for (size_t i = 0; i < count; ++i) {
+    obs.push_back(ref_q[i] - sensors_->joint_pos[joint_context_.policy_to_controller[i]]);
+  }
+  for (size_t i = 0; i < count; ++i) {
+    obs.push_back((ref_dq[i] - sensors_->joint_vel[joint_context_.policy_to_controller[i]]) *
+        joint_vel_scale_);
+  }
+  obs.insert(obs.end(), adapter_current_frame_.begin() + 3, adapter_current_frame_.begin() + 6);
+  obs.insert(obs.end(), adapter_current_frame_.begin(), adapter_current_frame_.begin() + 3);
+  obs.insert(obs.end(), adapter_current_frame_.begin() + 6, adapter_current_frame_.end());
+  const auto & feet = adapter_reference_->feet_height();
+  obs.insert(obs.end(), feet.data(), feet.data() + feet.size());
+  obs.push_back(adapter_reference_->root_height());
+  for (float & value : obs) {
+    if (!std::isfinite(value)) {throw std::runtime_error("Non-finite Adapter observation");}
+    value = std::clamp(value, -100.0f, 100.0f);
+  }
+  auto & history = obs_buffer_["history"];
+  for (size_t channel = 0; channel < adapter_current_frame_.size(); ++channel) {
+    for (int frame = 0; frame < history_length_; ++frame) {
+      const float value = adapter_history_[frame][channel];
+      if (!std::isfinite(value)) {throw std::runtime_error("Non-finite Adapter history");}
+      history[channel * history_length_ + frame] = value;
+    }
+  }
+  policy_->input = obs;
+}
+
+void PolicyRuntime::commit_adapter_history(const std::vector<float> & targets)
+{
+  last_motor_targets_ = targets;
+  std::copy(targets.begin(), targets.end(), adapter_current_frame_.end() - targets.size());
+  adapter_history_.pop_front();
+  adapter_history_.push_back(adapter_current_frame_);
+}
+
 void PolicyRuntime::compute_observation()
 {
+  if (adapter_) {
+    compute_adapter_observation();
+    return;
+  }
   // ObservationManager returns the full scaled/clipped/history observation.
   obs_buffer_[onnx_input_name_] = obs_manager_->compute();
   policy_->input = obs_buffer_[onnx_input_name_];
@@ -266,7 +360,7 @@ void PolicyRuntime::handle_inference_failure(const char * reason)
   }
 }
 
-void PolicyRuntime::write_processed_action(
+bool PolicyRuntime::write_processed_action(
   const std::vector<float> & raw_action,
   const std::vector<float> & processed_action)
 {
@@ -289,7 +383,7 @@ void PolicyRuntime::write_processed_action(
     if (!std::isfinite(value) || std::abs(value) > kAbsActionLimitRad) {
       requests_->action_limit_exceeded = true;
       log_action_limit_once(policy_index, raw_action[policy_index], value);
-      return;
+      return false;
     }
   }
 
@@ -306,6 +400,7 @@ void PolicyRuntime::write_processed_action(
 
   // The buffer is controller-sized; this policy uses the first joint_names.size() slots.
   std::copy(raw_action.begin(), raw_action.end(), policy_->last_action.begin());
+  return true;
 }
 
 void PolicyRuntime::log_action_limit_once(
@@ -349,6 +444,9 @@ void PolicyRuntime::load_sim2real_config(
   const Sim2RealConfig & sim2real_config,
   const std::vector<std::string> & controller_joint_names)
 {
+  adapter_ = sim2real_config.is_adapter();
+  history_length_ = sim2real_config.history_length();
+  joint_vel_scale_ = sim2real_config.joint_vel_scale();
   joint_context_.policy_joint_names = sim2real_config.policy_joints();
   // Policy joints may be a subset of the robot joints; every policy joint
   // must exist on the robot, but not the other way around.
@@ -424,12 +522,31 @@ void PolicyRuntime::load_onnx_model()
 {
   inference_ = std::make_unique<OnnxInference>(model_path_);
   const auto & input_names = inference_->get_input_names();
-  if (input_names.size() != 1) {
+  if (adapter_) {
+    const auto & sizes = inference_->get_input_sizes();
+    const auto count = joint_context_.policy_joint_names.size();
+    if (input_names.size() != 2) {
+      throw std::runtime_error("Adapter requires obs and history inputs");
+    }
+    for (size_t i = 0; i < input_names.size(); ++i) {
+      const auto expected = input_names[i] == "obs" ? 5 * count + 11 :
+        input_names[i] == "history" ? (6 + 3 * count) * history_length_ : 0;
+      if (expected == 0 || sizes[i] != static_cast<int64_t>(expected)) {
+        throw std::runtime_error("Adapter ONNX input name or size mismatch");
+      }
+      const std::vector<int64_t> shape = input_names[i] == "obs" ?
+        std::vector<int64_t>{1, static_cast<int64_t>(5 * count + 11)} :
+      std::vector<int64_t>{1, static_cast<int64_t>(6 + 3 * count), history_length_};
+      if (inference_->get_input_shapes()[i] != shape) {
+        throw std::runtime_error("Adapter ONNX tensor axes must be batch/channel/time");
+      }
+    }
+  } else if (input_names.size() != 1) {
     throw std::runtime_error(
       "Policy state '" + state_name_ + "' must have exactly one ONNX input");
   }
 
-  onnx_input_name_ = input_names[0];
+  onnx_input_name_ = adapter_ ? "obs" : input_names[0];
 
   // Validate ONNX output size before RT updates.
   const auto output_size = static_cast<size_t>(inference_->get_output_size());
@@ -446,6 +563,41 @@ size_t PolicyRuntime::create_observation_manager(
   const SharedControlData * shared_data,
   const MotionReference * reference_motion)
 {
+  if (adapter_) {
+    if (!reference_motion || !reference_motion->is_adapter() ||
+      reference_motion->joint_order() != joint_context_.policy_joint_names)
+    {
+      throw std::runtime_error("Adapter requires an Adapter CSV in policy joint order");
+    }
+    adapter_reference_ = reference_motion;
+    const std::vector<std::string> expected = {"dif_joint_pos", "dif_joint_vel", "gvec_pelvis",
+      "gyro_pelvis", "joint_pos", "joint_vel", "last_motor_targets", "ref_feet_height",
+      "ref_root_height"};
+    size_t i = 0;
+    for (const auto & term : sim2real_config.observations()) {
+      if (i >= expected.size() || term.first.as<std::string>() != expected[i++]) {
+        throw std::runtime_error("Unsupported Adapter observation order");
+      }
+      const auto cfg = term.second;
+      if (cfg["history_length"].as<int>(1) != 1 || (cfg["clip"] && !cfg["clip"].IsNull())) {
+        throw std::runtime_error("Adapter observations use separate history and fixed clipping");
+      }
+      if (const auto scale = cfg["scale"]; scale && !scale.IsNull()) {
+        if (!scale.IsSequence()) {
+          throw std::runtime_error("Adapter observation scale must be a sequence");
+        }
+        for (const auto & value : scale) {
+          if (value.as<float>() != 1.0f) {
+            throw std::runtime_error("Adapter observation scale must be 1");
+          }
+        }
+      }
+    }
+    if (i != expected.size()) {throw std::runtime_error("Missing Adapter observations");}
+    obs_buffer_["history"].resize((6 + 3 * joint_context_.policy_joint_names.size()) *
+        history_length_);
+    return observation_size();
+  }
   obs_manager_ = std::make_unique<ObservationManager>(
     sim2real_config.observations(),
     shared_data,
@@ -457,7 +609,9 @@ size_t PolicyRuntime::create_observation_manager(
 void PolicyRuntime::validate_observation_size(size_t observation_size) const
 {
   const auto & input_sizes = inference_->get_input_sizes();
-  const int64_t expected_size = input_sizes.empty() ? 0 : input_sizes[0];
+  const auto & names = inference_->get_input_names();
+  const auto index = std::find(names.begin(), names.end(), onnx_input_name_) - names.begin();
+  const int64_t expected_size = input_sizes.at(index);
   const int64_t actual_size = static_cast<int64_t>(observation_size);
 
   if (expected_size != actual_size) {

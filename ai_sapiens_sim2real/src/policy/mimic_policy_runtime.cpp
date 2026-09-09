@@ -42,17 +42,22 @@ std::unique_ptr<MimicPolicyRuntime> MimicPolicyRuntime::create(
     sim2real_config,
     controller_joint_names,
     shared_data,
-    load_playback(mimic, controller_joint_names),
+    load_playback(mimic, controller_joint_names, sim2real_config),
     mimic.on_complete);
 }
 
 MotionPlayback MimicPolicyRuntime::load_playback(
   const MimicBehavior & mimic,
-  const std::vector<std::string> & controller_joint_names)
+  const std::vector<std::string> & controller_joint_names,
+  const Sim2RealConfig & config)
 {
   MotionPlayback playback;
   playback.reference = std::make_shared<MotionReference>(
-    mimic.motion_file.string(), mimic.fps, controller_joint_names);
+    mimic.motion_file.string(), mimic.fps,
+    config.is_adapter() ? config.policy_joints() : controller_joint_names, config.is_adapter());
+  if (config.is_adapter() && std::abs(mimic.fps * config.step_dt() - 1.0) > 1e-5) {
+    throw std::runtime_error("Adapter motion FPS must match policy step_dt");
+  }
   const float duration = playback.reference->duration();
   // Reject an obviously bad window on the raw config (before clamping hides it).
   const float requested_end = mimic.time_end.value_or(duration);
@@ -90,6 +95,7 @@ MimicPolicyRuntime::MimicPolicyRuntime(
 void MimicPolicyRuntime::on_enter()
 {
   playback_.reference->seek(playback_.time_start);
+  if (is_adapter()) {return;} // Adapter observes pelvis gravity, not a torso heading anchor.
   const auto ref_yaw = yaw_quaternion(playback_.reference->root_quaternion()).toRotationMatrix();
   const auto robot_yaw =
     yaw_quaternion(torso_orientation_in_world(*sensors_, joint_context())).toRotationMatrix();
@@ -100,7 +106,7 @@ bool MimicPolicyRuntime::prepare_observation()
 {
   // Window ended: hand off to the completion state; false stops this tick's step.
   const auto motion_time = playback_.seek_time(policy_->episode_time);
-  if (!motion_time) {
+  if (!motion_time || (is_adapter() && *motion_time >= playback_.time_end)) {
     if (completion_state_ != "stay") {
       requests_->state_name = completion_state_;
     }
@@ -110,6 +116,18 @@ bool MimicPolicyRuntime::prepare_observation()
 
   playback_.reference->seek(*motion_time);
   return true;
+}
+
+std::vector<float> MimicPolicyRuntime::process_action(const std::vector<float> & raw_action)
+{
+  auto result = PolicyRuntime::process_action(raw_action);
+  if (is_adapter()) {
+    const auto reference = playback_.reference->joint_pos();
+    for (size_t i = 0; i < result.size(); ++i) {
+      result[i] += reference[i];
+    }
+  }
+  return result;
 }
 
 Eigen::Quaternionf MimicPolicyRuntime::yaw_quaternion(const Eigen::Quaternionf & q)

@@ -17,6 +17,7 @@
 #include "ai_sapiens_sim2real/config/sim2real_config.hpp"
 
 #include <stdexcept>
+#include <cmath>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -213,6 +214,29 @@ ActionProperties read_action_properties(
   const auto actions_node = config["actions"];
   require_yaml_map(actions_node, "actions");
 
+  const bool adapter = config["runtime_type"] &&
+    config["runtime_type"].as<std::string>() == "opentrack_anyadapter";
+  if (adapter) {
+    const auto residual = actions_node["reference_residual"];
+    require_yaml_map(residual, "actions.reference_residual");
+    ActionProperties result;
+    result.scale = read_action_vector(residual, "scale", policy_joints,
+      std::vector<float>(policy_joints.size(), 1.0f));
+    result.offset.assign(policy_joints.size(), 0.0f);
+    result.clip.assign(policy_joints.size(), std::nullopt);
+    if (residual["clip"] && !residual["clip"].IsNull()) {
+      throw std::runtime_error("Adapter residual clip must be null");
+    }
+    const auto offset = residual["offset"];
+    if (offset && !offset.IsNull() && (!offset.IsSequence() || offset.size() != 0)) {
+      throw std::runtime_error(
+            "Adapter residual offset must be empty; reference provides the offset");
+    }
+    for (const float scale : result.scale) {
+      if (!std::isfinite(scale)) {throw std::runtime_error("Adapter scale must be finite");}
+    }
+    return result;
+  }
   const auto action_node = actions_node["joint_pos"];
   require_yaml_map(action_node, "actions.joint_pos");
 
@@ -310,11 +334,25 @@ Sim2RealConfig::Sim2RealConfig(const std::filesystem::path & path)
   with_yaml_file_context(
     path_, "policy sim2real.yaml",
     [&] {
+      is_adapter_ = node["runtime_type"] &&
+      node["runtime_type"].as<std::string>() == "opentrack_anyadapter";
+      if (is_adapter_) {
+        history_length_ = node["history_length"].as<int>();
+        joint_vel_scale_ = node["joint_vel_scale"].as<float>();
+        if (history_length_ <= 0 || history_length_ > 10000 ||
+        !std::isfinite(joint_vel_scale_) || joint_vel_scale_ <= 0.0f)
+        {
+          throw std::runtime_error("Invalid Adapter history length or velocity scale");
+        }
+      }
       policy_joints_ = read_policy_joint_order(node);
       const auto step_dt_node = node["step_dt"];
       require_yaml_node(step_dt_node, "step_dt");
 
       step_dt_ = step_dt_node.as<double>();
+      if (!std::isfinite(step_dt_) || step_dt_ <= 0) {
+        throw std::runtime_error("step_dt must be finite and positive");
+      }
       joint_properties_ = read_joint_properties(node, policy_joints_);
       action_properties_ = read_action_properties(
         node,
