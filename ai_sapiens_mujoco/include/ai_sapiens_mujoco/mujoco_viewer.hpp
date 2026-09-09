@@ -26,6 +26,7 @@
 
 #include "ai_sapiens_mujoco/mujoco_simulation.hpp"
 #include "ai_sapiens_mujoco/mujoco_viewer_ui.hpp"
+#include "ai_sapiens_mujoco/viewer_teleop.hpp"
 
 struct GLFWwindow;
 
@@ -86,6 +87,8 @@ private:
   mjvScene scn_;
   mjrContext con_;
   MujocoViewerUi ui_;
+  std::unique_ptr<ViewerTeleop> teleop_;
+  void align_camera();
 
   // Mouse interaction state (viewer thread only).
   bool button_left_{false};

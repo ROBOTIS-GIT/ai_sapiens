@@ -34,6 +34,7 @@ ENV ROS_DISTRO=jazzy
 
 RUN cd ${COLCON_WS} && \
     apt-get update && \
+    apt-get install -y --no-install-recommends libimgui-dev fonts-dejavu-core && \
     rosdep update && \
     rosdep install -i --from-path src --rosdistro $ROS_DISTRO --skip-keys="librealsense2" -y && \
     rm -rf /var/lib/apt/lists/*

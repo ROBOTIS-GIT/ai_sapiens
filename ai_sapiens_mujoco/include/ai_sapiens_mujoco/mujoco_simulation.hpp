@@ -50,6 +50,12 @@ struct ImuState
   std::array<double, 3> accel{};
 };
 
+struct PhysicsSettings {
+  bool floor_available{false}, payload_available{false};
+  double friction{0}, nominal_friction{0}, nominal_mass{0}, current_mass{0};
+  std::string base_body;
+};
+
 class MujocoSimulation
 {
 public:
@@ -76,6 +82,15 @@ public:
   void advance(double dt_seconds);
 
   double sim_time() const;
+  /// Restore the initial scene (including configured hang height), clearing forces/commands.
+  void reset();
+  void set_paused(bool paused);
+  bool paused() const;
+  PhysicsSettings physics_settings() const;
+  void set_floor_friction(double coefficient);
+  void restore_floor_friction();
+  void set_payload(double additional_mass);
+  void restore_payload();
 
   /// Viewer render lock.
   std::mutex & mutex();
@@ -92,11 +107,21 @@ public:
   double gantry_height() const;
 
 private:
+  void cache_physics_settings();  // caller holds mutex_
+  int floor_id_{-1}, payload_body_{-1};
+  PhysicsSettings physics_;
+  std::array<mjtNum, 3> nominal_floor_{};
+  std::vector<int> floor_pairs_, floor_feet_;
+  std::vector<std::array<mjtNum, 5>> nominal_pairs_;
+  std::vector<std::array<mjtNum, 3>> nominal_feet_;
   void apply_control();   // caller holds mutex_
   void update_gantry();   // caller holds mutex_
 
   mjModel * model_{nullptr};
   mjData * data_{nullptr};
+  mjData * initial_data_{nullptr};
+  bool paused_{false};
+  std::vector<mjtNum> initial_eq_data_;
   mutable std::mutex mutex_;
   double accumulator_{0.0};
   std::vector<int> qpos_adr_, qvel_adr_, act_id_;

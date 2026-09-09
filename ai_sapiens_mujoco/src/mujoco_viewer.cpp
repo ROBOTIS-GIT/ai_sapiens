@@ -125,7 +125,7 @@ void MujocoViewer::run()
   }
 
   GLFWwindow * window =
-    glfwCreateWindow(1200, 900, "AI Sapiens K1 - MuJoCo", nullptr, nullptr);
+    glfwCreateWindow(1920, 1080, "K1 MuJoCo Simulation", nullptr, nullptr);
   if (!window) {
     RCLCPP_ERROR(viewer_logger(), "Failed to create GLFW window; viewer disabled");
     terminate_glfw_if_safe();
@@ -135,15 +135,11 @@ void MujocoViewer::run()
   glfwMakeContextCurrent(window);
   glfwSwapInterval(1);
 
-  cam_.lookat[0] = 0.0;
-  cam_.lookat[1] = 0.0;
-  cam_.lookat[2] = 0.8;
-  cam_.distance = 2.5;
-  cam_.elevation = -20.0;
+  align_camera();
 
   mjv_makeScene(sim_->model(), &scn_, 2000);
   mjr_makeContext(sim_->model(), &con_, mjFONTSCALE_150);
-  ui_.initialize(&opt_, sim_->gantry_present());
+
 
   int framebuffer_width = 0;
   int framebuffer_height = 0;
@@ -156,8 +152,17 @@ void MujocoViewer::run()
   glfwSetCursorPosCallback(window, &MujocoViewer::cursor_pos_callback);
   glfwSetScrollCallback(window, &MujocoViewer::scroll_callback);
 
+  ui_.initialize(&opt_, sim_->gantry_present());
+
+  try {
+    teleop_ = std::make_unique<ViewerTeleop>(sim_);
+    ui_.set_controls(&teleop_->state);
+  } catch (const std::exception & error) {
+    RCLCPP_ERROR(viewer_logger(), "GUI policy controls unavailable: %s", error.what());
+  }
   fps_sample_start_ = std::chrono::steady_clock::now();
   while (!glfwWindowShouldClose(window) && running_) {
+    if (teleop_) teleop_->tick();
     {
       std::lock_guard<std::mutex> lock(sim_->mutex());
       apply_external_force_locked();
@@ -199,17 +204,22 @@ void MujocoViewer::run()
       sim_->gantry_present() && sim_->gantry_attached();
     const double gantry_height =
       sim_->gantry_present() ? sim_->gantry_height() : 0.0;
+    ui_.update_physics(sim_->physics_settings());
     ui_.update_status(
       frames_per_second_, contact_count_,
       external_force_dragging_, external_force_body_name,
       gantry_attached, gantry_height, &con_);
     ui_.render(&con_);
+    apply_ui_action(ui_.take_action());
     glfwSwapBuffers(window);
     glfwPollEvents();
     update_frame_rate();
   }
 
   end_external_force_drag();
+  ui_.set_controls(nullptr);
+  teleop_.reset();
+  ui_.shutdown();
   mjv_freeScene(&scn_);
   mjr_freeContext(&con_);
   glfwDestroyWindow(window);
@@ -298,6 +308,9 @@ void MujocoViewer::handle_mouse_button(GLFWwindow * window, int button, int acti
   lastx_ = cursor_x;
   lasty_ = cursor_y;
   apply_ui_action(ui_result.action);
+  if (action == GLFW_RELEASE && external_force_dragging_) {
+    end_external_force_drag();
+  }
   if (ui_result.handled) {
     button_left_ = false;
     button_middle_ = false;
@@ -450,8 +463,34 @@ ViewerUiEvent MujocoViewer::make_pointer_event(
   return event;
 }
 
+void MujocoViewer::align_camera()
+{
+  mjv_defaultCamera(&cam_);
+  cam_.azimuth = 120;
+  cam_.elevation = -20;
+  cam_.distance = 3.0;
+  cam_.lookat[0] = cam_.lookat[1] = 0.0;
+  cam_.lookat[2] = 0.5;
+}
+
 void MujocoViewer::apply_ui_action(ViewerUiAction action)
 {
+  switch (action) {
+    case ViewerUiAction::kSetFriction: sim_->set_floor_friction(ui_.requested_friction()); return;
+    case ViewerUiAction::kResetFriction: sim_->restore_floor_friction(); return;
+    case ViewerUiAction::kSetPayload: sim_->set_payload(ui_.requested_payload()); return;
+    case ViewerUiAction::kResetPayload: sim_->restore_payload(); return;
+    default: break;
+  }
+  if (action == ViewerUiAction::kAlign) { align_camera(); return; }
+  if (action >= ViewerUiAction::kReset) {
+    if (action == ViewerUiAction::kReset || action == ViewerUiAction::kPause) {
+      end_external_force_drag();
+      pert_.active = 0; pert_.select = 0;
+    }
+    if (teleop_) teleop_->request(action);
+    return;
+  }
   switch (action) {
     case ViewerUiAction::kRaiseGantry:
       nudge_gantry(kGantryNudgeMeters);
@@ -466,6 +505,7 @@ void MujocoViewer::apply_ui_action(ViewerUiAction action)
       sim_->gantry_release();
       break;
     case ViewerUiAction::kNone:
+    default:
       break;
   }
 }

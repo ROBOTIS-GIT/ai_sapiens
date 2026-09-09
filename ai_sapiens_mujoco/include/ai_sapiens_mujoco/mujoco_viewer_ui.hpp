@@ -18,6 +18,10 @@
 #define AI_SAPIENS_MUJOCO__MUJOCO_VIEWER_UI_HPP_
 
 #include <mujoco/mujoco.h>
+#include "ai_sapiens_mujoco/mujoco_simulation.hpp"
+#include <string>
+#include <vector>
+#include <cstdint>
 
 namespace ai_sapiens_mujoco
 {
@@ -29,6 +33,9 @@ enum class ViewerUiAction
   kLowerGantry,
   kAttachGantry,
   kReleaseGantry,
+  kReset, kPause, kAlign, kReadyPose, kDamping, kVelocity, kMimic,
+  kStopVelocity,
+  kSetFriction, kResetFriction, kSetPayload, kResetPayload,
 };
 
 struct ViewerUiEvent
@@ -57,54 +64,46 @@ struct ViewerUiResult
   ViewerUiAction action{ViewerUiAction::kNone};
 };
 
-/// MuJoCo-native side panel for viewer diagnostics and controls.
-///
-/// This class owns all mjUI state so the viewer's camera and perturbation
-/// handlers only receive events from the 3D viewport.
+struct ViewerPolicyOption { uint16_t code; std::string name; };
+struct ViewerControlState {
+  bool connected{false}, paused{false}, busy{false};
+  std::string mode{"Disconnected"}, note{"Start with --sim --gui"};
+  std::string velocity_asset;
+  std::vector<ViewerPolicyOption> motions;
+  int selected_motion{0};
+  float velocity[3]{0, 0, 0};  // Normalized commands, as with keyboard teleop.
+};
+
+/// Dear ImGui shell matching the robotis_mujoco viewer.
 class MujocoViewerUi
 {
 public:
   void initialize(mjvOption * option, bool gantry_present);
-  void resize(int framebuffer_width, int framebuffer_height, mjrContext * context);
-
-  ViewerUiResult handle_event(
-    const ViewerUiEvent & event, const mjrContext * context);
-
-  void update_status(
-    double frames_per_second, int contact_count,
-    bool external_force_active, const char * external_force_body_name,
-    bool gantry_attached, double gantry_height,
-    const mjrContext * context);
-
+  void shutdown();
+  void update_physics(const PhysicsSettings & settings) { physics_ = settings; friction_ = settings.friction; }
+  float requested_friction() const { return friction_; }
+  float requested_payload() const { return payload_; }
+  void set_controls(ViewerControlState * controls) { controls_ = controls; }
+  void resize(int width, int height, mjrContext * context);
+  ViewerUiResult handle_event(const ViewerUiEvent & event, const mjrContext * context);
+  void update_status(double fps, int contacts, bool force, const char * body,
+    bool attached, double height, const mjrContext * context);
   void render(const mjrContext * context);
-
-  [[nodiscard]] mjrRect scene_viewport() const;
-  [[nodiscard]] bool cursor_is_in_scene() const;
-
+  ViewerUiAction take_action();
+  mjrRect scene_viewport() const;
+  bool cursor_is_in_scene() const;
 private:
-  static constexpr int kPanelRectId = 1;
-  static constexpr int kSceneRectId = 2;
-  static constexpr int kDiagnosticsSection = 0;
-  static constexpr int kVisualizationSection = 1;
-  static constexpr int kGantrySection = 2;
-
-  void update_pointer_state(const ViewerUiEvent & event);
-  void set_static_value(
-    int section, int item, const char * value, const mjrContext * context);
-  void update_gantry_button_states(
-    bool gantry_attached, const mjrContext * context);
-  static ViewerUiAction action_from_item(const mjuiItem * item);
-
-  mjUI ui_{};
-  mjuiState state_{};
-  bool initialized_{false};
-  bool gantry_present_{false};
-  bool gantry_state_initialized_{false};
-  bool gantry_attached_{false};
-  int framebuffer_width_{0};
-  int framebuffer_height_{0};
+  mjvOption * option_{nullptr};
+  bool initialized_{false}, gantry_{false}, attached_{false};
+  bool left_{true}, right_{true}, help_{false}, info_{true};
+  int width_{0}, height_{0}, contacts_{0};
+  double fps_{0}, gantry_height_{0};
+  ViewerUiAction pending_{ViewerUiAction::kNone};
+  void * bold_{nullptr};
+  ViewerControlState * controls_{nullptr};
+  PhysicsSettings physics_;
+  float friction_{0}, payload_{0};
+  bool velocity_panel_{true}, mimic_panel_{true};
 };
-
 }  // namespace ai_sapiens_mujoco
-
-#endif  // AI_SAPIENS_MUJOCO__MUJOCO_VIEWER_UI_HPP_
+#endif

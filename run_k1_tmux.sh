@@ -27,6 +27,7 @@ usage() {
   echo "  --sim                  Use MuJoCo."
   echo "  --radiomaster-usb      Use RadioMaster USB (MuJoCo only)."
   echo "  --dualsense            Use DualSense."
+  echo "  --gui                  Use MuJoCo viewer controls (requires --sim)."
   echo "  --keyboard             Use keyboard teleop."
   echo "  --device=/dev/input/jsN  Select the RadioMaster or DualSense device."
 }
@@ -35,7 +36,7 @@ usage() {
 for arg in "$@"; do
   case "$arg" in
     --sim) SIM=true ;;
-    --radiomaster-usb|--dualsense|--keyboard) set_teleop "${arg#--}" ;;
+    --radiomaster-usb|--dualsense|--keyboard|--gui) set_teleop "${arg#--}" ;;
     --device=*) DEVICE="${arg#*=}"; DEVICE_SET=true ;;
     -h|--help) usage; exit 0 ;;
     --*) die "unknown option '$arg'." ;;
@@ -51,6 +52,10 @@ SESSION_NAME="${SESSION_ARGS[0]:-ai_sapiens}"
 # Reject option combinations that cannot be launched together.
 if [ "$TELEOP" = "radiomaster-usb" ] && [ "$SIM" != true ]; then
   die "--radiomaster-usb requires --sim."
+fi
+
+if [ "$TELEOP" = "gui" ] && [ "$SIM" != true ]; then
+  die "--gui requires --sim."
 fi
 
 if [ "$DEVICE_SET" = true ]; then
@@ -83,6 +88,9 @@ use_plugin() {
 
 printf -v DEVICE_QUOTED '%q' "$DEVICE"
 case "$TELEOP" in
+  gui)
+    use_plugin "KeyboardTeleopInputPlugin" "gui"
+    ;;
   radiomaster-usb)
     BRINGUP_CMD+=" radiomaster_usb:=true radiomaster_usb_device:=$DEVICE_QUOTED"
     ;;

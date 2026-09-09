@@ -29,6 +29,7 @@ namespace ai_sapiens_mujoco
 
 MujocoSimulation::~MujocoSimulation()
 {
+  if (initial_data_) { mj_deleteData(initial_data_); }
   if (data_) {
     mj_deleteData(data_);
   }
@@ -164,6 +165,9 @@ void MujocoSimulation::load(
         data_->mocap_pos + 3 * gantry_mocap_);
     }
   }
+  cache_physics_settings();
+  initial_data_ = mj_copyData(nullptr, model_, data_);
+  initial_eq_data_.assign(model_->eq_data, model_->eq_data + model_->neq * mjNEQDATA);
 }
 
 void MujocoSimulation::set_hang_height(double pelvis_z)
@@ -182,6 +186,7 @@ void MujocoSimulation::set_hang_height(double pelvis_z)
     gantry_target_z_ = data_->mocap_pos[3 * gantry_mocap_ + 2];
   }
   mj_forward(model_, data_);
+  mj_copyData(initial_data_, model_, data_);
 }
 
 void MujocoSimulation::set_command(std::size_t joint_index, const JointCommand & cmd)
@@ -231,6 +236,7 @@ void MujocoSimulation::apply_control()
 void MujocoSimulation::advance(double dt_seconds)
 {
   std::lock_guard<std::mutex> lock(mutex_);
+  if (paused_) return;
   accumulator_ += dt_seconds;
   const double h = model_->opt.timestep;
   while (accumulator_ >= h) {
@@ -399,4 +405,34 @@ void MujocoSimulation::update_gantry()  // caller holds mutex_
   z += std::clamp(err, -max_dz, max_dz);
 }
 
+}  // namespace ai_sapiens_mujoco
+
+namespace ai_sapiens_mujoco {
+void MujocoSimulation::reset() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (!initial_data_) throw std::logic_error("MuJoCo scene is not loaded");
+  mj_copyData(data_, model_, initial_data_);
+  std::copy(initial_eq_data_.begin(), initial_eq_data_.end(), model_->eq_data);
+  accumulator_ = 0;
+  commands_.assign(commands_.size(), JointCommand{});
+  mju_zero(data_->xfrc_applied, 6 * model_->nbody);
+  mju_zero(data_->qfrc_applied, model_->nv);
+  gantry_speed_ = 0;
+  if (gantry_mocap_ >= 0 && gantry_eq_ >= 0) {
+    gantry_target_z_ = data_->mocap_pos[3 * gantry_mocap_ + 2];
+    gantry_released_ = data_->eq_active[gantry_eq_] == 0;
+    mju_copy3(gantry_attach_pos_.data(), data_->mocap_pos + 3 * gantry_mocap_);
+  }
+  apply_control();
+  mj_forward(model_, data_);
+}
+void MujocoSimulation::set_paused(bool paused) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  paused_ = paused;
+  accumulator_ = 0;
+}
+bool MujocoSimulation::paused() const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return paused_;
+}
 }  // namespace ai_sapiens_mujoco

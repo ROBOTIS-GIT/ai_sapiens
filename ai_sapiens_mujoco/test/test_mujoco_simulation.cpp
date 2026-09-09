@@ -381,3 +381,95 @@ int main(int argc, char ** argv)
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
+
+TEST(MujocoSimulation, ResetRestoresHangPoseWeldAndClearsForces)
+{
+  MujocoSimulation sim;
+  sim.load(scene("scene_gantry.xml"), kJoints);
+  sim.set_hang_height(1.25);
+  const std::vector<mjtNum> initial(sim.data()->qpos, sim.data()->qpos + sim.model()->nq);
+  const std::vector<mjtNum> weld(sim.model()->eq_data,
+    sim.model()->eq_data + sim.model()->neq * mjNEQDATA);
+  ASSERT_TRUE(sim.gantry_release());
+  sim.advance(0.02);
+  ASSERT_TRUE(sim.gantry_attach());
+  sim.data()->xfrc_applied[6] = 100;
+  sim.set_command(0, JointCommand{1.0, 100.0, 200.0, 3.0});
+  sim.reset();
+  EXPECT_DOUBLE_EQ(sim.sim_time(), 0.0);
+  EXPECT_TRUE(sim.gantry_attached());
+  for (int i=0; i<sim.model()->nq; ++i) EXPECT_DOUBLE_EQ(sim.data()->qpos[i], initial[i]);
+  for (int i=0; i<sim.model()->neq * mjNEQDATA; ++i) EXPECT_DOUBLE_EQ(sim.model()->eq_data[i], weld[i]);
+  EXPECT_DOUBLE_EQ(sim.data()->xfrc_applied[6], 0);
+  EXPECT_DOUBLE_EQ(sim.data()->ctrl[0], 0);
+}
+
+TEST(MujocoSimulation, PauseDoesNotAccumulateWallTime)
+{
+  MujocoSimulation sim;
+  sim.load(scene("scene.xml"), kJoints);
+  sim.advance(0.01);
+  const double before = sim.sim_time();
+  sim.set_paused(true);
+  sim.advance(20.0);
+  EXPECT_DOUBLE_EQ(sim.sim_time(), before);
+  sim.set_paused(false);
+  sim.advance(0.01);
+  EXPECT_NEAR(sim.sim_time(), before + 0.01, 1e-9);
+}
+
+TEST(MujocoSimulation, FrictionChangesEffectiveFootContactsAndRestoresDefaults)
+{
+  MujocoSimulation sim;
+  sim.load(scene("scene.xml"), kJoints);
+  ASSERT_TRUE(sim.physics_settings().floor_available);
+  auto * model = sim.model();
+  std::vector<mjtNum> original(model->geom_friction,model->geom_friction+3*model->ngeom);
+  sim.set_floor_friction(0.13);
+  sim.data()->qpos[2] -= 0.04;
+  mj_forward(model,sim.data());
+  int floor = mj_name2id(model,mjOBJ_GEOM,"floor");
+  int feet_contacts = 0;
+  for (int i=0; i<sim.data()->ncon; ++i) {
+    const auto & contact = sim.data()->contact[i];
+    int other = contact.geom[0] == floor ? contact.geom[1] :
+      (contact.geom[1] == floor ? contact.geom[0] : -1);
+    if (other < 0) continue;
+    const char * name = mj_id2name(model,mjOBJ_BODY,model->geom_bodyid[other]);
+    if (!name || std::string(name).find("ankle_roll") == std::string::npos) continue;
+    ++feet_contacts;
+    EXPECT_NEAR(contact.friction[0],0.13,1e-12);
+    EXPECT_NEAR(contact.friction[1],0.13,1e-12);
+  }
+  EXPECT_GT(feet_contacts,0);
+  sim.reset(); EXPECT_DOUBLE_EQ(sim.physics_settings().friction,0.13);
+  sim.restore_floor_friction();
+  for (int i=0; i<3*model->ngeom; ++i) EXPECT_DOUBLE_EQ(model->geom_friction[i],original[i]);
+  EXPECT_THROW(sim.set_floor_friction(std::numeric_limits<double>::quiet_NaN()),std::invalid_argument);
+}
+
+TEST(MujocoSimulation, PayloadUpdatesMassConstantsWithoutResettingMotion)
+{
+  MujocoSimulation sim;
+  sim.load(scene("scene_gantry.xml"),kJoints);
+  sim.set_hang_height(1.2); sim.advance(0.01);
+  auto * model = sim.model();
+  const int body = mj_name2id(model,mjOBJ_BODY,"pelvis");
+  const double mass = model->body_mass[body], total = model->body_subtreemass[0];
+  std::array<mjtNum,3> inertia;
+  std::copy_n(model->body_inertia+3*body,3,inertia.begin());
+  std::vector<mjtNum> qpos(sim.data()->qpos,sim.data()->qpos+model->nq);
+  std::vector<mjtNum> qvel(sim.data()->qvel,sim.data()->qvel+model->nv);
+  const double time = sim.sim_time();
+  sim.set_payload(7.5);
+  EXPECT_DOUBLE_EQ(model->body_mass[body],mass+7.5);
+  EXPECT_NEAR(model->body_subtreemass[0],total+7.5,1e-9);
+  EXPECT_DOUBLE_EQ(sim.sim_time(),time);
+  for (int i=0;i<model->nq;++i) EXPECT_DOUBLE_EQ(sim.data()->qpos[i],qpos[i]);
+  for (int i=0;i<model->nv;++i) EXPECT_DOUBLE_EQ(sim.data()->qvel[i],qvel[i]);
+  for (int i=0;i<3;++i) EXPECT_DOUBLE_EQ(model->body_inertia[3*body+i],inertia[i]);
+  sim.reset(); EXPECT_DOUBLE_EQ(model->body_mass[body],mass+7.5);
+  sim.restore_payload(); EXPECT_DOUBLE_EQ(model->body_mass[body],mass);
+  EXPECT_NEAR(model->body_subtreemass[0],total,1e-9);
+  EXPECT_THROW(sim.set_payload(std::numeric_limits<double>::infinity()),std::invalid_argument);
+}
