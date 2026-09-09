@@ -89,12 +89,12 @@ void PolicyRuntime::reset()
   }
 }
 
-void PolicyRuntime::enter(bool from_policy)
+void PolicyRuntime::enter(bool blend_from_previous)
 {
   target_action_ready_ = false;
   action_transition_.reset();
   const auto & transition = shared_data_->policy_action_transition;
-  if (from_policy && transition.enabled && transition.duration > 0.0) {
+  if (blend_from_previous && transition.enabled && transition.duration > 0.0) {
     action_transition_.begin(
       output_->has_published_action ? output_->published_action : output_->processed_action,
       joint_context_.policy_to_controller, transition.duration);

@@ -167,7 +167,9 @@ policy_action_transition:
 Restart the node after editing the root YAML. Omitting this section defaults to
 disabled; the example K1 configuration enables a 0.3-second transition. This only
 applies to policy-to-policy changes (including locomotion/mimic in either
-direction), not posture/damping entry or the initial policy startup.
+direction) and posture-to-policy changes (including ReadyPose). Both use the same
+enabled flag and duration. Entry from damping or startup without a previous
+posture/policy command remains immediate. Transitions into damping are unaffected.
 
 The start is the last published joint target after position limiting (or the
 previous output if nothing has been published). The destination policy keeps
