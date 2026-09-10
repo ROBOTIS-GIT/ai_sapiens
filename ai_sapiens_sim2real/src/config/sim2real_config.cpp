@@ -30,6 +30,13 @@ namespace ai_sapiens_sim2real
 namespace
 {
 
+bool is_opentrack_runtime(const YAML::Node & node)
+{
+  const auto type = node["runtime_type"].as<std::string>("");
+  return type == "opentrack" || type == "opentrack_anyadapter" ||
+         type == "opentrack_specialist";
+}
+
 struct JointProperty
 {
   float default_position;
@@ -214,8 +221,7 @@ ActionProperties read_action_properties(
   const auto actions_node = config["actions"];
   require_yaml_map(actions_node, "actions");
 
-  const bool adapter = config["runtime_type"] &&
-    config["runtime_type"].as<std::string>() == "opentrack_anyadapter";
+  const bool adapter = is_opentrack_runtime(config);
   if (adapter) {
     const auto residual = actions_node["reference_residual"];
     require_yaml_map(residual, "actions.reference_residual");
@@ -334,12 +340,11 @@ Sim2RealConfig::Sim2RealConfig(const std::filesystem::path & path)
   with_yaml_file_context(
     path_, "policy sim2real.yaml",
     [&] {
-      is_adapter_ = node["runtime_type"] &&
-      node["runtime_type"].as<std::string>() == "opentrack_anyadapter";
+      is_adapter_ = is_opentrack_runtime(node);
       if (is_adapter_) {
-        history_length_ = node["history_length"].as<int>();
+        history_length_ = node["history_length"].as<int>(0);
         joint_vel_scale_ = node["joint_vel_scale"].as<float>();
-        if (history_length_ <= 0 || history_length_ > 10000 ||
+        if (history_length_ < 0 || history_length_ > 10000 ||
         !std::isfinite(joint_vel_scale_) || joint_vel_scale_ <= 0.0f)
         {
           throw std::runtime_error("Invalid Adapter history length or velocity scale");

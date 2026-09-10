@@ -350,6 +350,15 @@ This activates `obs [1,126]`, channel-major `history [1,75,79]`, and reference
 residual actions for this 23-joint asset. The policy ONNX and its external
 `.onnx.data` weights must both be present. Motion loading uses only CSV.
 
+`runtime_type: opentrack_specialist` also uses the extended CSV and
+`actions.reference_residual`, with a single `obs` input and no history buffer.
+The generic `runtime_type: opentrack` is accepted for either model interface.
+ONNX input names and shapes determine whether history is needed; if YAML omits
+`history_length`, its length is taken from the ONNX history input. An explicit
+nonzero length must match the model. A model without history requires the YAML
+length to be omitted or zero. Previous motor targets remain in the observation
+for both interfaces and are reset on each entry.
+
 The extended CSV has named position, saved velocity, and four foot-height
 columns plus `ref_root_height`. Its quaternion columns are `root_qx/qy/qz/qw`.
 Adapter playback selects discrete frames at 50 Hz; it does not recalculate

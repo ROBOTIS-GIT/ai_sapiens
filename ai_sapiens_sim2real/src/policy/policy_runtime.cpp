@@ -291,6 +291,8 @@ void PolicyRuntime::compute_adapter_observation()
     if (!std::isfinite(value)) {throw std::runtime_error("Non-finite Adapter observation");}
     value = std::clamp(value, -100.0f, 100.0f);
   }
+  policy_->input = obs;
+  if (history_length_ == 0) {return;}
   auto & history = obs_buffer_["history"];
   for (size_t channel = 0; channel < adapter_current_frame_.size(); ++channel) {
     for (int frame = 0; frame < history_length_; ++frame) {
@@ -305,6 +307,7 @@ void PolicyRuntime::compute_adapter_observation()
 void PolicyRuntime::commit_adapter_history(const std::vector<float> & targets)
 {
   last_motor_targets_ = targets;
+  if (history_length_ == 0) {return;}
   std::copy(targets.begin(), targets.end(), adapter_current_frame_.end() - targets.size());
   adapter_history_.pop_front();
   adapter_history_.push_back(adapter_current_frame_);
@@ -525,8 +528,25 @@ void PolicyRuntime::load_onnx_model()
   if (adapter_) {
     const auto & sizes = inference_->get_input_sizes();
     const auto count = joint_context_.policy_joint_names.size();
-    if (input_names.size() != 2) {
-      throw std::runtime_error("Adapter requires obs and history inputs");
+    const auto history_input = std::find(input_names.begin(), input_names.end(), "history");
+    const bool has_history = history_input != input_names.end();
+    if (std::count(input_names.begin(), input_names.end(), "obs") != 1 ||
+      input_names.size() != (has_history ? 2u : 1u))
+    {
+      throw std::runtime_error("OpenTrack requires obs and optional history inputs");
+    }
+    if (has_history) {
+      const auto index = static_cast<size_t>(history_input - input_names.begin());
+      const auto & shape = inference_->get_input_shapes()[index];
+      if (shape.size() != 3 || shape[2] <= 0 || shape[2] > 10000) {
+        throw std::runtime_error("Invalid OpenTrack ONNX history shape");
+      }
+      if (history_length_ != 0 && history_length_ != shape[2]) {
+        throw std::runtime_error("OpenTrack YAML history length does not match ONNX");
+      }
+      history_length_ = static_cast<int>(shape[2]);
+    } else if (history_length_ != 0) {
+      throw std::runtime_error("OpenTrack policy has no history input but YAML requests history");
     }
     for (size_t i = 0; i < input_names.size(); ++i) {
       const auto expected = input_names[i] == "obs" ? 5 * count + 11 :
@@ -594,8 +614,10 @@ size_t PolicyRuntime::create_observation_manager(
       }
     }
     if (i != expected.size()) {throw std::runtime_error("Missing Adapter observations");}
-    obs_buffer_["history"].resize((6 + 3 * joint_context_.policy_joint_names.size()) *
-        history_length_);
+    if (history_length_ > 0) {
+      obs_buffer_["history"].resize((6 + 3 * joint_context_.policy_joint_names.size()) *
+          history_length_);
+    }
     return observation_size();
   }
   obs_manager_ = std::make_unique<ObservationManager>(
