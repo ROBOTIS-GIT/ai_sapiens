@@ -42,17 +42,20 @@ std::unique_ptr<MimicPolicyRuntime> MimicPolicyRuntime::create(
     sim2real_config,
     controller_joint_names,
     shared_data,
-    load_playback(mimic, controller_joint_names),
+    load_playback(mimic, sim2real_config, controller_joint_names),
     mimic.on_complete);
 }
 
 MotionPlayback MimicPolicyRuntime::load_playback(
   const MimicBehavior & mimic,
+  const Sim2RealConfig & sim2real_config,
   const std::vector<std::string> & controller_joint_names)
 {
   MotionPlayback playback;
+  const bool mjlab_format = mimic.mjlab_format.value_or(
+    static_cast<bool>(sim2real_config.observations()["robot_root_position_xy_w"]));
   playback.reference = std::make_shared<MotionReference>(
-    mimic.motion_file.string(), mimic.fps, controller_joint_names);
+    mimic.motion_file.string(), mimic.fps, controller_joint_names, mjlab_format);
   const float duration = playback.reference->duration();
   // Reject an obviously bad window on the raw config (before clamping hides it).
   const float requested_end = mimic.time_end.value_or(duration);
@@ -90,6 +93,18 @@ MimicPolicyRuntime::MimicPolicyRuntime(
 void MimicPolicyRuntime::on_enter()
 {
   playback_.reference->seek(playback_.time_start);
+  if (requires_localization()) {
+    const auto & localization = shared_data_->localization;
+    if (localization.align_on_entry) {
+      // Snapshot again on every entry, including Velocity -> Mimic after walking.
+      // The estimator keeps its continuous odom; only policy coordinates restart.
+      policy_->motion_frame.align(localization.position, localization.orientation,
+        playback_.reference->root_position().head<2>(), playback_.reference->root_quaternion());
+    }
+    // Global-position observations and anchor orientation share the same motion frame.
+    policy_->motion_init_quat = Eigen::Quaternionf::Identity();
+    return;
+  }
   const auto ref_yaw = yaw_quaternion(playback_.reference->root_quaternion()).toRotationMatrix();
   const auto robot_yaw =
     yaw_quaternion(torso_orientation_in_world(*sensors_, joint_context())).toRotationMatrix();

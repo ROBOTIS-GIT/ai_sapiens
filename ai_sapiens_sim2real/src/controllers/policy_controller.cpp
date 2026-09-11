@@ -29,7 +29,9 @@ PolicyController::PolicyController(
   SharedControlData * shared_data)
 : node_(node),
   teleop_(&shared_data->teleop),
-  policy_(&shared_data->policy)
+  policy_(&shared_data->policy),
+  requests_(&shared_data->requests),
+  localization_loss_state_(root_config.authority_config().default_velocity_state)
 {
   if (shared_data->joint_map.controller_joint_names.empty()) {
     throw std::runtime_error("PolicyController requires initialized controller joint order");
@@ -70,6 +72,14 @@ void PolicyController::update(
       "[PolicyController] active state '%s' requested policy '%s' but no runtime exists",
       decision.active_state_name.c_str(),
       decision.active_policy_name.c_str());
+    return;
+  }
+
+  if (!runtime->check_inputs()) {
+    requests_->state_name = localization_loss_state_;
+    RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 1000,
+      "Policy '%s' requires fresh localization; stopping mimic and requesting %s",
+      decision.active_state_name.c_str(), localization_loss_state_.c_str());
     return;
   }
 

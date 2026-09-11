@@ -35,6 +35,7 @@ public:
   explicit ActionPipeline(ActionProperties properties);
 
   const std::vector<float> & process(const std::vector<float> & raw_action);
+  const std::vector<float> & applied_raw_action() const {return applied_raw_action_;}
   size_t size() const
   {
     return properties_.scale.size();
@@ -49,6 +50,7 @@ private:
   // Static action transform from config and reusable output buffer.
   ActionProperties properties_;
   std::vector<float> processed_action_;
+  std::vector<float> applied_raw_action_;
 };
 
 }  // namespace ai_sapiens_sim2real

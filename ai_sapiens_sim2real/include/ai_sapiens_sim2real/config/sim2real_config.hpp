@@ -46,6 +46,7 @@ struct ActionProperties
   std::vector<float> scale;
   std::vector<float> offset;
   std::vector<PositionLimit> clip;
+  std::vector<PositionLimit> raw_clip;
 };
 
 // Maps a target joint order onto positions in a source order. Used to scatter a

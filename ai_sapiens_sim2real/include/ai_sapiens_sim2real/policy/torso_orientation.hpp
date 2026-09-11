@@ -39,7 +39,8 @@ inline constexpr char kWaistYawJointName[] = "waist_yaw_joint";
  * orientation unchanged.
  */
 inline Eigen::Quaternionf torso_orientation_in_world(
-  const SensorData & sensors, const PolicyJointContext & joints)
+  const SensorData & sensors, const PolicyJointContext & joints,
+  const Eigen::Quaternionf & root_orientation)
 {
   float waist_yaw = 0.0f;
   for (size_t i = 0; i < joints.policy_joint_names.size(); ++i) {
@@ -49,7 +50,13 @@ inline Eigen::Quaternionf torso_orientation_in_world(
     }
   }
 
-  return sensors.orientation * Eigen::AngleAxisf(waist_yaw, Eigen::Vector3f::UnitZ());
+  return root_orientation * Eigen::AngleAxisf(waist_yaw, Eigen::Vector3f::UnitZ());
+}
+
+inline Eigen::Quaternionf torso_orientation_in_world(
+  const SensorData & sensors, const PolicyJointContext & joints)
+{
+  return torso_orientation_in_world(sensors, joints, sensors.orientation);
 }
 
 }  // namespace ai_sapiens_sim2real

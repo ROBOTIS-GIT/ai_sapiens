@@ -63,6 +63,15 @@ PolicyRuntime::PolicyRuntime(
   , model_path_(std::move(model_path))
   , sim2real_config_path_(sim2real_config.path())
 {
+  const auto observations = sim2real_config.observations();
+  requires_localization_ = static_cast<bool>(observations["robot_root_position_xy_w"]);
+  const bool has_reference_xy = static_cast<bool>(observations["reference_root_position_xy_w"]);
+  if (requires_localization_ != has_reference_xy ||
+    ((requires_localization_ || has_reference_xy) && reference_motion == nullptr))
+  {
+    throw std::runtime_error(
+        "Global-position observations require a mimic policy and both XY terms");
+  }
   load_sim2real_config(sim2real_config, controller_joint_names);
   log_joint_coverage(controller_joint_names);
   log_loading();
@@ -77,6 +86,11 @@ PolicyRuntime::PolicyRuntime(
 
 PolicyRuntime::~PolicyRuntime() = default;
 
+bool PolicyRuntime::check_inputs()
+{
+  return !requires_localization_ || shared_data_->localization.valid;
+}
+
 void PolicyRuntime::reset()
 {
   accumulated_period_ = step_dt_;
@@ -87,6 +101,8 @@ void PolicyRuntime::reset()
 
 void PolicyRuntime::enter()
 {
+  policy_->uses_global_position = requires_localization_;
+  policy_->motion_frame.reset();
   install_joint_properties();
   install_velocity_command_ranges();
   reset_episode_state();
@@ -159,7 +175,7 @@ bool PolicyRuntime::prepare_observation()
 
 void PolicyRuntime::advance_clocks()
 {
-  policy_->episode_time += static_cast<float>(step_dt_);
+  policy_->episode_time += step_dt_;
 }
 
 void PolicyRuntime::update(const rclcpp::Duration & period)
@@ -305,7 +321,8 @@ void PolicyRuntime::write_processed_action(
   }
 
   // The buffer is controller-sized; this policy uses the first joint_names.size() slots.
-  std::copy(raw_action.begin(), raw_action.end(), policy_->last_action.begin());
+  const auto & applied_raw = action_pipeline_.applied_raw_action();
+  std::copy(applied_raw.begin(), applied_raw.end(), policy_->last_action.begin());
 }
 
 void PolicyRuntime::log_action_limit_once(

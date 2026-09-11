@@ -73,6 +73,7 @@ private:
   // Loads the reference motion and clamps the playback window to its duration.
   static MotionPlayback load_playback(
     const MimicBehavior & mimic,
+    const Sim2RealConfig & sim2real_config,
     const std::vector<std::string> & controller_joint_names);
   static Eigen::Quaternionf yaw_quaternion(const Eigen::Quaternionf & q);
 

@@ -350,6 +350,23 @@ void ControlLoop::run_control_step(
   // infers on the same tick.
   const auto & decision = decide(current_time, measured_period);
   act(decision, current_time, measured_period);
+  // Finish a requested handoff before publishing another old-policy command.
+  // The replacement policy enters and infers once without advancing time twice.
+  const auto zero_period = rclcpp::Duration::from_seconds(0.0);
+  if (!shared_data_.requests.state_name.empty() &&
+    !shared_data_.requests.damping && !shared_data_.requests.action_limit_exceeded)
+  {
+    const auto previous_transition = shared_data_.mode.transition_count;
+    const auto & next = decide(current_time, zero_period);
+    if (next.transition_count != previous_transition) {
+      act(next, current_time, zero_period);
+    }
+  }
+  // Input or inference failures raised by act must select damping before any
+  // command (including newly installed policy gains) reaches the controller.
+  if (shared_data_.requests.damping || shared_data_.requests.action_limit_exceeded) {
+    decide(current_time, zero_period);
+  }
   command(current_time);
   publish_debug_topics_if_needed(iteration, observation_publish_interval);
 }

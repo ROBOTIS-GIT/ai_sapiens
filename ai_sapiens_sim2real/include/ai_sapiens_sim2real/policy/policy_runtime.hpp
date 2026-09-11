@@ -70,6 +70,8 @@ public:
   virtual ~PolicyRuntime();
 
   void reset();
+  bool check_inputs();
+  bool requires_localization() const {return requires_localization_;}
   void enter();
   void update(const rclcpp::Duration & period);
   const std::string & state_name() const;
@@ -161,6 +163,7 @@ private:
   double step_dt_{0.02};
   double accumulated_period_{0.02};
   bool action_limit_logged_{false};
+  bool requires_localization_{false};
   static constexpr float kAbsActionLimitRad = 2.0f * 3.14159265f;
   // A transient inference failure holds the previous action for one policy
   // step; after this many consecutive failures the runtime requests the

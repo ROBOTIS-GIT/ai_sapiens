@@ -225,8 +225,16 @@ std::vector<float> obs_motion_anchor_ori_b(
     return std::vector<float>(6, 0.0f);
   }
 
-  const auto real_torso_quat_w =
+  auto real_torso_quat_w =
     torso_orientation_in_world(context.shared.sensors, context.joints);
+  if (context.shared.policy.uses_global_position) {
+    const auto & localization = context.shared.localization;
+    const auto root_in_motion = context.shared.policy.motion_frame.orientation(
+      localization.orientation);
+    // Preserve the measured waist transform, but use the estimator's root attitude.
+    real_torso_quat_w = torso_orientation_in_world(
+      context.shared.sensors, context.joints, root_in_motion);
+  }
   const auto ref_torso_quat_w =
     context.reference_motion->root_quaternion() *
     Eigen::AngleAxisf(context.reference_motion->joint_pos_for_joint(kWaistYawJointName),
@@ -236,6 +244,25 @@ std::vector<float> obs_motion_anchor_ori_b(
     real_torso_quat_w;
   const Eigen::Matrix3f rot = rot_q.toRotationMatrix().transpose();
   return {rot(0, 0), rot(0, 1), rot(1, 0), rot(1, 1), rot(2, 0), rot(2, 1)};
+}
+
+std::vector<float> obs_robot_root_position_xy_w(
+  const ObservationContext & context, const YAML::Node & /*params*/)
+{
+  const Eigen::Vector2f xy = context.shared.policy.motion_frame.position(
+    context.shared.localization.position);
+  return {xy.x(), xy.y()};
+}
+
+std::vector<float> obs_reference_root_position_xy_w(
+  const ObservationContext & context, const YAML::Node & /*params*/)
+{
+  if (!context.reference_motion) {
+    return {0.0f, 0.0f};
+  }
+  const Eigen::Vector2f position = context.shared.policy.motion_frame.reference_position(
+    context.reference_motion->root_position().head<2>());
+  return {position.x(), position.y()};
 }
 
 // Static registration
@@ -257,6 +284,10 @@ struct ObservationRegistrar
     ObservationRegistry::register_observation("motion_joint_vel", obs_motion_joint_vel);
     ObservationRegistry::register_observation("motion_command", obs_motion_command);
     ObservationRegistry::register_observation("motion_anchor_ori_b", obs_motion_anchor_ori_b);
+    ObservationRegistry::register_observation("robot_root_position_xy_w",
+          obs_robot_root_position_xy_w);
+    ObservationRegistry::register_observation(
+      "reference_root_position_xy_w", obs_reference_root_position_xy_w);
   }
 };
 

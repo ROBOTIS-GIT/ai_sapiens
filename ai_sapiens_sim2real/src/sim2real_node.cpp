@@ -23,6 +23,7 @@
 #include "ai_sapiens_sim2real/controllers/policy_controller.hpp"
 #include "ai_sapiens_sim2real/sensor_handles/imu_sensor_handle.hpp"
 #include "ai_sapiens_sim2real/sensor_handles/joint_states_sensor_handle.hpp"
+#include "ai_sapiens_sim2real/sensor_handles/localization_sensor_handle.hpp"
 #include "ai_sapiens_sim2real/config/root_config.hpp"
 
 namespace ai_sapiens_sim2real
@@ -64,6 +65,11 @@ void Sim2RealNode::declare_node_parameters()
   node_->declare_parameter<std::string>("joint_states_topic", "/joint_states");
   node_->declare_parameter<double>("imu_timeout", 0.5);
   node_->declare_parameter<double>("joint_states_timeout", 0.5);
+  node_->declare_parameter<std::string>("localization_topic", "/state_estimator/odom");
+  node_->declare_parameter<std::string>("localization_world_frame", "odom");
+  node_->declare_parameter<std::string>("localization_base_frame", "pelvis");
+  node_->declare_parameter<double>("localization_timeout", 0.5);
+  node_->declare_parameter<bool>("localization_align_on_entry", true);
   node_->declare_parameter<int>("thread_priority", 50);
   node_->declare_parameter<bool>("lock_memory", true);
   node_->declare_parameter<double>("wait_for_ready_timeout", 30.0);
@@ -101,6 +107,12 @@ NodeOptions Sim2RealNode::read_node_options() const
   options.joint_states_topic = node_->get_parameter("joint_states_topic").as_string();
   options.imu_timeout = node_->get_parameter("imu_timeout").as_double();
   options.joint_states_timeout = node_->get_parameter("joint_states_timeout").as_double();
+  options.localization_topic = node_->get_parameter("localization_topic").as_string();
+  options.localization_world_frame = node_->get_parameter("localization_world_frame").as_string();
+  options.localization_base_frame = node_->get_parameter("localization_base_frame").as_string();
+  options.localization_timeout = node_->get_parameter("localization_timeout").as_double();
+  options.localization_align_on_entry =
+    node_->get_parameter("localization_align_on_entry").as_bool();
   options.thread_priority = node_->get_parameter("thread_priority").as_int();
   options.lock_memory = node_->get_parameter("lock_memory").as_bool();
   options.wait_timeout = node_->get_parameter("wait_for_ready_timeout").as_double();
@@ -198,6 +210,12 @@ void Sim2RealNode::initialize_shared_control_data()
 
 void Sim2RealNode::add_robot_feedback_inputs()
 {
+  shared_data_->localization.align_on_entry = options_.localization_align_on_entry;
+  control_loop_->add_sensor_handle(
+    std::make_shared<LocalizationSensorHandle>(node_, &shared_data_->localization,
+      options_.localization_timeout, options_.localization_topic,
+      options_.localization_world_frame, options_.localization_base_frame),
+    false);
   control_loop_->add_sensor_handle(
     std::make_shared<ImuSensorHandle>(
       node_,

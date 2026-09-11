@@ -24,7 +24,9 @@ namespace ai_sapiens_sim2real
 MotionReference::MotionReference(
   const std::string & motion_file,
   float fps,
-  const std::vector<std::string> & fallback_joint_order)
+  const std::vector<std::string> & fallback_joint_order,
+  bool mjlab_format)
+: mjlab_format_(mjlab_format)
 {
   if (!std::isfinite(fps) || fps <= 0.0f) {
     throw std::runtime_error("MotionReference fps must be finite and positive");
@@ -37,18 +39,32 @@ MotionReference::MotionReference(
     throw std::runtime_error("Motion CSV contains no frames: " + motion_file);
   }
 
-  duration_ = num_frames_ * dt_;
+  duration_ = (mjlab_format_ ? num_frames_ - 1 : num_frames_) * dt_;
 
   for (int i = 0; i < num_frames_; ++i) {
     root_positions_.push_back(Eigen::VectorXf::Map(data[i].data(), 3));
     root_quaternions_.push_back(
       Eigen::Quaternionf(data[i][6], data[i][3], data[i][4], data[i][5]));
+    if (mjlab_format_) {
+      const float norm = root_quaternions_.back().norm();
+      if (!root_quaternions_.back().coeffs().allFinite() ||
+        !std::isfinite(norm) || norm < 1.0e-6f)
+      {
+        throw std::runtime_error("MJLab motion has an invalid root quaternion");
+      }
+      root_quaternions_.back().normalize();
+    }
     dof_positions_.push_back(Eigen::VectorXf::Map(data[i].data() + 7, data[i].size() - 7));
   }
 
-  // TODO(kiwoong): Consider central differences for smoother motion velocity after
-  // policy revalidation.
+  // Preserve the derivative used by existing legacy policies.
   dof_velocities_ = compute_forward_derivative(dof_positions_, dt_);
+  if (mjlab_format_) {
+    // Match numpy.gradient(q, 1/fps, axis=0): central interior, one-sided ends.
+    for (int i = 1; i + 1 < num_frames_; ++i) {
+      dof_velocities_[i] = (dof_positions_[i + 1] - dof_positions_[i - 1]) / (2.0f * dt_);
+    }
+  }
 
   for (size_t i = 0; i < joint_order_.size(); ++i) {
     joint_index_by_name_[joint_order_[i]] = static_cast<Eigen::Index>(i);
@@ -57,9 +73,23 @@ MotionReference::MotionReference(
   seek(0.0f);
 }
 
-void MotionReference::seek(float time)
+void MotionReference::seek(double time)
 {
-  const float phase = std::clamp(time / duration_, 0.0f, 1.0f);
+  if (mjlab_format_) {
+    if (!std::isfinite(time)) {
+      throw std::runtime_error("Motion time must be finite");
+    }
+    const double frame = std::clamp(time / dt_, 0.0, static_cast<double>(num_frames_ - 1));
+    // Snap nominal policy ticks to the corresponding frame despite float dt rounding.
+    const double nearest = std::round(frame);
+    const double cursor = std::abs(frame - nearest) < 1.0e-3 ? nearest : frame;
+    index_0_ = static_cast<int>(std::floor(cursor));
+    index_1_ = std::min(index_0_ + 1, num_frames_ - 1);
+    blend_ = static_cast<float>(cursor - index_0_);
+    return;
+  }
+  const float legacy_time = static_cast<float>(time);
+  const float phase = std::clamp(legacy_time / duration_, 0.0f, 1.0f);
   // TODO(kiwoong): Consider switching to floor(frame) + alpha interpolation after
   // validating motion timing against the already-tested ai_sapiens_rl_inference path.
   // Note: the current round-index + blend mix can produce a negative blend.
@@ -68,7 +98,7 @@ void MotionReference::seek(float time)
   index_1_ = std::min(index_0_ + 1, num_frames_ - 1);
   const bool has_next_frame = num_frames_ > 1;
   blend_ = has_next_frame ?
-    std::round((time - index_0_ * dt_) / dt_ * 1e5f) / 1e5f :
+    std::round((legacy_time - index_0_ * dt_) / dt_ * 1e5f) / 1e5f :
     0.0f;
 }
 
@@ -205,6 +235,12 @@ std::vector<std::vector<float>> MotionReference::load_motion_csv(
     if (row.size() != joint_order_.size() + 7U) {
       throw std::runtime_error(
         "Motion CSV row width does not match root columns plus motion joints");
+    }
+
+    if (mjlab_format_ && !std::all_of(row.begin(), row.end(),
+      [](float value) {return std::isfinite(value);}))
+    {
+      throw std::runtime_error("MJLab motion CSV contains non-finite values");
     }
 
     data.push_back(std::move(row));

@@ -45,6 +45,21 @@ def generate_launch_description():
     # ==========================================================================
     args = [
         DeclareLaunchArgument(
+            'localization_topic', default_value='/state_estimator/odom',
+            description='feature-localization pelvis odometry topic'),
+        DeclareLaunchArgument(
+            'localization_world_frame', default_value='odom',
+            description='Expected localization header.frame_id'),
+        DeclareLaunchArgument(
+            'localization_base_frame', default_value='pelvis',
+            description='Expected localization child_frame_id'),
+        DeclareLaunchArgument(
+            'localization_timeout', default_value='0.5',
+            description='Maximum odometry source and reception age in seconds'),
+        DeclareLaunchArgument(
+            'localization_align_on_entry', default_value='true',
+            description='Zero robot/reference XY at each entry and align odometry yaw'),
+        DeclareLaunchArgument(
             'robot',
             default_value='k1',
             description='Robot config name; resolves to config/<robot>_config.yaml by default'
@@ -150,6 +165,11 @@ def generate_launch_description():
         name='ai_sapiens_sim2real_node',
         output='screen',
         parameters=[{
+            'localization_topic': LaunchConfiguration('localization_topic'),
+            'localization_world_frame': LaunchConfiguration('localization_world_frame'),
+            'localization_base_frame': LaunchConfiguration('localization_base_frame'),
+            'localization_timeout': LaunchConfiguration('localization_timeout'),
+            'localization_align_on_entry': LaunchConfiguration('localization_align_on_entry'),
             'config_path': default_config,
             'imu_topic': LaunchConfiguration('imu_topic'),
             'joint_states_topic': LaunchConfiguration('joint_states_topic'),

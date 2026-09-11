@@ -5,6 +5,10 @@ loads and validates the mode configuration and all policy assets at startup,
 selects control authority and behavior at runtime, performs policy inference in
 a realtime-oriented loop, and publishes joint position/gain commands.
 
+For `Cyclo-Mimic-K1-Rev1-Dynamite-Gloposition` with localization from
+`ai_sapiens_private/feature-localization`, see the
+[Glopodanamite deployment guide](docs/glopodanamite.md).
+
 > [!CAUTION]
 > Joint command publishing is enabled by default. Before running on hardware,
 > verify the controller joint order, policy assets, ROS topics, and that the

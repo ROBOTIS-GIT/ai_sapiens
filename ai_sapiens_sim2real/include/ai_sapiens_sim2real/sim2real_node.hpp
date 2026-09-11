@@ -43,6 +43,11 @@ struct NodeOptions
   std::string joint_states_topic;
   double imu_timeout{0.5};
   double joint_states_timeout{0.5};
+  std::string localization_topic;
+  std::string localization_world_frame;
+  std::string localization_base_frame;
+  double localization_timeout{0.5};
+  bool localization_align_on_entry{true};
   int thread_priority{50};
   bool lock_memory{true};
   double wait_timeout{30.0};

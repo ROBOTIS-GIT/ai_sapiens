@@ -39,9 +39,15 @@ public:
   MotionReference(
     const std::string & motion_file,
     float fps,
-    const std::vector<std::string> & fallback_joint_order);
+    const std::vector<std::string> & fallback_joint_order,
+    bool mjlab_format = false);
 
-  void seek(float time);
+  void seek(double time);
+
+  Eigen::Vector3f root_position() const
+  {
+    return root_positions_[index_0_] * (1.0f - blend_) + root_positions_[index_1_] * blend_;
+  }
 
   Eigen::VectorXf joint_pos() const
   {
@@ -85,6 +91,7 @@ private:
   int index_0_{0};
   int index_1_{0};
   float blend_{0.0f};
+  bool mjlab_format_{false};
 
   // Motion data in motion-file joint order.
   std::vector<std::string> joint_order_;

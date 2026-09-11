@@ -256,6 +256,14 @@ MimicBehavior RootConfig::build_mimic_behavior(
   MimicBehavior mimic;
   mimic.motion_file = *motion_path;
   mimic.fps = node["fps"] ? node["fps"].as<float>() : 50.0f;
+  const auto motion_format = node["motion_format"] ?
+    node["motion_format"].as<std::string>() : "legacy";
+  if (motion_format != "legacy" && motion_format != "mjlab") {
+    throw std::runtime_error("state_behaviors." + name + ".motion_format must be legacy or mjlab");
+  }
+  if (node["motion_format"]) {
+    mimic.mjlab_format = motion_format == "mjlab";
+  }
   mimic.time_start = node["time_start"] ? node["time_start"].as<float>() : 0.0f;
   mimic.time_end = read_mimic_time_end(node);
   mimic.on_complete = read_mimic_on_complete(node);

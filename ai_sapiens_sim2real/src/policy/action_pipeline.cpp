@@ -15,6 +15,7 @@
 // Author: Kiwoong Park
 
 #include "ai_sapiens_sim2real/policy/action_pipeline.hpp"
+#include <cmath>
 
 namespace ai_sapiens_sim2real
 {
@@ -36,6 +37,13 @@ ActionPipeline::ActionPipeline(ActionProperties properties)
   }
 
   processed_action_.resize(action_size, 0.0f);
+  applied_raw_action_.resize(action_size, 0.0f);
+  if (properties_.raw_clip.empty()) {
+    properties_.raw_clip.resize(action_size, std::nullopt);
+  }
+  if (properties_.raw_clip.size() != action_size) {
+    throw std::runtime_error("ActionPipeline raw_clip size does not match scale size");
+  }
 }
 
 const std::vector<float> & ActionPipeline::process(const std::vector<float> & raw_action)
@@ -47,8 +55,13 @@ const std::vector<float> & ActionPipeline::process(const std::vector<float> & ra
   }
 
   for (size_t i = 0; i < raw_action.size(); ++i) {
-    float value = raw_action[i] * properties_.scale[i] + properties_.offset[i];
-    if (properties_.clip[i]) {
+    float raw = raw_action[i];
+    if (properties_.raw_clip[i] && std::isfinite(raw)) {
+      raw = std::clamp(raw, properties_.raw_clip[i]->first, properties_.raw_clip[i]->second);
+    }
+    applied_raw_action_[i] = raw;
+    float value = raw * properties_.scale[i] + properties_.offset[i];
+    if (properties_.clip[i] && std::isfinite(value)) {
       value = std::clamp(value, properties_.clip[i]->first, properties_.clip[i]->second);
     }
 

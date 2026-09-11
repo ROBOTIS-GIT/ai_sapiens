@@ -36,9 +36,9 @@ struct MotionPlayback
 
   // Absolute motion time to seek at this episode time, or nullopt once that
   // motion time passes time_end.
-  std::optional<float> seek_time(float episode_time) const
+  std::optional<double> seek_time(double episode_time) const
   {
-    const float motion_time = time_start + episode_time;
+    const double motion_time = time_start + episode_time;
     if (motion_time > time_end) {
       return std::nullopt;
     }

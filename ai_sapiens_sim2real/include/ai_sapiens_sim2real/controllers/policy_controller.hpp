@@ -74,6 +74,8 @@ private:
   // no path to the mode block, which arrives per tick as a const argument.
   const TeleopInput * teleop_;
   PolicyState * policy_;
+  ModeRequests * requests_;
+  std::string localization_loss_state_;
 
   // Stored by base pointer so mimic policies keep their derived behavior; the
   // active state's policy name selects which runtime drives the act stage.

@@ -117,13 +117,14 @@ PositionLimit read_position_limit_pair(
 
 std::vector<PositionLimit> read_action_clip(
   const YAML::Node & action_node,
-  const std::vector<std::string> & policy_joints)
+  const std::vector<std::string> & policy_joints,
+  const std::string & key = "clip")
 {
-  const std::string clip_path = "actions.joint_pos.clip";
+  const std::string clip_path = "actions.joint_pos." + key;
   const size_t action_size = policy_joints.size();
 
   std::vector<PositionLimit> clip(action_size, std::nullopt);
-  const auto clip_node = action_node["clip"];
+  const auto clip_node = action_node[key];
   if (yaml_node_is_missing(clip_node)) {
     return clip;
   }
@@ -224,6 +225,7 @@ ActionProperties read_action_properties(
     std::vector<float>(policy_joints.size(), 1.0f));
   properties.offset = read_action_vector(action_node, "offset", policy_joints, default_position);
   properties.clip = read_action_clip(action_node, policy_joints);
+  properties.raw_clip = read_action_clip(action_node, policy_joints, "raw_clip");
   return properties;
 }
 

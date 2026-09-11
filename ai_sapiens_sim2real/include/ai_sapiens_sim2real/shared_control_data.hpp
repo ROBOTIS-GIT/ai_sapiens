@@ -28,6 +28,7 @@
 
 #include "ai_sapiens_sim2real/authority.hpp"
 #include "ai_sapiens_sim2real/config/sim2real_config.hpp"
+#include "ai_sapiens_sim2real/policy/localization_pose.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -166,7 +167,9 @@ struct PolicyState
   std::vector<float> last_action;
   std::vector<float> input;  // scaled/clipped observation vector fed to ONNX
   Eigen::Quaternionf motion_init_quat{Eigen::Quaternionf::Identity()};
-  float episode_time{0.0f};
+  MotionFrameAlignment motion_frame;
+  bool uses_global_position{false};
+  double episode_time{0.0};
   // Gait-phase clock in [0, 1). Advanced by GaitClock once per policy step and
   // read by the gait_phase observation. Stays 0 for policies without a gait phase.
   float gait_phase{0.0f};
@@ -182,6 +185,7 @@ struct PolicyState
 struct SharedControlData
 {
   SensorData sensors;
+  LocalizationData localization;
   TeleopInput teleop;
   ApiInput api;
   JointIndexMap joint_map;

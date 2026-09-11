@@ -15,6 +15,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(realtime_tools REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(control_msgs REQUIRED)
@@ -75,6 +76,7 @@ add_executable(ai_sapiens_sim2real_node
   src/sensor_handles/api_heartbeat_handle.cpp
   src/sensor_handles/imu_sensor_handle.cpp
   src/sensor_handles/joint_states_sensor_handle.cpp
+  src/sensor_handles/localization_sensor_handle.cpp
   src/sensor_handles/teleop_input_handle.cpp
   src/sensor_handles/twist_command_handle.cpp
   src/config/sim2real_config.cpp
@@ -84,6 +86,7 @@ ament_target_dependencies(ai_sapiens_sim2real_node
   rclcpp
   realtime_tools
   sensor_msgs
+  nav_msgs
   geometry_msgs
   std_msgs
   control_msgs
@@ -263,6 +266,19 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 
   find_package(ament_cmake_gtest REQUIRED)
+
+  ament_add_gtest(test_gloposition_observations
+    test/test_gloposition_observations.cpp
+    src/policy/action_pipeline.cpp
+    src/policy/motion_reference.cpp
+    src/observation/observations.cpp)
+  target_link_libraries(test_gloposition_observations yaml-cpp Eigen3::Eigen)
+
+  ament_add_gtest(test_localization_sensor_handle
+    test/test_localization_sensor_handle.cpp
+    src/sensor_handles/localization_sensor_handle.cpp)
+  ament_target_dependencies(test_localization_sensor_handle rclcpp nav_msgs realtime_tools)
+  target_link_libraries(test_localization_sensor_handle Eigen3::Eigen)
 
   # RealtimeRequestGate: accept/consume/discard/busy semantics (header-only).
   ament_add_gtest(test_request_gate test/test_request_gate.cpp)
