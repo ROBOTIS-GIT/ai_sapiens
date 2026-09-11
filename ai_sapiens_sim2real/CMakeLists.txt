@@ -269,6 +269,8 @@ if(BUILD_TESTING)
 
   ament_add_gtest(test_gloposition_observations
     test/test_gloposition_observations.cpp
+    src/config/config_utils.cpp
+    src/config/sim2real_config.cpp
     src/policy/action_pipeline.cpp
     src/policy/motion_reference.cpp
     src/observation/observations.cpp)

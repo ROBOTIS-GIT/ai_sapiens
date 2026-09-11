@@ -4,6 +4,9 @@
 실행한다. sim2sim과 sim2real 모두 `ai_sapiens_private`의 `feature-localization`
 브랜치가 발행하는 `/state_estimator/odom`을 로봇 XY의 입력으로 사용한다.
 
+춤을 추면서 이동·회전을 조작하는 selector 204 버전은
+[glopodanamite_controller](glopodanamite_controller.md)를 참고한다.
+
 ## 정책과 모션
 
 기존 asset 구조를 그대로 사용한다.

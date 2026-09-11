@@ -27,6 +27,7 @@
 
 #include "ai_sapiens_sim2real/axis_range.hpp"
 #include "ai_sapiens_sim2real/config/config_utils.hpp"
+#include "ai_sapiens_sim2real/config/planar_steering_config.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -98,6 +99,11 @@ public:
     return velocity_command_ranges_;
   }
 
+  const std::optional<PlanarSteeringConfig> & steering() const
+  {
+    return steering_;
+  }
+
   const YAML::Node & observations() const
   {
     return observations_;
@@ -111,6 +117,7 @@ private:
   ActionProperties action_properties_;
   std::optional<AxisRanges> velocity_command_ranges_;
   YAML::Node observations_;
+  std::optional<PlanarSteeringConfig> steering_;
 };
 
 }  // namespace ai_sapiens_sim2real

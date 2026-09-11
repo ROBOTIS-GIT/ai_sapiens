@@ -54,6 +54,12 @@ MotionPlayback MimicPolicyRuntime::load_playback(
   MotionPlayback playback;
   const bool mjlab_format = mimic.mjlab_format.value_or(
     static_cast<bool>(sim2real_config.observations()["robot_root_position_xy_w"]));
+  if (sim2real_config.steering() && (!mjlab_format || !std::isfinite(mimic.fps) ||
+    !std::isfinite(sim2real_config.step_dt()) ||
+    std::abs(mimic.fps * sim2real_config.step_dt() - 1.0) > 1e-5))
+  {
+    throw std::runtime_error("mimic steering requires MJLab motion with fps * step_dt == 1");
+  }
   playback.reference = std::make_shared<MotionReference>(
     mimic.motion_file.string(), mimic.fps, controller_joint_names, mjlab_format);
   const float duration = playback.reference->duration();
@@ -87,12 +93,28 @@ MimicPolicyRuntime::MimicPolicyRuntime(
     playback.reference.get())
   , playback_(std::move(playback))
   , completion_state_(std::move(completion_state))
+  , steering_(sim2real_config.steering())
+  , steering_dt_(static_cast<float>(sim2real_config.step_dt()))
 {
+  const bool has_velocity = static_cast<bool>(sim2real_config.observations()["velocity_commands"]);
+  if (steering_) {
+    steering_->validate();
+    if (!requires_localization() || !has_velocity) {
+      throw std::runtime_error(
+          "mimic steering requires global XY and velocity_commands observations");
+    }
+    set_velocity_command_ranges(steering_->ranges);
+  } else if (requires_localization() && has_velocity) {
+    throw std::runtime_error(
+        "global-position mimic requires commands.reference_trajectory.steering in sim2real.yaml");
+  }
 }
 
 void MimicPolicyRuntime::on_enter()
 {
   playback_.reference->seek(playback_.time_start);
+  policy_->uses_motion_steering = steering_.has_value();
+  previous_root_ = playback_.reference->root_position().head<2>();
   if (requires_localization()) {
     const auto & localization = shared_data_->localization;
     if (localization.align_on_entry) {
@@ -125,6 +147,22 @@ bool MimicPolicyRuntime::prepare_observation()
 
   playback_.reference->seek(*motion_time);
   return true;
+}
+
+void MimicPolicyRuntime::prepare_command_observation()
+{
+  if (!steering_) {
+    return;
+  }
+  const Eigen::Vector2f root = playback_.reference->root_position().head<2>();
+  // Training reset observes frame zero with zero applied velocity, even for a held command.
+  if (policy_->episode_time > 0.0) {
+    const auto orientation =
+      policy_->motion_frame.orientation(shared_data_->localization.orientation);
+    policy_->motion_steering.step(previous_root_, root, orientation,
+      shared_data_->mode.velocity_commands, steering_dt_, *steering_);
+  }
+  previous_root_ = root;
 }
 
 Eigen::Quaternionf MimicPolicyRuntime::yaw_quaternion(const Eigen::Quaternionf & q)

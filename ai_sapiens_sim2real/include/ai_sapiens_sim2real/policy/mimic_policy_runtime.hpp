@@ -68,6 +68,7 @@ public:
 protected:
   void on_enter() override;
   bool prepare_observation() override;
+  void prepare_command_observation() override;
 
 private:
   // Loads the reference motion and clamps the playback window to its duration.
@@ -82,6 +83,9 @@ private:
   MotionPlayback playback_;
   // Which state to hand off to once the playback window ends ("stay" = none).
   std::string completion_state_;
+  std::optional<PlanarSteeringConfig> steering_;
+  float steering_dt_;
+  Eigen::Vector2f previous_root_{Eigen::Vector2f::Zero()};
 };
 
 }  // namespace ai_sapiens_sim2real

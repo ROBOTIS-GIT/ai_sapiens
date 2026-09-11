@@ -103,6 +103,8 @@ void PolicyRuntime::enter()
 {
   policy_->uses_global_position = requires_localization_;
   policy_->motion_frame.reset();
+  policy_->uses_motion_steering = false;
+  policy_->motion_steering.reset();
   install_joint_properties();
   install_velocity_command_ranges();
   reset_episode_state();
@@ -189,6 +191,7 @@ void PolicyRuntime::update(const rclcpp::Duration & period)
   }
 
   resolve_active_velocity_command();
+  prepare_command_observation();
   compute_observation();
 
   if (const auto raw_action = run_policy_inference()) {

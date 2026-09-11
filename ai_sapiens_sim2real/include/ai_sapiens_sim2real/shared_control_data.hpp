@@ -29,6 +29,7 @@
 #include "ai_sapiens_sim2real/authority.hpp"
 #include "ai_sapiens_sim2real/config/sim2real_config.hpp"
 #include "ai_sapiens_sim2real/policy/localization_pose.hpp"
+#include "ai_sapiens_sim2real/policy/planar_motion_steering.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -169,6 +170,8 @@ struct PolicyState
   Eigen::Quaternionf motion_init_quat{Eigen::Quaternionf::Identity()};
   MotionFrameAlignment motion_frame;
   bool uses_global_position{false};
+  bool uses_motion_steering{false};
+  PlanarMotionSteering motion_steering;
   double episode_time{0.0};
   // Gait-phase clock in [0, 1). Advanced by GaitClock once per policy step and
   // read by the gait_phase observation. Stays 0 for policies without a gait phase.

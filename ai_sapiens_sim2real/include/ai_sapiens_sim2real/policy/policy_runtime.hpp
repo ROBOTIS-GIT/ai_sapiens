@@ -92,7 +92,14 @@ protected:
   // per-kind entry.
   virtual void on_enter();
   virtual bool prepare_observation();
+  // Runs with the active policy's resolved command, before computing observations.
+  virtual void prepare_command_observation() {}
   virtual void advance_clocks();
+
+  void set_velocity_command_ranges(const AxisRanges & ranges)
+  {
+    velocity_command_ranges_ = ranges;
+  }
 
   // State the hooks read; writes still go only through the owned output block,
   // which stays private so derived kinds cannot bypass the action scatter.

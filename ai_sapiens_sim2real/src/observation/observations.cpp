@@ -117,16 +117,14 @@ std::vector<float> obs_projected_gravity(
   };
 }
 
-// velocity_commands: From remote controller (lin_x, lin_y, ang_z)
+// Steering policies observe the applied filtered command, locomotion the resolved command.
 std::vector<float> obs_velocity_commands(
   const ObservationContext & context,
   const YAML::Node & /*params*/)
 {
-  return std::vector<float>{
-    context.shared.mode.velocity_commands.x(),
-    context.shared.mode.velocity_commands.y(),
-    context.shared.mode.velocity_commands.z()
-  };
+  const auto & velocity = context.shared.policy.uses_motion_steering ?
+    context.shared.policy.motion_steering.velocity : context.shared.mode.velocity_commands;
+  return {velocity.x(), velocity.y(), velocity.z()};
 }
 
 // joint_pos_rel: Joint positions relative to default
@@ -236,6 +234,7 @@ std::vector<float> obs_motion_anchor_ori_b(
       context.shared.sensors, context.joints, root_in_motion);
   }
   const auto ref_torso_quat_w =
+    context.shared.policy.motion_steering.orientation() *
     context.reference_motion->root_quaternion() *
     Eigen::AngleAxisf(context.reference_motion->joint_pos_for_joint(kWaistYawJointName),
         Eigen::Vector3f::UnitZ());
@@ -261,7 +260,8 @@ std::vector<float> obs_reference_root_position_xy_w(
     return {0.0f, 0.0f};
   }
   const Eigen::Vector2f position = context.shared.policy.motion_frame.reference_position(
-    context.reference_motion->root_position().head<2>());
+    context.reference_motion->root_position().head<2>()) +
+    context.shared.policy.motion_steering.offset;
   return {position.x(), position.y()};
 }
 

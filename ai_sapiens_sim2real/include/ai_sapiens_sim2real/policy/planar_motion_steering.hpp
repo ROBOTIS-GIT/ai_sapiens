@@ -1,0 +1,77 @@
+// Copyright 2026 ROBOTIS CO., LTD.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// Author: Kiwoong Park
+
+#ifndef AI_SAPIENS_SIM2REAL__POLICY__PLANAR_MOTION_STEERING_HPP_
+#define AI_SAPIENS_SIM2REAL__POLICY__PLANAR_MOTION_STEERING_HPP_
+
+#include <cmath>
+
+#include <Eigen/Geometry>  // NOLINT(build/include_order)
+
+#include "ai_sapiens_sim2real/config/planar_steering_config.hpp"
+
+namespace ai_sapiens_sim2real
+{
+
+// Actor-visible part of cyclo_mjlab's PlanarMotionSteering. All vectors use the
+// fixed motion frame, except velocity (additional robot-heading vx/vy/yaw rate).
+struct PlanarMotionSteering
+{
+  Eigen::Vector2f offset{Eigen::Vector2f::Zero()};
+  Eigen::Vector3f velocity{Eigen::Vector3f::Zero()};
+  float yaw{0.0f};
+
+  void reset()
+  {
+    offset.setZero();
+    velocity.setZero();
+    yaw = 0.0f;
+  }
+
+  Eigen::Quaternionf orientation() const
+  {
+    return Eigen::Quaternionf(Eigen::AngleAxisf(yaw, Eigen::Vector3f::UnitZ()));
+  }
+
+  void step(
+    const Eigen::Vector2f & previous_root, const Eigen::Vector2f & current_root,
+    const Eigen::Quaternionf & robot_orientation, const Eigen::Vector3f & requested,
+    float dt, const PlanarSteeringConfig & config)
+  {
+    const Eigen::Vector3f target(
+      clamp_to_axis(requested.x(), config.ranges.linear_x),
+      clamp_to_axis(requested.y(), config.ranges.linear_y),
+      clamp_to_axis(requested.z(), config.ranges.angular_z));
+    const float tau = config.smoothing_time_constant;
+    const float alpha = tau == 0.0f ? 1.0f : -std::expm1(-dt / tau);
+    velocity += alpha * (target - velocity);
+    const auto & q = robot_orientation;
+    const float heading = std::atan2(2.0f * (q.w() * q.z() + q.x() * q.y()),
+      1.0f - 2.0f * (q.y() * q.y() + q.z() * q.z()));
+    const float delta_yaw = dt * velocity.z();
+    const Eigen::Vector2f root_delta = current_root - previous_root;
+    // Redirect the clip's own displacement using midpoint yaw. Rotating the
+    // complete clip about its starting point would introduce a different path.
+    offset += Eigen::Rotation2Df(yaw + 0.5f * delta_yaw) * root_delta - root_delta +
+      dt * (Eigen::Rotation2Df(heading) * velocity.head<2>());
+    yaw += delta_yaw;
+    yaw = std::atan2(std::sin(yaw), std::cos(yaw));
+  }
+};
+
+}  // namespace ai_sapiens_sim2real
+
+#endif  // AI_SAPIENS_SIM2REAL__POLICY__PLANAR_MOTION_STEERING_HPP_

@@ -277,6 +277,34 @@ std::optional<AxisRanges> read_velocity_command_ranges(
     read_velocity_command_range(sim2real_config_path, sim2real_config, "ang_vel_z")};
 }
 
+std::optional<PlanarSteeringConfig> read_planar_steering(const YAML::Node & config)
+{
+  const auto commands = config["commands"];
+  if (!commands || !commands["reference_trajectory"]) {
+    return std::nullopt;
+  }
+  const auto steering = commands["reference_trajectory"]["steering"];
+  if (yaml_node_is_missing(steering)) {
+    return std::nullopt;
+  }
+  const std::string path = "commands.reference_trajectory.steering";
+  require_yaml_map(steering, path);
+  const auto read_range = [&](const char * key) {
+      const auto values = steering[key];
+      require_yaml_sequence(values, path + "." + key);
+      if (values.size() != 2U) {
+        throw std::runtime_error(path + "." + key + " requires [min, max]");
+      }
+      return AxisRange{values[0].as<double>(), values[1].as<double>()};
+    };
+  PlanarSteeringConfig result;
+  result.ranges = {read_range("lin_vel_x"), read_range("lin_vel_y"), read_range("yaw_rate")};
+  require_yaml_node(steering["smoothing_time_constant"], path + ".smoothing_time_constant");
+  result.smoothing_time_constant = steering["smoothing_time_constant"].as<float>();
+  result.validate();
+  return result;
+}
+
 }  // namespace
 
 std::vector<size_t> make_source_indices_for_target(
@@ -323,6 +351,7 @@ Sim2RealConfig::Sim2RealConfig(const std::filesystem::path & path)
         policy_joints_,
         joint_properties_.default_position);
       observations_ = node["observations"];
+      steering_ = read_planar_steering(node);
     });
   velocity_command_ranges_ = read_velocity_command_ranges(path_, node);
 }

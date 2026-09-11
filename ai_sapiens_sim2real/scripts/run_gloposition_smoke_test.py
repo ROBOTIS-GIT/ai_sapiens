@@ -35,10 +35,73 @@ import time
 import yaml
 
 
+def verify_steering_path(observations, frames, robot_heading):
+    """Independent scalar reconstruction of the training integration and anchor rotation."""
+    def multiply(a, b):
+        x, y, z, w = a
+        u, v, t, s = b
+        return (w*u + x*s + y*t - z*v, w*v - x*t + y*s + z*u,
+                w*t + x*v - y*u + z*s, w*s - x*u - y*v - z*t)
+
+    def yaw_quat(yaw):
+        return (0.0, 0.0, math.sin(yaw/2), math.cos(yaw/2))
+
+    yaw = 0.0
+    offset = [0.0, 0.0]
+    previous_frame = -1
+    checked = 0
+    steered_checked = 0
+    for obs in observations:
+        if len(obs) != 131:
+            continue
+        index = min(range(len(frames)), key=lambda i: sum(
+            (obs[j] - frames[i][7+j])**2 for j in range(23)))
+        if index == previous_frame:
+            continue  # debug publish may repeat a policy frame
+        if index != previous_frame + 1:
+            # Initial CSV rows repeat joint poses. With zero applied commands,
+            # skipping those indistinguishable frames contributes no steering at all.
+            assert yaw == 0.0 and not any(offset) and not any(obs[128:131]), (
+                index, previous_frame)
+        if index:
+            vx, vy, wz = obs[128:131]
+            delta_yaw = wz * 0.02
+            dx, dy = [frames[index][j] - frames[index-1][j] for j in range(2)]
+            c, s = math.cos(yaw + delta_yaw/2), math.sin(yaw + delta_yaw/2)
+            offset[0] += c*dx - s*dy - dx + 0.02 * (
+                math.cos(robot_heading)*vx - math.sin(robot_heading)*vy)
+            offset[1] += s*dx + c*dy - dy + 0.02 * (
+                math.sin(robot_heading)*vx + math.cos(robot_heading)*vy)
+            yaw += delta_yaw
+        expected = [frames[index][j] - frames[0][j] + offset[j] for j in range(2)]
+        assert max(abs(a-b) for a, b in zip(obs[126:128], expected)) < 2e-5
+        # Waist is index 12 in controller/CSV order. Synthetic measured joints stay at row zero.
+        real = yaw_quat(robot_heading + frames[0][7+12])
+        reference = multiply(multiply(yaw_quat(yaw), frames[index][3:7]),
+                             yaw_quat(frames[index][7+12]))
+        x, y, z, w = multiply((-real[0], -real[1], -real[2], real[3]), reference)
+        norm = math.sqrt(x*x+y*y+z*z+w*w)
+        x, y, z, w = [v/norm for v in (x, y, z, w)]
+        anchor = [1-2*(y*y+z*z), 2*(x*y-w*z), 2*(x*y+w*z),
+                  1-2*(x*x+z*z), 2*(x*z-w*y), 2*(y*z+w*x)]
+        assert max(abs(a-b) for a, b in zip(obs[46:52], anchor)) < 2e-5
+        previous_frame = index
+        checked += 1
+        steered_checked += int(any(obs[128:131]))
+    assert checked > 20, checked
+    assert steered_checked > 10, steered_checked
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--domain-id', type=int, default=187)
+    parser.add_argument(
+        '--controller', action='store_true', help='Test selector 204 steering policy')
+    parser.add_argument('--teleop', choices=('keyboard', 'dualsense'), default='keyboard')
     args = parser.parse_args()
+    asset = 'glopodanamite_controller' if args.controller else 'glopodanamite'
+    mimic_state = 'MimicGlopodanamiteController' if args.controller else 'MimicGlopodanamite'
+    obs_size = 131 if args.controller else 128
     os.environ['ROS_DOMAIN_ID'] = str(args.domain_id)
     os.environ['ROS_AUTOMATIC_DISCOVERY_RANGE'] = 'LOCALHOST'
 
@@ -46,15 +109,15 @@ def main():
     from ament_index_python.packages import get_package_prefix, get_package_share_directory
     from ai_sapiens_interfaces.msg import JointImpedanceCommand, KeyboardInput, ModeStatus
     from nav_msgs.msg import Odometry
-    from sensor_msgs.msg import Imu, JointState
+    from sensor_msgs.msg import Imu, JointState, Joy
     from std_msgs.msg import Float64MultiArray
 
     share = Path(get_package_share_directory('ai_sapiens_sim2real'))
     root = share / 'config/k1_config.yaml'
     config = yaml.safe_load(root.read_text())
-    motion = share / 'assets/k1/mimic/glopodanamite/params/dynamite004_headwrap_v3.csv'
+    motion = share / f'assets/k1/mimic/{asset}/params/dynamite004_headwrap_v3.csv'
     with motion.open() as source:
-        frames = [[float(x) for x in row] for _, row in zip(range(50), csv.reader(source))]
+        frames = [[float(x) for x in row] for _, row in zip(range(200), csv.reader(source))]
     first = frames[0]
     binary = (Path(get_package_prefix('ai_sapiens_sim2real')) /
               'lib/ai_sapiens_sim2real/ai_sapiens_sim2real_node')
@@ -62,13 +125,17 @@ def main():
     with tempfile.TemporaryDirectory(prefix='gloposition-smoke-') as directory:
         temporary = Path(directory)
         os.environ['ROS_LOG_DIR'] = str(temporary / 'ros_logs')
-        keyboard = yaml.safe_load((share / 'config/teleop/keyboard.yaml').read_text())
+        keyboard = yaml.safe_load((share / f'config/teleop/{args.teleop}.yaml').read_text())
+        if args.teleop == 'dualsense':
+            keyboard['selector_navigation']['initial_code'] = 204 if args.controller else 203
         keyboard['topic'] = '/test_gloposition/keyboard'
         keyboard_path = temporary / 'keyboard.yaml'
         keyboard_path.write_text(yaml.safe_dump(keyboard))
         parameters = {
             'config_path': str(root),
-            'teleop_input_plugin': 'ai_sapiens_sim2real/KeyboardTeleopInputPlugin',
+            'teleop_input_plugin': ('ai_sapiens_sim2real/DualSenseTeleopInputPlugin' if
+                                    args.teleop == 'dualsense' else
+                                    'ai_sapiens_sim2real/KeyboardTeleopInputPlugin'),
             'teleop_input_config_path': str(keyboard_path),
             'imu_topic': '/test_gloposition/imu',
             'joint_states_topic': '/test_gloposition/joints',
@@ -91,7 +158,8 @@ def main():
         pubs = {
             'imu': node.create_publisher(Imu, '/test_gloposition/imu', 10),
             'joints': node.create_publisher(JointState, '/test_gloposition/joints', 10),
-            'keyboard': node.create_publisher(KeyboardInput, keyboard['topic'], 10),
+            'keyboard': node.create_publisher(
+                Joy if args.teleop == 'dualsense' else KeyboardInput, keyboard['topic'], 10),
             'odom': node.create_publisher(Odometry, '/test_gloposition/odom', 10),
         }
         state = {'mode': None, 'command': None, 'obs': None, 'obs_count': 0}
@@ -111,6 +179,7 @@ def main():
         ]
         sequence = 0
         input_code = 1
+        velocity = [0.0, 0.0, 0.0]
         send_odom = False
         freeze_odom_stamp = False
         last_odom_stamp = None
@@ -143,8 +212,22 @@ def main():
                 sequence += 1
                 key.sequence = sequence
                 key.input_code = input_code
-                key.selector_code = 203
-                pubs['keyboard'].publish(key)
+                key.selector_code = 204 if args.controller else 203
+                key.linear_x, key.linear_y, key.angular_z = velocity
+                if args.teleop == 'dualsense':
+                    joy = Joy()
+                    joy.header.stamp = stamp
+                    joy.axes = [0.0] * 8
+                    joy.buttons = [0] * 15
+                    if input_code:
+                        joy.buttons[{1: 1, 2: 0, 3: 3, 4: 2}[input_code]] = 1
+                    deadzone = keyboard['deadzone']
+                    for axis, value in zip((1, 0, 2), velocity):
+                        magnitude = deadzone + (1-deadzone) * abs(value)
+                        joy.axes[axis] = math.copysign(magnitude, value) if value else 0.0
+                    pubs['keyboard'].publish(joy)
+                else:
+                    pubs['keyboard'].publish(key)
                 if send_odom:
                     odom = Odometry()
                     if not freeze_odom_stamp:
@@ -165,10 +248,10 @@ def main():
                 raise AssertionError(f'Timed out: mode={state["mode"]}')
 
         def assert_zero_entry(begin):
-            entry = next((obs for obs in observations[begin:] if len(obs) == 128 and
+            entry = next((obs for obs in observations[begin:] if len(obs) == obs_size and
                           max(abs(obs[j] - first[7 + j]) for j in range(23)) < 1e-5), None)
             assert entry is not None, 'Did not observe the first motion frame'
-            assert max(abs(x) for x in entry[124:128]) < 1e-6, entry[124:128]
+            assert max(abs(x) for x in entry[124:obs_size]) < 1e-6, entry[124:obs_size]
 
         try:
             drive(12, lambda: state['mode'] == 'Damping')
@@ -186,12 +269,13 @@ def main():
             input_code = 2
             drive(3, lambda: state['mode'] == 'ReadyPose')
             before = state['obs_count']
+            entry_begin = before
             input_code = 4
-            drive(3, lambda: state['mode'] == 'MimicGlopodanamite' and state['obs_count'] > before)
+            drive(3, lambda: state['mode'] == mimic_state and state['obs_count'] > before)
             input_code = 0
             drive(0.05)
             obs = state['obs']
-            assert len(obs) == 128, len(obs)
+            assert len(obs) == obs_size, len(obs)
             assert max(abs(obs[124 + i]) for i in range(2)) < 1e-6
             assert all(math.isfinite(x) for x in obs)
             assert_zero_entry(before)
@@ -219,8 +303,34 @@ def main():
             print('PASS: estimator displacement updates XY in a fixed motion frame')
 
             drive(0.2)
-            assert state['mode'] == 'MimicGlopodanamite'
+            assert state['mode'] == mimic_state
             print('PASS: duplicate odometry timestamps keep mimic running')
+
+            if args.controller:
+                velocity = [0.5, -0.4, 0.6]
+                drive(0.4)
+                applied = state['obs'][128:131]
+                print(f'{args.teleop}: normalized={velocity}, applied obs={applied}')
+                target = [0.15, -0.12, 0.18]
+                assert all(0 < v / t < 1 for v, t in zip(applied, target)), applied
+                # Constant commands follow the exact continuous-time first-order filter.
+                alpha = -math.expm1(-0.02 / 0.5)
+                unique = []
+                for o in observations:
+                    if len(o) == obs_size and (not unique or o[:23] != unique[-1][:23]):
+                        unique.append(o)
+                last = unique[-3:]
+                for previous, current in zip(last, last[1:]):
+                    expected = [v + alpha * (t - v) for v, t in zip(previous[128:131], target)]
+                    assert max(abs(a - b) for a, b in zip(current[128:131], expected)) < 1e-6, (
+                        previous[128:131], current[128:131], expected)
+                velocity = [0.0, 0.0, 0.0]
+                drive(0.2)
+                assert all(0 < v / p < 1 for v, p in zip(state['obs'][128:131], applied))
+                verify_steering_path(observations[entry_begin:], frames, ref_yaw)
+                print('PASS: 131D applied commands, smoothing/release, steered XY and anchor yaw')
+                # Re-entry with a held command must restart applied velocity from zero.
+                velocity = [0.5, -0.4, 0.6]
 
             # Keep the same estimator stream while walking and turning between dances.
             input_code = 3
@@ -231,7 +341,7 @@ def main():
             drive(0.15)
             before = state['obs_count']
             input_code = 4
-            drive(3, lambda: state['mode'] == 'MimicGlopodanamite' and state['obs_count'] > before)
+            drive(3, lambda: state['mode'] == mimic_state and state['obs_count'] > before)
             input_code = 0
             drive(0.06)
             assert_zero_entry(before)
@@ -253,7 +363,7 @@ def main():
             input_code = 2
             drive(3, lambda: state['mode'] == 'ReadyPose')
             input_code = 4
-            drive(3, lambda: state['mode'] == 'MimicGlopodanamite')
+            drive(3, lambda: state['mode'] == mimic_state)
             input_code = 0
             send_odom = False
             drive(3, lambda: state['mode'] == 'Velocity')

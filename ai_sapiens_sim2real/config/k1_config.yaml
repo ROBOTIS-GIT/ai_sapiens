@@ -65,7 +65,7 @@ selectors:
       201: MimicDance1
       202: MimicDance2
       203: MimicGlopodanamite
-      # 204:
+      204: MimicGlopodanamiteController
       # 205:
       # 206:
       # 207:
@@ -131,6 +131,9 @@ state_machine:
     MimicGlopodanamite:
       parent: Mimic
       run: mimic_glopodanamite
+    MimicGlopodanamiteController:
+      parent: Mimic
+      run: mimic_glopodanamite_controller
 
 state_behaviors:
   damping:
@@ -209,4 +212,8 @@ state_behaviors:
   mimic_glopodanamite:
     kind: mimic
     asset: mimic/glopodanamite
+    motion: dynamite004_headwrap_v3.csv
+  mimic_glopodanamite_controller:
+    kind: mimic
+    asset: mimic/glopodanamite_controller
     motion: dynamite004_headwrap_v3.csv
