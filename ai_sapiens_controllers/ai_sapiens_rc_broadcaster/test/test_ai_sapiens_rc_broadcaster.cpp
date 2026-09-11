@@ -243,6 +243,36 @@ TEST_F(AiSapiensRcBroadcasterTest, PublishesNormalizedInputAndSafeStatus)
   EXPECT_EQ(status->crsf_link_quality, 75);
 }
 
+TEST_F(AiSapiensRcBroadcasterTest, HardwareErrorDoesNotBlockHealthyRcInput)
+{
+  ASSERT_EQ(initialize(), controller_interface::return_type::OK);
+  ASSERT_NO_FATAL_FAILURE(configure_and_activate());
+  state_values_[kChannelCount] = 1.0;
+
+  const auto status = update_until_message<RcStatus>("/test/rc_status");
+  ASSERT_NE(status, nullptr);
+  EXPECT_EQ(status->hardware_error_status, 1U);
+  EXPECT_FALSE(status->hardware_ok);
+  EXPECT_TRUE(status->status_data_valid);
+  EXPECT_TRUE(status->is_control_input_safe);
+}
+
+TEST_F(AiSapiensRcBroadcasterTest, HardwareErrorDoesNotBypassEstop)
+{
+  ASSERT_EQ(initialize(), controller_interface::return_type::OK);
+  ASSERT_NO_FATAL_FAILURE(configure_and_activate());
+  state_values_[kChannelCount] = 1.0;
+  state_values_[kChannelCount + 2] = 1.0;
+
+  const auto status = update_until_message<RcStatus>("/test/rc_status");
+  ASSERT_NE(status, nullptr);
+  EXPECT_TRUE(status->status_data_valid);
+  EXPECT_FALSE(status->hardware_ok);
+  EXPECT_FALSE(status->estop_released);
+  EXPECT_TRUE(status->rc_link_ok);
+  EXPECT_FALSE(status->is_control_input_safe);
+}
+
 TEST_F(AiSapiensRcBroadcasterTest, InvalidChannelProducesNeutralUnsafeOutput)
 {
   ASSERT_EQ(initialize(), controller_interface::return_type::OK);

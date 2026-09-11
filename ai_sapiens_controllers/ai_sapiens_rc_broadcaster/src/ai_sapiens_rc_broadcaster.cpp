@@ -534,7 +534,6 @@ controller_interface::return_type AiSapiensRcBroadcaster::update(
     status.crsf_last_frame_age_ms <= watchdog_crsf_frame_timeout_ms_ &&
     status.crsf_link_quality >= min_crsf_link_quality_;
   status.is_control_input_safe =
-    status.hardware_ok &&
     status.estop_released &&
     status.rc_link_ok &&
     status.all_channels_valid;

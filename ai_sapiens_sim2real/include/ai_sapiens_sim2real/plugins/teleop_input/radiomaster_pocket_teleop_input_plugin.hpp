@@ -104,6 +104,7 @@ private:
 
   // RC status validation and command decoding
   ChannelLookup make_channel_lookup(const RcStatus & msg) const;
+  void warn_if_hardware_error(const RcStatus & msg) const;
   bool is_status_health_ok(const RcStatus & msg) const;
   bool are_channel_values_valid(const RcStatus & msg) const;
   bool are_required_channels_readable(const ChannelLookup & channels) const;
