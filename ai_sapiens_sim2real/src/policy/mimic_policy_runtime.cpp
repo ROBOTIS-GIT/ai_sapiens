@@ -95,7 +95,13 @@ MimicPolicyRuntime::MimicPolicyRuntime(
 void MimicPolicyRuntime::on_enter()
 {
   playback_.reference->seek(playback_.time_start);
-  if (is_adapter()) {return;} // Adapter observes pelvis gravity, not a torso heading anchor.
+  if (is_adapter()) {
+    if (tracks_pelvis_orientation()) {
+      policy_->motion_init_quat = initial_pelvis_alignment(
+        sensors_->orientation, playback_.reference->root_quaternion());
+    }
+    return;
+  }
   const auto ref_yaw = yaw_quaternion(playback_.reference->root_quaternion()).toRotationMatrix();
   const auto robot_yaw =
     yaw_quaternion(torso_orientation_in_world(*sensors_, joint_context())).toRotationMatrix();
@@ -114,7 +120,7 @@ bool MimicPolicyRuntime::prepare_observation()
     return false;
   }
 
-  playback_.reference->seek(*motion_time);
+  playback_.reference->seek(*motion_time + (tracks_pelvis_orientation() ? step_dt() : 0.0f));
   return true;
 }
 

@@ -17,6 +17,9 @@
 #ifndef AI_SAPIENS_SIM2REAL__POLICY__TORSO_ORIENTATION_HPP_
 #define AI_SAPIENS_SIM2REAL__POLICY__TORSO_ORIENTATION_HPP_
 
+#include <array>
+#include <cmath>
+
 #include <Eigen/Dense>  // NOLINT(build/include_order)
 
 #include "ai_sapiens_sim2real/shared_control_data.hpp"
@@ -50,6 +53,27 @@ inline Eigen::Quaternionf torso_orientation_in_world(
   }
 
   return sensors.orientation * Eigen::AngleAxisf(waist_yaw, Eigen::Vector3f::UnitZ());
+}
+
+// OpenTrack orientation contract v1: fix the initial yaw offset, then express
+// the aligned reference in the measured pelvis frame (never the torso frame).
+inline Eigen::Quaternionf initial_pelvis_alignment(
+  const Eigen::Quaternionf & robot, const Eigen::Quaternionf & reference)
+{
+  auto yaw = [](const Eigen::Quaternionf & input) {
+      const auto q = input.normalized();
+      return std::atan2(2 * (q.w()*q.z() + q.x()*q.y()),
+               1 - 2 * (q.y()*q.y() + q.z()*q.z()));
+    };
+  return Eigen::Quaternionf(Eigen::AngleAxisf(yaw(robot)-yaw(reference), Eigen::Vector3f::UnitZ()));
+}
+inline std::array<float, 6> pelvis_orientation_observation(
+  const Eigen::Quaternionf & robot, const Eigen::Quaternionf & reference,
+  const Eigen::Quaternionf & initial_alignment)
+{
+  const auto rotation = (robot.normalized().conjugate() * initial_alignment *
+    reference.normalized()).normalized().toRotationMatrix();
+  return {rotation(0,0), rotation(0,1), rotation(1,0), rotation(1,1), rotation(2,0), rotation(2,1)};
 }
 
 }  // namespace ai_sapiens_sim2real

@@ -351,7 +351,8 @@ residual actions for this 23-joint asset. The policy ONNX and its external
 `.onnx.data` weights must both be present. Motion loading uses only CSV.
 
 `runtime_type: opentrack_specialist` also uses the extended CSV and
-`actions.reference_residual`, with a single `obs` input and no history buffer.
+`actions.reference_residual`, with a single `obs` input and no Adapter history
+buffer unless the optional velocity estimator below adds its own sensor input.
 The generic `runtime_type: opentrack` is accepted for either model interface.
 ONNX input names and shapes determine whether history is needed; if YAML omits
 `history_length`, its length is taken from the ONNX history input. An explicit
@@ -381,3 +382,56 @@ non-finite sensor rejection. An offline check connected the C++ runtime to the
 K1 MuJoCo model with affine PD for all 559 frames (joint RMSE about 0.117 rad).
 The temporary checks were removed after validation. ROS transport latency,
 GUI entry transitions, and physical hardware operation remain unverified.
+
+### OpenTrack Specialist with pelvis yaw tracking
+
+Bundles declaring `orientation_tracking` version 1 can append the six-channel
+`motion_anchor_ori_b` term after `last_motor_targets` and before the reference
+height terms. This is a pelvis-relative rotation, encoded as the first two
+matrix columns in row-major order. The initial robot/reference yaw difference
+is fixed on policy entry; later yaw disturbances remain observable. The entire
+reference frame is sampled one policy step ahead, matching the bundle's
+`reference_time_offset_steps: 1` contract. Legacy Specialist observations keep
+their original 126-channel layout; a 23-joint yaw Specialist uses 132 channels.
+
+This path requires a calibrated pelvis orientation. The K1 MuJoCo IMU site is
+aligned with the pelvis; hardware IMU extrinsics must be checked separately.
+
+### OpenTrack velocity estimator (Specialist / AnyAdapter)
+
+Use the matching ONNX and extended CSV with **one runtime settings file**,
+`params/sim2real.yaml`. The only extra block is:
+
+```yaml
+velocity_estimation:
+  version: 1
+  history_length: 20
+```
+
+Omit this block for a policy without the estimator. v1 requires K1's 23 joints,
+132-channel orientation-enabled observation and 50 Hz control. The existing
+`orientation_tracking` block, gains, action scale and observations stay intact.
+There is no sidecar YAML, separate estimator ONNX, or GT linear-velocity input.
+Estimator weights and actor-side velocity scaling are inside `policy.onnx`.
+
+The additional input `velocity_history [1,20,75]` is time-major, oldest first,
+including the **current** scaled/clipped actor sensors in this order:
+`gvec_pelvis`, `gyro_pelvis`, `joint_pos`, `joint_vel`, `last_motor_targets`.
+Motor targets are from the previous successful control step. The first sensor
+frame is repeated on entry/reset. A rejected action does not commit history.
+AnyAdapter still independently uses `history [1,75,79]`: gyro before gravity,
+channel-major, past states paired with their newly committed motor targets.
+Do not interchange these inputs or change their lengths without matching ONNX.
+
+The inference wrapper accepts the estimator's two outputs, selects
+`continuous_actions` **by name** (regardless of output order), and does not send
+the `estimated_velocity [1,3]` diagnostic as a joint command. Other policies keep
+their single-output interface. Malformed settings, shapes, types or sensor
+dimensions fail at loading. Non-finite sensor handling, action rejection and
+the existing repeated-inference-failure damping path remain in place.
+
+Build/restart the sim2real process to use this runtime change; policy retraining
+and ONNX re-export are not required. Motion loading remains CSV-only. This
+change does not select a different policy/state or enable command publication.
+Check calibrated IMU axes, controller timing and joint mapping in simulation
+before any supported, supervised hardware test.

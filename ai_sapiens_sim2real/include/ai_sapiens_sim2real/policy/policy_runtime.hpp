@@ -75,7 +75,7 @@ public:
   const std::string & state_name() const;
   size_t observation_size() const
   {
-    if (adapter_) {return 5 * joint_context_.policy_joint_names.size() + 11;}
+    if (adapter_) {return 5 * joint_context_.policy_joint_names.size() + 11 + (orientation_tracking_ ? 6 : 0);}
     if (!obs_manager_) {
       return 0U;
     }
@@ -94,6 +94,8 @@ protected:
   virtual void advance_clocks();
   virtual std::vector<float> process_action(const std::vector<float> & raw_action);
   bool is_adapter() const {return adapter_;}
+  double step_dt() const {return step_dt_;}
+  bool tracks_pelvis_orientation() const {return orientation_tracking_;}
 
   // State the hooks read; writes still go only through the owned output block,
   // which stays private so derived kinds cannot bypass the action scatter.
@@ -144,7 +146,10 @@ private:
   void compute_adapter_observation();
   void commit_adapter_history(const std::vector<float> & targets);
   bool adapter_{false};
+  bool orientation_tracking_{false};
   int history_length_{0};
+  int velocity_history_length_{0};
+  bool velocity_history_ready_{false};
   float joint_vel_scale_{0.05f};
   const MotionReference * adapter_reference_{nullptr};
   std::deque<std::vector<float>> adapter_history_;

@@ -48,6 +48,9 @@ void OnnxInference::load_input_metadata(const std::string & model_path)
   // Get input information.
   for (size_t i = 0; i < session_->GetInputCount(); ++i) {
     Ort::TypeInfo input_type = session_->GetInputTypeInfo(i);
+    if (input_type.GetTensorTypeAndShapeInfo().GetElementType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT) {
+      throw std::runtime_error("ONNX policy inputs must be float32: " + model_path);
+    }
     const auto input_shape = input_type.GetTensorTypeAndShapeInfo().GetShape();
     input_shapes_.push_back(input_shape);
     normalized_input_shapes_.push_back(normalize_policy_shape(input_shape,
@@ -67,18 +70,49 @@ void OnnxInference::load_input_metadata(const std::string & model_path)
 
 void OnnxInference::load_output_metadata(const std::string & model_path)
 {
-  if (session_->GetOutputCount() != 1) {
-    throw std::runtime_error(
-      "ONNX policy model must have exactly one output, found " +
-      std::to_string(session_->GetOutputCount()) + ": " + model_path);
+  size_t action_index = 0;
+  const bool velocity_estimator =
+    std::find(input_names_.begin(), input_names_.end(), "velocity_history") != input_names_.end();
+  if (velocity_estimator) {
+    if (session_->GetOutputCount() != 2) {
+      throw std::runtime_error("Velocity policy requires continuous_actions and estimated_velocity outputs");
+    }
+    // Fetch only the named action output, never the diagnostic velocity.
+    // Keep the legacy single-output rule for all other policies.
+    bool action_found = false, velocity_found = false;
+    for (size_t i = 0; i < session_->GetOutputCount(); ++i) {
+      const std::string name = session_->GetOutputNameAllocated(i, allocator_).get();
+      Ort::TypeInfo type = session_->GetOutputTypeInfo(i);
+      const auto info = type.GetTensorTypeAndShapeInfo();
+      const auto shape = normalize_policy_shape(info.GetShape(), name);
+      if (info.GetElementType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT ||
+        shape.size() != 2 || shape[0] != 1)
+      {
+        throw std::runtime_error("Velocity policy outputs must be float32 [1,channels]");
+      }
+      if (name == "continuous_actions") {
+        action_found = true;
+        action_index = i;
+      } else if (name == "estimated_velocity" && shape[1] == 3) {
+        velocity_found = true;
+      }
+    }
+    if (!action_found || !velocity_found) {
+      throw std::runtime_error("Velocity policy requires continuous_actions and estimated_velocity [1,3]");
+    }
+  } else if (session_->GetOutputCount() != 1) {
+    throw std::runtime_error("ONNX policy model must have exactly one output: " + model_path);
   }
 
   // Get output information.
-  Ort::TypeInfo output_type = session_->GetOutputTypeInfo(0);
+  Ort::TypeInfo output_type = session_->GetOutputTypeInfo(action_index);
+  if (output_type.GetTensorTypeAndShapeInfo().GetElementType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT) {
+    throw std::runtime_error("ONNX policy action output must be float32: " + model_path);
+  }
   output_shape_ = output_type.GetTensorTypeAndShapeInfo().GetShape();
   normalized_output_shape_ = normalize_policy_shape(output_shape_, "output");
   output_size_ = tensor_size(normalized_output_shape_, "output");
-  auto output_name = session_->GetOutputNameAllocated(0, allocator_);
+  auto output_name = session_->GetOutputNameAllocated(action_index, allocator_);
   output_names_.emplace_back(output_name.get());
   cache_name_pointers(output_names_, output_name_ptrs_);
 }

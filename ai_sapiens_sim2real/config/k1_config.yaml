@@ -64,9 +64,9 @@ selectors:
       200: MimicSquat
       201: MimicDance1
       202: MimicDance2
-      # 203:
-      # 204:
-      # 205:
+      203: MimicDynamite
+      204: MimicDynamiteYaw
+      205: MimicDynamiteVelestimator
       # 206:
       # 207:
       # 208:
@@ -128,6 +128,15 @@ state_machine:
     MimicDance2:
       parent: Mimic
       run: mimic_dance2
+    MimicDynamite:
+      parent: Mimic
+      run: mimic_dynamite
+    MimicDynamiteYaw:
+      parent: Mimic
+      run: mimic_dynamite_yaw
+    MimicDynamiteVelestimator:
+      parent: Mimic
+      run: mimic_dynamite_velestimator
 
 state_behaviors:
   damping:
@@ -203,3 +212,15 @@ state_behaviors:
     kind: mimic
     asset: mimic/dance2
     motion: dance2.csv
+  mimic_dynamite:
+    kind: mimic
+    asset: mimic/Dynamite_Specialist
+    motion: dynamite_specialist_reference.csv
+  mimic_dynamite_yaw:
+    kind: mimic
+    asset: mimic/Dynamite_Yaw
+    motion: dynamite_specialist_reference_synced.csv
+  mimic_dynamite_velestimator:
+    kind: mimic
+    asset: mimic/Dynamite_vel_estimator
+    motion: dynamite_specialist_reference_synced.csv

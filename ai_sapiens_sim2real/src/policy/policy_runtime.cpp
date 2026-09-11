@@ -19,6 +19,7 @@
 #include <cmath>
 
 #include "ai_sapiens_sim2real/policy/onnx_inference.hpp"
+#include "ai_sapiens_sim2real/policy/torso_orientation.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -254,6 +255,7 @@ std::vector<float> PolicyRuntime::adapter_state_frame() const
 
 void PolicyRuntime::reset_adapter_history()
 {
+  velocity_history_ready_ = false;
   const size_t count = joint_context_.policy_joint_names.size();
   last_motor_targets_.resize(count);
   for (size_t i = 0; i < count; ++i) {
@@ -284,6 +286,13 @@ void PolicyRuntime::compute_adapter_observation()
   obs.insert(obs.end(), adapter_current_frame_.begin() + 3, adapter_current_frame_.begin() + 6);
   obs.insert(obs.end(), adapter_current_frame_.begin(), adapter_current_frame_.begin() + 3);
   obs.insert(obs.end(), adapter_current_frame_.begin() + 6, adapter_current_frame_.end());
+  if (orientation_tracking_) {
+    // Pelvis IMU is aligned with the free root in K1's MuJoCo model.
+    // Keep the initial yaw alignment fixed throughout disturbances.
+    const auto orientation = pelvis_orientation_observation(sensors_->orientation,
+      adapter_reference_->root_quaternion(), policy_->motion_init_quat);
+    obs.insert(obs.end(), orientation.begin(), orientation.end());
+  }
   const auto & feet = adapter_reference_->feet_height();
   obs.insert(obs.end(), feet.data(), feet.data() + feet.size());
   obs.push_back(adapter_reference_->root_height());
@@ -292,6 +301,21 @@ void PolicyRuntime::compute_adapter_observation()
     value = std::clamp(value, -100.0f, 100.0f);
   }
   policy_->input = obs;
+  if (velocity_history_length_ > 0) {
+    // v1 sensors are the contiguous obs terms gvec, gyro, joint_pos,
+    // joint_vel, previous motor targets. Use the already scaled/clipped obs;
+    // neither reference commands nor simulator velocity enter the estimator.
+    const size_t frame_size = adapter_current_frame_.size();
+    auto & velocity_history = obs_buffer_["velocity_history"];
+    const auto sensors_begin = obs.begin() + 2 * count;
+    if (!velocity_history_ready_) {
+      for (int frame = 0; frame < velocity_history_length_; ++frame) {
+        std::copy_n(sensors_begin, frame_size, velocity_history.begin() + frame * frame_size);
+      }
+    } else {
+      std::copy_n(sensors_begin, frame_size, velocity_history.end() - frame_size);
+    }
+  }
   if (history_length_ == 0) {return;}
   auto & history = obs_buffer_["history"];
   for (size_t channel = 0; channel < adapter_current_frame_.size(); ++channel) {
@@ -301,12 +325,20 @@ void PolicyRuntime::compute_adapter_observation()
       history[channel * history_length_ + frame] = value;
     }
   }
-  policy_->input = obs;
 }
 
 void PolicyRuntime::commit_adapter_history(const std::vector<float> & targets)
 {
   last_motor_targets_ = targets;
+  if (velocity_history_length_ > 0) {
+    // Commit only after a valid action. Shift the preallocated time-major
+    // buffer for the next tick; compute_observation replaces its final frame.
+    // A failed inference/action therefore does not advance committed history.
+    auto & velocity_history = obs_buffer_["velocity_history"];
+    std::rotate(velocity_history.begin(),
+      velocity_history.begin() + adapter_current_frame_.size(), velocity_history.end());
+    velocity_history_ready_ = true;
+  }
   if (history_length_ == 0) {return;}
   std::copy(targets.begin(), targets.end(), adapter_current_frame_.end() - targets.size());
   adapter_history_.pop_front();
@@ -448,6 +480,25 @@ void PolicyRuntime::load_sim2real_config(
   const std::vector<std::string> & controller_joint_names)
 {
   adapter_ = sim2real_config.is_adapter();
+  const auto root = YAML::LoadFile(sim2real_config.path().string());
+  if (adapter_) {
+    const auto observations = sim2real_config.observations();
+    orientation_tracking_ = static_cast<bool>(observations["motion_anchor_ori_b"]);
+    if (orientation_tracking_) {
+      const auto spec = root["orientation_tracking"];
+      if (!spec || spec["version"].as<int>(0) != 1 ||
+        spec["anchor"].as<std::string>("") != "pelvis" ||
+        spec["alignment"].as<std::string>("") != "initial_yaw" ||
+        spec["representation"].as<std::string>("") != "relative_rotation_first_two_columns_row_major" ||
+        spec["quaternion_order"].as<std::string>("") != "wxyz" ||
+        !spec["requires_pelvis_orientation_estimate"].as<bool>(false) ||
+        spec["reference_time_offset_steps"].as<int>(0) != 1 ||
+        observations["motion_anchor_ori_b"]["dimension"].as<int>(0) != 6)
+      {
+        throw std::runtime_error("Unsupported OpenTrack pelvis orientation contract");
+      }
+    }
+  }
   history_length_ = sim2real_config.history_length();
   joint_vel_scale_ = sim2real_config.joint_vel_scale();
   joint_context_.policy_joint_names = sim2real_config.policy_joints();
@@ -459,6 +510,22 @@ void PolicyRuntime::load_sim2real_config(
 
   step_dt_ = sim2real_config.step_dt();
   accumulated_period_ = step_dt_;
+
+  if (const auto spec = root["velocity_estimation"]) {
+    // Single-file deployment contract: presence enables the estimator.
+    // v1 fixes sensor order/layout/reset; only history length is variable.
+    if (!adapter_ || !spec.IsMap() || spec.size() != 2 || !spec["history_length"] ||
+      spec["version"].as<int>(0) != 1 || !orientation_tracking_ ||
+      joint_context_.policy_joint_names.size() != 23 || std::abs(step_dt_ - 0.02) > 1e-9)
+    {
+      throw std::runtime_error("Unsupported sim2real.yaml velocity_estimation: require "
+        "version: 1 and history_length for K1 23-joint orientation tracking at 50 Hz");
+    }
+    velocity_history_length_ = spec["history_length"].as<int>();
+    if (velocity_history_length_ < 1 || velocity_history_length_ > 200) {
+      throw std::runtime_error("velocity_estimation.history_length must be in [1,200]");
+    }
+  }
 
   joint_properties_ = sim2real_config.joint_properties();
   action_pipeline_ = ActionPipeline(sim2real_config.action_properties());
@@ -530,10 +597,15 @@ void PolicyRuntime::load_onnx_model()
     const auto count = joint_context_.policy_joint_names.size();
     const auto history_input = std::find(input_names.begin(), input_names.end(), "history");
     const bool has_history = history_input != input_names.end();
+    const bool has_velocity =
+      std::find(input_names.begin(), input_names.end(), "velocity_history") != input_names.end();
+    if (has_velocity != (velocity_history_length_ > 0)) {
+      throw std::runtime_error("ONNX velocity_history does not match velocity_estimation in sim2real.yaml");
+    }
     if (std::count(input_names.begin(), input_names.end(), "obs") != 1 ||
-      input_names.size() != (has_history ? 2u : 1u))
+      input_names.size() != 1u + has_history + has_velocity)
     {
-      throw std::runtime_error("OpenTrack requires obs and optional history inputs");
+      throw std::runtime_error("OpenTrack requires obs and optional history/velocity_history inputs");
     }
     if (has_history) {
       const auto index = static_cast<size_t>(history_input - input_names.begin());
@@ -549,16 +621,20 @@ void PolicyRuntime::load_onnx_model()
       throw std::runtime_error("OpenTrack policy has no history input but YAML requests history");
     }
     for (size_t i = 0; i < input_names.size(); ++i) {
-      const auto expected = input_names[i] == "obs" ? 5 * count + 11 :
-        input_names[i] == "history" ? (6 + 3 * count) * history_length_ : 0;
+      const auto expected = input_names[i] == "obs" ? observation_size() :
+        input_names[i] == "history" ? (6 + 3 * count) * history_length_ :
+        input_names[i] == "velocity_history" ? (6 + 3 * count) * velocity_history_length_ : 0;
       if (expected == 0 || sizes[i] != static_cast<int64_t>(expected)) {
         throw std::runtime_error("Adapter ONNX input name or size mismatch");
       }
       const std::vector<int64_t> shape = input_names[i] == "obs" ?
-        std::vector<int64_t>{1, static_cast<int64_t>(5 * count + 11)} :
-      std::vector<int64_t>{1, static_cast<int64_t>(6 + 3 * count), history_length_};
+        std::vector<int64_t>{1, static_cast<int64_t>(observation_size())} :
+        input_names[i] == "history" ?
+        std::vector<int64_t>{1, static_cast<int64_t>(6 + 3 * count), history_length_} :
+        std::vector<int64_t>{1, velocity_history_length_, static_cast<int64_t>(6 + 3 * count)};
       if (inference_->get_input_shapes()[i] != shape) {
-        throw std::runtime_error("Adapter ONNX tensor axes must be batch/channel/time");
+        throw std::runtime_error("OpenTrack ONNX axes mismatch for " + input_names[i] +
+          ": history uses batch/channel/time; velocity_history uses batch/time/channel");
       }
     }
   } else if (input_names.size() != 1) {
@@ -590,15 +666,25 @@ size_t PolicyRuntime::create_observation_manager(
       throw std::runtime_error("Adapter requires an Adapter CSV in policy joint order");
     }
     adapter_reference_ = reference_motion;
-    const std::vector<std::string> expected = {"dif_joint_pos", "dif_joint_vel", "gvec_pelvis",
+    std::vector<std::string> expected = {"dif_joint_pos", "dif_joint_vel", "gvec_pelvis",
       "gyro_pelvis", "joint_pos", "joint_vel", "last_motor_targets", "ref_feet_height",
       "ref_root_height"};
+    if (orientation_tracking_) expected.insert(expected.end()-2, "motion_anchor_ori_b");
     size_t i = 0;
     for (const auto & term : sim2real_config.observations()) {
       if (i >= expected.size() || term.first.as<std::string>() != expected[i++]) {
         throw std::runtime_error("Unsupported Adapter observation order");
       }
       const auto cfg = term.second;
+      if (velocity_history_length_ > 0) {
+        const auto name = term.first.as<std::string>();
+        const size_t dimension = name == "gvec_pelvis" || name == "gyro_pelvis" ? 3u :
+          name == "motion_anchor_ori_b" ? 6u : name == "ref_feet_height" ? 4u :
+          name == "ref_root_height" ? 1u : joint_context_.policy_joint_names.size();
+        if (cfg["dimension"].as<size_t>(0) != dimension) {
+          throw std::runtime_error("Velocity-estimator observation dimension mismatch: " + name);
+        }
+      }
       if (cfg["history_length"].as<int>(1) != 1 || (cfg["clip"] && !cfg["clip"].IsNull())) {
         throw std::runtime_error("Adapter observations use separate history and fixed clipping");
       }
@@ -617,6 +703,9 @@ size_t PolicyRuntime::create_observation_manager(
     if (history_length_ > 0) {
       obs_buffer_["history"].resize((6 + 3 * joint_context_.policy_joint_names.size()) *
           history_length_);
+    }
+    if (velocity_history_length_ > 0) {
+      obs_buffer_["velocity_history"].resize(75 * velocity_history_length_);
     }
     return observation_size();
   }
@@ -648,7 +737,9 @@ void PolicyRuntime::log_ready(size_t observation_size) const
 {
   std::cout << "[PolicyRuntime] Ready: " << state_name_
             << " (obs=" << observation_size
-            << ", action=" << inference_->get_output_size() << ")\n"
+            << ", action=" << inference_->get_output_size()
+            << ", velocity_history=" << velocity_history_length_ << "x"
+            << (velocity_history_length_ > 0 ? 75 : 0) << ")\n"
             << "[PolicyRuntime] ==================================================\n"
             << std::endl;
 }
