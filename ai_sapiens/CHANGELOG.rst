@@ -2,6 +2,11 @@
 Changelog for package ai_sapiens
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.2.2 (2026-09-14)
+------------------
+* Update K1 model with revised inertial properties and mesh files
+* Contributors: Wonho Yun
+
 0.2.1 (2026-09-01)
 ------------------
 * Added a separate timeout that zeros stale manual velocity commands before
