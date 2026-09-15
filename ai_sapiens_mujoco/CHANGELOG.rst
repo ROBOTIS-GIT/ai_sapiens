@@ -6,6 +6,7 @@ Changelog for package ai_sapiens_mujoco
 ------------------
 * Fixed viewer camera controls to compile with MuJoCo 3.11.0 and newer
   while preserving compatibility with earlier versions.
+* Contributors: Kiwoong Park
 
 0.2.1 (2026-09-01)
 ------------------

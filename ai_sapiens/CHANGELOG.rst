@@ -7,7 +7,7 @@ Changelog for package ai_sapiens
 * Update K1 model with revised inertial properties and mesh files
 * Fixed viewer camera controls to compile with MuJoCo 3.11.0 and newer
   while preserving compatibility with earlier versions.
-* Contributors: Wonho Yun
+* Contributors: Wonho Yun, Kiwoong Park
 
 0.2.1 (2026-09-01)
 ------------------
