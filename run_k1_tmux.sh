@@ -8,6 +8,7 @@ SIM=false
 TELEOP="default"
 DEVICE="/dev/input/js0"
 DEVICE_SET=false
+GROUP_DEVICE=""
 SESSION_ARGS=()
 
 die() {
@@ -26,6 +27,7 @@ usage() {
   echo "Usage: $0 [session_name] [options]"
   echo "  --sim                  Use MuJoCo."
   echo "  --radiomaster-usb      Use RadioMaster USB (MuJoCo only)."
+  echo "  --group-device=/dev/input/jsN  Second RadioMaster; enables dual-RC rules."
   echo "  --dualsense            Use DualSense."
   echo "  --keyboard             Use keyboard teleop."
   echo "  --device=/dev/input/jsN  Select the RadioMaster or DualSense device."
@@ -36,6 +38,7 @@ for arg in "$@"; do
   case "$arg" in
     --sim) SIM=true ;;
     --radiomaster-usb|--dualsense|--keyboard) set_teleop "${arg#--}" ;;
+    --group-device=*) GROUP_DEVICE="${arg#*=}" ;;
     --device=*) DEVICE="${arg#*=}"; DEVICE_SET=true ;;
     -h|--help) usage; exit 0 ;;
     --*) die "unknown option '$arg'." ;;
@@ -62,6 +65,12 @@ if [[ ! "$DEVICE" =~ ^/dev/input/js[0-9]+$ ]]; then
   die "--device must have the form /dev/input/jsN."
 fi
 
+if [ -n "$GROUP_DEVICE" ]; then
+  [ "$TELEOP" = "radiomaster-usb" ] || die "--group-device requires --radiomaster-usb."
+  [[ "$GROUP_DEVICE" =~ ^/dev/input/js[0-9]+$ ]] || die "invalid group device."
+  [ "$GROUP_DEVICE" != "$DEVICE" ] || die "individual and group devices must differ."
+fi
+
 # Build the commands that each pane will run.
 BRINGUP_LAUNCH="k1.launch.py"
 if [ "$SIM" = true ]; then
@@ -85,6 +94,10 @@ printf -v DEVICE_QUOTED '%q' "$DEVICE"
 case "$TELEOP" in
   radiomaster-usb)
     BRINGUP_CMD+=" radiomaster_usb:=true radiomaster_usb_device:=$DEVICE_QUOTED"
+    if [ -n "$GROUP_DEVICE" ]; then
+      printf -v GROUP_DEVICE_QUOTED '%q' "$GROUP_DEVICE"
+      BRINGUP_CMD+=" group_usb:=true group_usb_device:=$GROUP_DEVICE_QUOTED"
+    fi
     ;;
   dualsense)
     use_plugin "DualSenseTeleopInputPlugin" "dualsense"

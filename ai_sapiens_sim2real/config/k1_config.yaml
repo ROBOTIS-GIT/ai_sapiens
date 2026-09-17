@@ -203,3 +203,11 @@ state_behaviors:
     kind: mimic
     asset: mimic/dance2
     motion: dance2.csv
+
+# Set false for the legacy single-controller path (including CH8/API).
+group:
+  enabled: true
+  plugin: ai_sapiens_sim2real/RadiomasterPocketTeleopInputPlugin
+  config: teleop/radiomaster_group.yaml
+  timeout: 0.2
+  vel_command_timeout: 0.2

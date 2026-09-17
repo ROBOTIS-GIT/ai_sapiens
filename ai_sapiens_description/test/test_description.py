@@ -12,6 +12,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# Author: Kiwoong Park
 
 """Validate the installed K1 robot-description assets."""
 
@@ -316,3 +318,36 @@ def test_mujoco_files_load():
         dof_id = model.jnt_dofadr[joint_id]
         expected_armature = ARMATURE_BY_CLASS[_armature_class(joint.attrib['name'])]
         assert math.isclose(model.dof_armature[dof_id], expected_armature)
+
+
+def test_xacro_expands_with_two_independent_radiomaster_receivers():
+    """Two USB inputs must export disjoint interfaces and preserve the original input."""
+    document = xacro.process_file(
+        str(XACRO_PATH),
+        mappings={
+            'sim_mujoco': 'true',
+            'mujoco_viewer': 'false',
+            'radiomaster_usb': 'true',
+            'radiomaster_usb_device': '/dev/input/js0',
+            'group_usb': 'true',
+            'group_usb_device': '/dev/input/js1',
+        },
+    )
+    root = ET.fromstring(document.toxml())
+    controls = {item.attrib['name']: item for item in root.findall('ros2_control')}
+    individual = controls['k1_radiomaster_usb']
+    group = controls['k1_group_usb']
+    for control, device, sensor in (
+        (individual, '/dev/input/js0', 'hat'),
+        (group, '/dev/input/js1', 'group_hat'),
+    ):
+        assert control.find("hardware/param[@name='device']").text == device
+        assert control.find('sensor').attrib['name'] == sensor
+        assert len(control.findall('sensor/state_interface')) == 23
+    interfaces = [
+        (sensor.attrib['name'], interface.attrib['name'])
+        for control in controls.values()
+        for sensor in control.findall('sensor')
+        for interface in sensor.findall('state_interface')
+    ]
+    assert len(interfaces) == len(set(interfaces))

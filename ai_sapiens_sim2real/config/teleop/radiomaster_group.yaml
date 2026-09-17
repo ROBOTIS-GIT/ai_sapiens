@@ -1,5 +1,5 @@
-topic: /ai_sapiens_rc/status
-axis_deadzone: 0.0
+topic: /ai_sapiens_rc/group/status
+axis_deadzone: 0.05
 switch_match_tolerance: 50
 
 velocity_command:
@@ -8,14 +8,6 @@ velocity_command:
     linear_y: {channel: CH4, invert: true}
     angular_z: {channel: CH1, invert: true}
 
-# Used only when group.enabled is true.
-group_mode:
-  when:
-    CH5: 2000
-
-api_mode:
-  when:
-    CH8: 2000
 
 input_code:
   channels:

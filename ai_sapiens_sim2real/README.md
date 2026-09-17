@@ -338,3 +338,13 @@ The `mode_runtime` directory contains focused state-machine, authority runtime,
 and startup helpers.
 `SharedControlData` is the explicit data boundary between callbacks, mode
 selection, policy execution, and command publication.
+
+## Optional dual RadioMaster / group teleoperation
+
+Use `k1_config.yaml` (`robot:=k1`) for both single and dual RadioMaster operation.
+Set `group.enabled: true` for dual operation (currently enabled), and enable
+both USB receivers in the MuJoCo bringup. Set it to `false` to restore the legacy
+single-input path, including CH8/API control.
+Use `--group-device=/dev/input/js1` with `run_k1_tmux.sh` to enable the second USB input.
+CH5 on the individual controller selects group participation; `/ai_sapiens/group_status`
+reports the actual participation and group input availability.

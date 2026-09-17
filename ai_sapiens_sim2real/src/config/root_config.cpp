@@ -16,7 +16,9 @@
 
 #include "ai_sapiens_sim2real/config/root_config.hpp"
 
+#include <array>
 #include <cmath>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -114,6 +116,67 @@ void validate_teleop_timeouts(const OperatorCommandInputOptions & options)
   }
 }
 
+void read_group_timeouts(const YAML::Node & group, GroupInputOptions & options)
+{
+  if (group["timeout"]) {
+    options.timeout = group["timeout"].as<double>();
+  }
+  options.vel_command_timeout = group["vel_command_timeout"] ?
+    group["vel_command_timeout"].as<double>() : options.timeout;
+
+  require_positive_finite_timeout(options.timeout, "group.timeout");
+  require_positive_finite_timeout(options.vel_command_timeout, "group.vel_command_timeout");
+  if (options.vel_command_timeout > options.timeout) {
+    throw std::runtime_error("group.vel_command_timeout must not exceed group.timeout");
+  }
+}
+
+uint16_t required_group_condition_code(
+  const TeleopConditionsConfig & conditions, const char * name)
+{
+  const auto * condition = conditions.find_condition(name);
+  if (!condition || condition->input_code == 0) {
+    throw std::runtime_error(std::string("group requires nonzero condition: ") + name);
+  }
+  return condition->input_code;
+}
+
+void read_group_command_mapping(
+  const TeleopConditionsConfig & conditions, const AuthorityConfig & authority,
+  GroupCommandMapping & mapping)
+{
+  // Translate configured FSM conditions into the arbiter's device-neutral commands.
+  mapping.damping_code = required_group_condition_code(conditions, "DampingRequested");
+  mapping.ready_code = required_group_condition_code(conditions, "ReadyPoseRequested");
+  mapping.locomotion_code = required_group_condition_code(conditions, "VelocityRequested");
+  mapping.mimic_code = required_group_condition_code(conditions, "MimicRequested");
+
+  const std::array<uint16_t, 4> codes = {
+    mapping.damping_code, mapping.ready_code, mapping.locomotion_code, mapping.mimic_code};
+  const std::set<uint16_t> distinct_codes(codes.begin(), codes.end());
+  if (distinct_codes.size() != codes.size()) {
+    throw std::runtime_error("group requires distinct teleop condition codes");
+  }
+  mapping.locomotion_state = authority.default_velocity_state;
+}
+
+std::optional<GroupInputOptions> read_group_input_options(
+  const YAML::Node & group, const std::filesystem::path & config_dir,
+  const TeleopConditionsConfig & conditions, const AuthorityConfig & authority)
+{
+  if (!group || !group["enabled"] || !group["enabled"].as<bool>()) {
+    return std::nullopt;
+  }
+  GroupInputOptions options;
+  options.plugin = read_required_yaml_string(group["plugin"], "group.plugin");
+  options.config_path = resolve_config_path(config_dir,
+    read_required_yaml_string(group["config"], "group.config")).string();
+  read_group_timeouts(group, options);
+  read_group_command_mapping(conditions, authority, options.commands);
+  (void)load_yaml_file(options.config_path, "group plugin config");
+  return options;
+}
+
 }  // namespace
 
 RootConfig::RootConfig(const std::filesystem::path & path)
@@ -174,6 +237,8 @@ OperatorCommandInputOptions RootConfig::operator_command_input_options() const
         options.teleop_vel_command_timeout = teleop_input["vel_command_timeout"].as<double>();
       }
       validate_teleop_timeouts(options);
+      options.group = read_group_input_options(
+        document_["group"], config_dir_, teleop_conditions_config_, authority_config_);
     });
 
   (void)load_yaml_file(options.teleop_input_config_path, "teleop input plugin config");

@@ -13,6 +13,9 @@
       imu_sensor_broadcaster:
         type: imu_sensor_broadcaster/IMUSensorBroadcaster
 
+      group_rc_broadcaster:
+        type: ai_sapiens_rc_broadcaster/AiSapiensRcBroadcaster
+
       rc_broadcaster:
         type: ai_sapiens_rc_broadcaster/AiSapiensRcBroadcaster
 
@@ -28,6 +31,64 @@
       input_topic_name: /ai_sapiens_rc/input
       status_topic_name: /ai_sapiens_rc/status
       frame_id: hat
+      channels:
+        - RC Channel 1
+        - RC Channel 2
+        - RC Channel 3
+        - RC Channel 4
+        - RC Channel 5
+        - RC Channel 6
+        - RC Channel 7
+        - RC Channel 8
+        - RC Channel 9
+        - RC Channel 10
+        - RC Channel 11
+        - RC Channel 12
+        - RC Channel 13
+        - RC Channel 14
+        - RC Channel 15
+        - RC Channel 16
+      channel_names:
+        - Right Gimbal Horizontal
+        - Right Gimbal Vertical
+        - Left Gimbal Vertical
+        - Left Gimbal Horizontal
+        - SA
+        - SB
+        - SC
+        - SD
+        - SE
+        - SI
+        - Mode PWM
+        - E-stop PWM
+        - RC Channel 13
+        - RC Channel 14
+        - RC Channel 15
+        - RC Channel 16
+      status_interfaces:
+        - Hardware Error Status
+        - Realtime Tick
+        - E-stop Active
+        - CRSF Failsafe
+        - CRSF Link Quality
+        - CRSF RSSI 1
+        - CRSF Last Frame Age
+      normalize_axes: true
+      deadzone: 50.0
+      publish_buttons: true
+      button_threshold: 1700.0
+      input_publish_rate: 100.0
+      status_publish_rate: 100.0
+      watchdog_crsf_frame_timeout_ms: 100.0
+      watchdog_realtime_tick_timeout_ms: 100.0
+      min_crsf_link_quality: 1.0
+
+  group_rc_broadcaster:
+    ros__parameters:
+      sensor_name: "group_hat"
+      input_topic_name: /ai_sapiens_rc/group/input
+      status_topic_name: /ai_sapiens_rc/group/status
+      frame_id: group_hat
       channels:
         - RC Channel 1
         - RC Channel 2

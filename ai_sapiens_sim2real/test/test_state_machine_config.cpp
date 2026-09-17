@@ -11,6 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+//
+// Author: Kiwoong Park
 
 #include <gtest/gtest.h>
 
@@ -556,4 +558,40 @@ state_behaviors:
     kind: unsupported
 )"),
     std::runtime_error);
+}
+
+TEST(RootConfig, GroupIsOptInAndDisabledConfigDoesNotRequireASecondPlugin)
+{
+  write_test_plugin_config();
+  const auto yaml = root_config_with_teleop_timeouts("");
+  RootConfig legacy(write_temp_config(yaml));
+  EXPECT_FALSE(legacy.operator_command_input_options().group.has_value());
+  RootConfig disabled(write_temp_config(yaml + "\ngroup:\n  enabled: false\n"));
+  EXPECT_FALSE(disabled.operator_command_input_options().group.has_value());
+}
+
+TEST(RootConfig, GroupParsesIndependentTimeoutsAndSemanticCodes)
+{
+  write_test_plugin_config();
+  auto yaml = root_config_with_teleop_timeouts("");
+  const std::string marker = "    input_code: 1\n";
+  yaml.insert(yaml.find(marker) + marker.size(),
+    "  ReadyPoseRequested:\n    input_code: 2\n"
+    "  VelocityRequested:\n    input_code: 3\n"
+    "  MimicRequested:\n    input_code: 4\n");
+  const std::string group =
+    "\ngroup:\n  enabled: true\n  plugin: test_plugin\n  config: test_plugin.yaml\n";
+  RootConfig config(write_temp_config(yaml + group + "  timeout: 0.4\n"));
+  const auto options = config.operator_command_input_options();
+  EXPECT_TRUE(options.group.has_value());
+  EXPECT_DOUBLE_EQ(options.group->timeout, 0.4);
+  EXPECT_DOUBLE_EQ(options.group->vel_command_timeout, 0.4);
+  EXPECT_EQ(options.group->commands.locomotion_state, "Velocity");
+  EXPECT_EQ(options.group->commands.mimic_code, 4);
+  for (const auto & invalid : {"  timeout: 0\n", "  timeout: .nan\n",
+      "  timeout: 0.2\n  vel_command_timeout: 0.3\n"})
+  {
+    RootConfig bad(write_temp_config(yaml + group + invalid));
+    EXPECT_THROW(bad.operator_command_input_options(), std::runtime_error);
+  }
 }

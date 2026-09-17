@@ -264,6 +264,15 @@ if(BUILD_TESTING)
 
   find_package(ament_cmake_gtest REQUIRED)
 
+  ament_add_gtest(test_group_arbiter test/test_group_arbiter.cpp)
+  ament_add_gtest(test_radiomaster_dual_input test/test_radiomaster_dual_input.cpp)
+  target_compile_definitions(test_radiomaster_dual_input PRIVATE
+    TEST_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/config")
+  ament_target_dependencies(test_radiomaster_dual_input
+    rclcpp realtime_tools ai_sapiens_interfaces pluginlib)
+  target_link_libraries(test_radiomaster_dual_input
+    radiomaster_pocket_teleop_input_plugin yaml-cpp Eigen3::Eigen)
+
   # RealtimeRequestGate: accept/consume/discard/busy semantics (header-only).
   ament_add_gtest(test_request_gate test/test_request_gate.cpp)
   ament_target_dependencies(test_request_gate realtime_tools)
@@ -307,9 +316,10 @@ if(BUILD_TESTING)
     src/config/root_sections/state_machine_config.cpp
     src/config/root_sections/teleop_conditions_config.cpp
     src/controllers/mode_controller.cpp
+    src/sensor_handles/teleop_input_handle.cpp
     src/mode_runtime/authority_runtime.cpp
     src/mode_runtime/mode_state_machine.cpp)
-  ament_target_dependencies(test_mode_controller rclcpp realtime_tools)
+  ament_target_dependencies(test_mode_controller rclcpp realtime_tools std_msgs)
   target_link_libraries(test_mode_controller yaml-cpp Eigen3::Eigen)
 
   # MotionPlayback: absolute-motion-time seek/completion window.

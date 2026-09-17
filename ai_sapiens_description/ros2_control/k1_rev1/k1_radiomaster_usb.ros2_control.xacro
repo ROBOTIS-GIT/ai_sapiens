@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <xacro:macro name="k1_radiomaster_usb_system" params="device:=^|/dev/input/js0">
-    <ros2_control name="k1_radiomaster_usb" type="sensor" rw_rate="100">
+  <xacro:macro name="k1_radiomaster_usb_system" params="device:=^|/dev/input/js0 name:=k1_radiomaster_usb sensor_name:=hat">
+    <ros2_control name="${name}" type="sensor" rw_rate="100">
       <hardware>
         <plugin>radiomaster_usb_hardware_interface/RadiomasterUsbHardwareInterface</plugin>
         <param name="device">${device}</param>
@@ -9,7 +9,7 @@
         <param name="reverse_axes">false</param>
         <param name="rc_channel_defaults">1500,1500,1500,1500,1000,1500,1000,1000,1000,1000,1000,1000,1500,1500,1500,1500</param>
       </hardware>
-      <sensor name="hat">
+      <sensor name="${sensor_name}">
         <state_interface name="Hardware Error Status"/>
         <state_interface name="Realtime Tick"/>
         <state_interface name="E-stop Active"/>

@@ -21,22 +21,33 @@
 
 #include <pluginlib/class_loader.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <yaml-cpp/yaml.h>  // NOLINT(build/include_order)
 
-#include "ai_sapiens_sim2real/control_loop.hpp"
 #include "ai_sapiens_sim2real/mode_runtime/operator_command_input_options.hpp"
-#include "ai_sapiens_sim2real/sensor_handles/api_heartbeat_handle.hpp"
-#include "ai_sapiens_sim2real/sensor_handles/teleop_input_handle.hpp"
-#include "ai_sapiens_sim2real/sensor_handles/twist_command_handle.hpp"
-#include "ai_sapiens_sim2real/shared_control_data.hpp"
 #include "ai_sapiens_sim2real/teleop_input/teleop_input_plugin_base.hpp"
 
 namespace ai_sapiens_sim2real
 {
 
+class ControlLoop;
+struct SharedControlData;
+
+// Group participation is optional even when the shared RC mapping contains it.
+// Clone before editing so the source configuration remains unchanged.
+inline YAML::Node individual_input_config(const YAML::Node & config, bool group_enabled)
+{
+  auto result = YAML::Clone(config);
+  if (!group_enabled) {
+    result.remove("group_mode");
+  }
+  return result;
+}
+
 struct OperatorCommandInputs
 {
   std::shared_ptr<pluginlib::ClassLoader<TeleopInputPluginBase>> teleop_input_loader;
   std::shared_ptr<TeleopInputPluginBase> teleop_input_plugin;
+  std::shared_ptr<TeleopInputPluginBase> group_input_plugin;
 };
 
 // Register teleop/API command input handles with the control loop.

@@ -221,7 +221,10 @@ private:
   StateResolution resolve_authority_owned_state(Authority authority);
   StateRequest make_keep_current_state_request() const;
   StateRequest resolve_state_request_from_transitions() const;
+  std::optional<StateEntryRequest> find_teleop_transition() const;
   ModeFsmTeleopInput make_current_teleop_input() const;
+  void remember_physical_teleop_input();
+  void constrain_group_decision(Decision & decision) const;
 
   // Failsafe runs first each tick. failsafe_reason() purely detects the
   // highest-priority emergency; apply_failsafe() performs the flag clears and

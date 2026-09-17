@@ -10,6 +10,8 @@
   <xacro:arg name="mujoco_gantry" default="true" />
   <xacro:arg name="radiomaster_usb" default="false" />
   <xacro:arg name="radiomaster_usb_device" default="/dev/input/js0" />
+  <xacro:arg name="group_usb" default="false" />
+  <xacro:arg name="group_usb_device" default="/dev/input/js1" />
   <xacro:include filename="$(find ai_sapiens_description)/urdf/k1_rev1/$(arg model).urdf.xacro" />
 
   <xacro:include filename="$(find ai_sapiens_description)/ros2_control/k1_rev1/k1.ros2_control.xacro" />
@@ -25,6 +27,11 @@
     <xacro:if value="$(arg radiomaster_usb)">
       <xacro:k1_radiomaster_usb_system
         device="$(arg radiomaster_usb_device)"/>
+    </xacro:if>
+    <xacro:if value="$(arg group_usb)">
+      <xacro:k1_radiomaster_usb_system
+        device="$(arg group_usb_device)"
+        name="k1_group_usb" sensor_name="group_hat"/>
     </xacro:if>
   </xacro:if>
   <xacro:unless value="$(arg sim_mujoco)">

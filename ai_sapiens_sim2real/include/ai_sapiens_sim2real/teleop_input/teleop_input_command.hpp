@@ -29,6 +29,7 @@ struct TeleopInputCommand
 {
   // Device-neutral manual control input produced by any teleop input plugin.
   bool api_mode{false};
+  bool group_requested{false};
   uint16_t input_code{0};
   uint16_t selector_code{0};
   Eigen::Vector3f velocity{Eigen::Vector3f::Zero()};

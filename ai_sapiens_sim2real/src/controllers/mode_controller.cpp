@@ -39,13 +39,23 @@ ModeController::ModeController(
 
 void ModeController::update(const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
-  const Decision decision = decide();
+  Decision decision = decide();
+  constrain_group_decision(decision);
   apply(decision);
   run_active_mode();
 
-  // Triggered transitions and edge checks compare against last tick's input;
-  // advancing it unconditionally makes every edge last exactly one tick.
+  remember_physical_teleop_input();
+}
+
+void ModeController::remember_physical_teleop_input()
+{
+  // Consume every physical edge once, including rejected requests. Switching
+  // between the group output and individual input must not create a new edge.
   previous_teleop_input_ = make_current_teleop_input();
+  if (state_->group.frame.enabled()) {
+    previous_teleop_input_.input_code = state_->group.frame.individual_input_code;
+    previous_teleop_input_.selector_code = state_->group.frame.individual_selector_code;
+  }
 }
 
 void ModeController::reset()
@@ -75,6 +85,27 @@ ModeController::StateRequest ModeController::make_state_request_from_fsm(
     request.name,
     request.behavior_kind,
     reason};
+}
+
+void ModeController::constrain_group_decision(Decision & decision) const
+{
+  if (!state_->group.frame.overrides_individual()) {
+    return;
+  }
+
+  // Group control cannot replace an executing mimic, regardless of the request source.
+  auto & request = decision.state.request;
+  if (is_mimic_state() && mode_state_machine_.is_mimic_state(request.name)) {
+    request = make_keep_current_state_request();
+  }
+
+  // Decide the velocity restriction using the state that apply_state_request will
+  // actually retain/enter. apply() then commits the decision without group exceptions.
+  const auto & resulting_state = is_transition_allowed(request) ?
+    request.name : mode_->active_state_name;
+  if (mode_state_machine_.is_mimic_state(resulting_state)) {
+    decision.velocity = VelocitySource::Zero;
+  }
 }
 
 void ModeController::apply_state_request(const StateRequest & requested)
@@ -187,6 +218,12 @@ ModeController::StateResolution ModeController::resolve_next_state(
 {
   if (authority_change.implied_state) {
     return StateResolution{*authority_change.implied_state};
+  }
+
+  if (state_->group.frame.has_command()) {
+    // Local posture/exit requests beat a simultaneous policy completion.
+    const auto request = resolve_state_request_from_transitions();
+    return StateResolution{request, true};
   }
 
   if (!requests_->state_name.empty()) {
@@ -335,13 +372,30 @@ ModeController::StateRequest ModeController::make_keep_current_state_request() c
 
 ModeController::StateRequest ModeController::resolve_state_request_from_transitions() const
 {
-  const auto requested = mode_state_machine_.resolve_state_request_with_trigger_rules(
-    mode_->active_state_name, make_current_teleop_input(), previous_teleop_input_);
-  if (requested) {
-    return make_state_request_from_fsm(*requested, TransitionReason::TeleopInputCondition);
+  const auto transition = find_teleop_transition();
+  if (!transition) {
+    return make_keep_current_state_request();
+  }
+  return make_state_request_from_fsm(*transition, TransitionReason::TeleopInputCondition);
+}
+
+std::optional<StateEntryRequest> ModeController::find_teleop_transition() const
+{
+  if (!state_->group.frame.overrides_individual()) {
+    // Individual input follows the FSM's configured edge/level trigger rules.
+    return mode_state_machine_.resolve_state_request_with_trigger_rules(
+      mode_->active_state_name, make_current_teleop_input(), previous_teleop_input_);
   }
 
-  return make_keep_current_state_request();
+  // Group arbitration has already decided whether this tick contains a request.
+  // No request means no transition; do not reinterpret a held switch as an event.
+  if (!state_->group.frame.has_command()) {
+    return std::nullopt;
+  }
+
+  // Map the accepted command to a state without checking physical edges again.
+  return mode_state_machine_.resolve_state_request_by_level_match(
+    mode_->active_state_name, make_current_teleop_input());
 }
 
 ModeFsmTeleopInput ModeController::make_current_teleop_input() const

@@ -81,6 +81,8 @@ struct TeleopInput
   std::atomic<bool> received{false};
   std::atomic<bool> unavailable{true};
   std::atomic<bool> api_mode_requested{false};
+  bool group_requested{false};
+  bool velocity_fresh{false};
   uint16_t input_code{0};
   uint16_t selector_code{0};
   std::chrono::steady_clock::time_point update_time{};
@@ -172,6 +174,27 @@ struct PolicyState
   float gait_phase{0.0f};
 };
 
+// Written by GroupTeleopHandle. One route replaces dependent enabled/override/request flags.
+struct GroupControlFrame
+{
+  enum class Route {Disabled, Individual, Hold, Command};
+  Route route{Route::Disabled};
+  uint16_t individual_input_code{0};
+  uint16_t individual_selector_code{0};
+
+  bool enabled() const {return route != Route::Disabled;}
+  bool overrides_individual() const {return route == Route::Hold || route == Route::Command;}
+  bool has_command() const {return route == Route::Command;}
+};
+
+struct GroupControl
+{
+  GroupControlFrame frame;
+  // Status snapshots for the non-realtime publisher, not arbitration inputs.
+  std::atomic<bool> participating{false};
+  std::atomic<bool> available{false};
+};
+
 /**
  * @brief Shared state exchanged between the control loop components.
  *
@@ -183,6 +206,7 @@ struct SharedControlData
 {
   SensorData sensors;
   TeleopInput teleop;
+  GroupControl group;
   ApiInput api;
   JointIndexMap joint_map;
   ModeDecision mode;

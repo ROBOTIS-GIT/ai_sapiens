@@ -105,6 +105,7 @@ private:
   // RC status validation and command decoding
   ChannelLookup make_channel_lookup(const RcStatus & msg) const;
   bool is_status_health_ok(const RcStatus & msg) const;
+  void log_unhealthy_status_once(const RcStatus & msg) const;
   bool are_channel_values_valid(const RcStatus & msg) const;
   bool are_required_channels_readable(const ChannelLookup & channels) const;
   bool has_readable_channel(const ChannelLookup & channels, uint8_t channel) const;
@@ -120,6 +121,7 @@ private:
   bool is_selector_code_decodable_if_needed(const ChannelLookup & channels) const;
   bool does_input_code_require_selector_code(uint16_t input_code) const;
   bool is_api_mode_requested(const ChannelLookup & channels) const;
+  bool is_group_mode_requested(const ChannelLookup & channels) const;
   uint16_t select_input_code(const ChannelLookup & channels) const;
   uint16_t select_selector_code(const ChannelLookup & channels) const;
 
@@ -133,12 +135,14 @@ private:
   AxisConfig angular_z_;
 
   std::vector<RcCondition> api_mode_conditions_;
+  std::vector<RcCondition> group_conditions_;
   std::vector<InputCodeConfig> input_codes_;
   SelectorCodeConfig selector_code_;
   std::vector<uint8_t> always_required_channels_;
 
   rclcpp::Subscription<RcStatus>::SharedPtr subscription_;
 
+  mutable bool unhealthy_status_logged_{false};
   bool has_last_realtime_tick_{false};
   uint32_t last_realtime_tick_{0};
 };

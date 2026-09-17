@@ -11,6 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+//
+// Author: Kiwoong Park
 
 #include <gtest/gtest.h>
 
@@ -19,6 +21,9 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
+
+#include "ai_sapiens_sim2real/sensor_handles/group_teleop_handle.hpp"
 
 #include <rclcpp/rclcpp.hpp>
 
@@ -361,4 +366,332 @@ TEST(ModeController, HeartbeatLossWinsOverReleaseAndStopsMimic)
   EXPECT_EQ(status.active_state, "Velocity");
   EXPECT_STREQ(status.last_transition_reason, "api_authority_lost");
   EXPECT_TRUE(fixture.shared_data_.mode.velocity_commands.isZero());
+}
+
+// Exercise the full dual-input -> arbiter -> FSM path, not just the pure rules.
+
+namespace
+{
+class DualTestPlugin : public ai_sapiens_sim2real::TeleopInputPluginBase
+{
+public:
+  void configure(const rclcpp::Node::SharedPtr &, const YAML::Node &) override {}
+  std::string name() const override {return "dual_test";}
+  ai_sapiens_sim2real::AxisRanges output_axis_ranges() const override {return {};}
+  void send(uint16_t code, bool group = false, float velocity = 0.0f, bool api = false)
+  {
+    ai_sapiens_sim2real::TeleopInputCommand command;
+    command.input_code = code;
+    command.selector_code = kMimicSquatSelectorCode;
+    command.group_requested = group;
+    command.api_mode = api;
+    command.velocity.x() = velocity;
+    accept_valid_command(command);
+  }
+};
+struct DualFixture : ModeControllerFixture
+{
+  std::shared_ptr<DualTestPlugin> individual = std::make_shared<DualTestPlugin>();
+  std::shared_ptr<DualTestPlugin> group = std::make_shared<DualTestPlugin>();
+  ai_sapiens_sim2real::OperatorCommandInputOptions options;
+  std::unique_ptr<ai_sapiens_sim2real::GroupTeleopHandle> handle;
+  explicit DualFixture(double timeout = 0.2)
+  {
+    options.teleop_input_timeout = options.teleop_vel_command_timeout = timeout;
+    options.group.emplace();
+    options.group->timeout = options.group->vel_command_timeout = timeout;
+    handle = std::make_unique<ai_sapiens_sim2real::GroupTeleopHandle>(
+      node_, &shared_data_, options, individual, group);
+  }
+  void tick()
+  {
+    handle->update(node_->now());
+    update_controller();
+  }
+  void ready()
+  {
+    individual->send(2); group->send(3); tick();
+    ASSERT_EQ(shared_data_.mode.active_state_name, "ReadyPose");
+    individual->send(3); tick();
+    ASSERT_EQ(shared_data_.mode.active_state_name, "Velocity");
+  }
+  void join()
+  {
+    ready(); individual->send(3, true); tick();
+    ASSERT_TRUE(shared_data_.group.participating);
+  }
+};
+}  // namespace
+
+TEST(DualModeController, LocalMimicWhileGroupedIsNotCancelledByHeldGroupLocomotion)
+{
+  DualFixture f; f.join();
+  f.individual->send(4, true, 0.3f); f.group->send(3, false, 0.4f); f.tick();
+  ASSERT_EQ(f.shared_data_.mode.active_state_name, "MimicSquat");
+  EXPECT_TRUE(f.shared_data_.mode.velocity_commands.isZero());
+  EXPECT_EQ(f.shared_data_.mode.velocity_source, ai_sapiens_sim2real::VelocitySource::Zero);
+  f.tick(); EXPECT_EQ(f.shared_data_.mode.active_state_name, "MimicSquat");
+  f.shared_data_.requests.state_name = "Velocity";
+  f.tick();
+  EXPECT_EQ(f.shared_data_.mode.active_state_name, "Velocity");
+  EXPECT_NEAR(f.shared_data_.mode.velocity_commands.x(), 0.7f, 1e-5f);
+  f.tick(); EXPECT_EQ(f.shared_data_.mode.active_state_name, "Velocity");
+}
+TEST(DualModeController, ExitFromMimicUsesLocalVelocityAndDoesNotRetriggerHeldSwitch)
+{
+  DualFixture f; f.join(); f.group->send(4); f.tick();
+  ASSERT_EQ(f.shared_data_.mode.active_state_name, "MimicSquat");
+  f.individual->send(4, false, 0.6f); f.tick();
+  ASSERT_EQ(f.shared_data_.mode.active_state_name, "Velocity");
+  EXPECT_FLOAT_EQ(f.shared_data_.mode.velocity_commands.x(), 0.6f);
+  f.tick(); EXPECT_EQ(f.shared_data_.mode.active_state_name, "Velocity");
+  f.individual->send(3); f.tick(); f.individual->send(4); f.tick();
+  EXPECT_EQ(f.shared_data_.mode.active_state_name, "MimicSquat");
+}
+TEST(DualModeController, ReadyPoseOverridesMimicAndCompletion)
+{
+  DualFixture f; f.join(); f.group->send(4); f.tick();
+  f.shared_data_.requests.state_name = "Velocity";
+  f.individual->send(2, true); f.tick();
+  EXPECT_EQ(f.shared_data_.mode.active_state_name, "ReadyPose");
+  EXPECT_TRUE(f.shared_data_.requests.state_name.empty());
+}
+TEST(DualModeController, MissingIndividualUsesExistingFailsafeEvenWithGroup)
+{
+  DualFixture f; f.group->send(3); f.tick();
+  EXPECT_EQ(f.shared_data_.mode.active_state_name, "Damping");
+  EXPECT_FALSE(f.controller_->status_snapshot().teleop_input_valid);
+}
+TEST(DualModeController, MissingGroupDoesNotBlockIndividualStartup)
+{
+  DualFixture f; f.individual->send(2); f.tick();
+  EXPECT_EQ(f.shared_data_.mode.active_state_name, "ReadyPose");
+  f.individual->send(3, false, 0.5f); f.tick();
+  EXPECT_EQ(f.shared_data_.mode.active_state_name, "Velocity");
+  EXPECT_FLOAT_EQ(f.shared_data_.mode.velocity_commands.x(), 0.5f);
+}
+TEST(DualModeController, RejectedJoinDoesNotBlockReadyPoseToLocomotion)
+{
+  DualFixture f; f.individual->send(2); f.tick();
+  ASSERT_EQ(f.shared_data_.mode.active_state_name, "ReadyPose");
+  f.individual->send(3, true, 0.5f); f.tick();
+  EXPECT_FALSE(f.shared_data_.group.participating);
+  EXPECT_EQ(f.shared_data_.mode.active_state_name, "Velocity");
+  EXPECT_FLOAT_EQ(f.shared_data_.mode.velocity_commands.x(), 0.5f);
+}
+TEST(DualModeController, IndividualStartsLocomotionAfterLocalReadyEvenWhileGrouped)
+{
+  DualFixture f; f.join();
+  f.individual->send(2, true); f.tick();
+  ASSERT_EQ(f.shared_data_.mode.active_state_name, "ReadyPose");
+  f.tick(); EXPECT_EQ(f.shared_data_.mode.active_state_name, "ReadyPose");
+  f.individual->send(3, true); f.tick();
+  EXPECT_EQ(f.shared_data_.mode.active_state_name, "Velocity");
+}
+TEST(DualModeController, GroupTimeoutExitsAndHeldJoinWaitsForNeutralRecovery)
+{
+  DualFixture f(0.02); f.join(); f.group->send(4); f.tick();
+  ASSERT_EQ(f.shared_data_.mode.active_state_name, "MimicSquat");
+  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  f.individual->send(4, true, 0.4f); f.tick();
+  EXPECT_EQ(f.shared_data_.mode.active_state_name, "Velocity");
+  EXPECT_FALSE(f.shared_data_.group.participating);
+  EXPECT_FLOAT_EQ(f.shared_data_.mode.velocity_commands.x(), 0.4f);
+  f.group->send(4); f.tick();
+  EXPECT_FALSE(f.shared_data_.group.participating);
+  EXPECT_EQ(f.shared_data_.mode.active_state_name, "Velocity");
+}
+TEST(DualModeController, IndividualTimeoutUsesExistingFailsafeWhileGroupIsHealthy)
+{
+  DualFixture f(0.02); f.join();
+  std::this_thread::sleep_for(std::chrono::milliseconds(30));
+  f.group->send(3); f.tick();
+  EXPECT_EQ(f.shared_data_.mode.active_state_name, "Damping");
+  EXPECT_FALSE(f.shared_data_.group.participating);
+  EXPECT_STREQ(f.controller_->status_snapshot().last_transition_reason, "teleop_input_timeout");
+}
+
+TEST(DualModeController, ReadyPoseToLocalMimicWithUnavailableGroup)
+{
+  for (const bool group : {false, true}) {
+    DualFixture f; f.individual->send(2); f.tick();
+    ASSERT_EQ(f.shared_data_.mode.active_state_name, "ReadyPose");
+    f.individual->send(4, group); f.tick();
+    EXPECT_FALSE(f.shared_data_.group.participating);
+    EXPECT_EQ(f.shared_data_.mode.active_state_name, "MimicSquat");
+    f.tick();
+    EXPECT_EQ(f.shared_data_.mode.active_state_name, "MimicSquat");
+    f.shared_data_.requests.state_name = "Velocity"; f.tick();
+    EXPECT_EQ(f.shared_data_.mode.active_state_name, "Velocity");
+    f.tick();
+    EXPECT_EQ(f.shared_data_.mode.active_state_name, "Velocity");
+  }
+}
+
+TEST(DualModeController, IndividualPathMatchesSingleInputStateMachine)
+{
+  for (const bool group_requested : {false, true}) {
+    ModeControllerFixture single;
+    DualFixture dual;
+    auto plugin = std::make_shared<DualTestPlugin>();
+    ai_sapiens_sim2real::TeleopInputHandle handle(single.node_, &single.shared_data_.teleop,
+      &single.shared_data_.requests, &single.shared_data_.active_velocity_command_ranges,
+      plugin, 0.2, 0.2);
+    const auto tick = [&](uint16_t code, bool api = false, const std::string & completion = "") {
+        plugin->send(code, group_requested, 0.0f, api);
+        dual.individual->send(code, group_requested, 0.0f, api);
+        single.shared_data_.requests.state_name = completion;
+        dual.shared_data_.requests.state_name = completion;
+        handle.update(single.node_->now()); single.update_controller(); dual.tick();
+        EXPECT_EQ(single.shared_data_.mode.active_state_name,
+        dual.shared_data_.mode.active_state_name);
+        EXPECT_STREQ(single.controller_->status_snapshot().authority,
+          dual.controller_->status_snapshot().authority);
+        EXPECT_EQ(single.shared_data_.teleop.input_code, dual.shared_data_.teleop.input_code);
+      };
+    tick(2); tick(4); tick(4); // ReadyPose -> Mimic, hold
+    tick(4, false, "Velocity"); tick(4); // completion must not retrigger
+    tick(3); tick(4); tick(2); tick(3); tick(1); tick(2);
+    // ReadyPose's level trigger also works after a service/posture return.
+    tick(4); tick(4, false, "ReadyPose"); tick(4);
+    tick(2);
+    single.set_api_heartbeat_valid(true); dual.set_api_heartbeat_valid(true);
+    tick(2, true); tick(2, true); tick(2, false);
+  }
+}
+
+TEST(DualModeController, LocalLocomotionSwitchInterruptsMimic)
+{
+  for (const bool grouped : {false, true}) {
+    for (const uint16_t group_code : {3, 4}) {
+      DualFixture f;
+      if (grouped) {f.join();} else {f.ready();}
+      f.individual->send(4, grouped);
+      f.group->send(group_code);
+      f.tick();
+      ASSERT_EQ(f.shared_data_.mode.active_state_name, "MimicSquat");
+      f.tick();
+      ASSERT_EQ(f.shared_data_.mode.active_state_name, "MimicSquat");
+      f.individual->send(3, grouped, 0.4f); f.tick();
+      EXPECT_EQ(f.shared_data_.mode.active_state_name, "Velocity");
+      EXPECT_EQ(f.shared_data_.group.participating.load(), grouped);
+      EXPECT_FLOAT_EQ(f.shared_data_.mode.velocity_commands.x(), 0.4f);
+      f.tick();
+      EXPECT_EQ(f.shared_data_.mode.active_state_name, "Velocity");
+    }
+  }
+}
+
+TEST(DualModeController, IndividualCanInterruptGroupMimicWithoutLeavingGroup)
+{
+  DualFixture f; f.join();
+  f.group->send(4); f.tick();
+  ASSERT_EQ(f.shared_data_.mode.active_state_name, "MimicSquat");
+  // Individual locomotion was already held when group started mimic.
+  f.tick();
+  ASSERT_EQ(f.shared_data_.mode.active_state_name, "MimicSquat");
+  f.individual->send(0, true); f.tick();
+  ASSERT_EQ(f.shared_data_.mode.active_state_name, "MimicSquat");
+  f.individual->send(3, true, 0.4f); f.tick();
+  EXPECT_EQ(f.shared_data_.mode.active_state_name, "Velocity");
+  EXPECT_TRUE(f.shared_data_.group.participating);
+  EXPECT_FLOAT_EQ(f.shared_data_.mode.velocity_commands.x(), 0.4f);
+  f.tick();
+  EXPECT_EQ(f.shared_data_.mode.active_state_name, "Velocity");
+  // The held group mimic does not restart, but a new request still works.
+  f.group->send(3); f.tick(); f.group->send(4); f.tick();
+  EXPECT_EQ(f.shared_data_.mode.active_state_name, "MimicSquat");
+}
+
+TEST(DualModeController, HeldJoinRetriesAllConditionsAndStopsWhenSwitchOff)
+{
+  DualFixture f;
+  f.individual->send(2, true); f.tick();
+  ASSERT_EQ(f.shared_data_.mode.active_state_name, "ReadyPose");
+  EXPECT_FALSE(f.shared_data_.group.participating);
+  f.group->send(3, false, 0.4f);
+  f.individual->send(3, true, 0.2f); f.tick();
+  ASSERT_EQ(f.shared_data_.mode.active_state_name, "Velocity");
+  EXPECT_FALSE(f.shared_data_.group.participating);
+  f.individual->send(3, true); f.tick();
+  EXPECT_FALSE(f.shared_data_.group.participating);
+  f.group->send(2); f.tick();
+  EXPECT_FALSE(f.shared_data_.group.participating);
+  f.group->send(3); f.tick();
+  EXPECT_TRUE(f.shared_data_.group.participating);
+  f.individual->send(3, false); f.tick();
+  EXPECT_FALSE(f.shared_data_.group.participating);
+  f.tick(); EXPECT_FALSE(f.shared_data_.group.participating);
+}
+
+TEST(DualModeController, HeldSaJoinsAfterGroupDampingChangesToLocomotion)
+{
+  DualFixture f; f.ready();
+  f.group->send(1); f.tick();
+  f.individual->send(3, true); f.tick();
+  ASSERT_FALSE(f.shared_data_.group.participating);
+  ASSERT_EQ(f.shared_data_.mode.active_state_name, "Velocity");
+  f.group->send(3); f.tick();
+  EXPECT_TRUE(f.shared_data_.group.participating);
+  EXPECT_EQ(f.shared_data_.mode.active_state_name, "Velocity");
+}
+
+TEST(GroupInputReader, StaleGroupInputSuppliesNoVelocityAndNeverRequestsDamping)
+{
+  DualFixture f(0.5);
+  ai_sapiens_sim2real::GroupInputOptions options;
+  options.timeout = 0.5;
+  options.vel_command_timeout = 0.01;
+  ai_sapiens_sim2real::GroupInputReader reader(f.group, options);
+  f.shared_data_.requests.damping = false;
+  EXPECT_FALSE(reader.read().valid);
+  f.group->send(3, false, 0.6f);
+  auto sample = reader.read();
+  ASSERT_TRUE(sample.valid);
+  ASSERT_TRUE(sample.velocity_fresh);
+  EXPECT_FLOAT_EQ(sample.velocity[0], 0.6f);
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  sample = reader.read();
+  EXPECT_TRUE(sample.valid);
+  EXPECT_FALSE(sample.velocity_fresh);
+  EXPECT_FLOAT_EQ(sample.velocity[0], 0.0f);
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  EXPECT_FALSE(reader.read().valid);
+  EXPECT_FALSE(f.shared_data_.requests.damping);
+}
+
+TEST(GroupInputReader, OutOfRangeGroupVelocityCannotSatisfyJoin)
+{
+  DualFixture f;
+  ai_sapiens_sim2real::GroupInputReader reader(f.group, *f.options.group);
+  f.group->send(3, false, 2.0f);
+  const auto sample = reader.read();
+  EXPECT_TRUE(sample.valid);
+  EXPECT_FALSE(sample.velocity_fresh);
+  EXPECT_EQ(sample.velocity, (std::array<float, 3>{}));
+}
+
+TEST(DualModeController, GroupDecisionKeepsMimicStationaryAndExitVelocityImmediate)
+{
+  DualFixture f;
+  f.join();
+  f.group->send(4, false, 0.4f);
+  f.individual->send(3, true, 0.3f);
+  f.tick();
+  ASSERT_EQ(f.shared_data_.mode.active_state_name, "MimicSquat");
+  EXPECT_EQ(f.shared_data_.mode.velocity_source, ai_sapiens_sim2real::VelocitySource::Zero);
+  EXPECT_TRUE(f.shared_data_.mode.velocity_commands.isZero());
+
+  const auto transitions = f.shared_data_.mode.transition_count;
+  f.shared_data_.requests.state_name = "MimicSquat";
+  f.tick();
+  EXPECT_EQ(f.shared_data_.mode.transition_count, transitions);
+  EXPECT_TRUE(f.shared_data_.mode.velocity_commands.isZero());
+
+  f.individual->send(4, false, 0.3f);
+  f.tick();
+  EXPECT_EQ(f.shared_data_.mode.active_state_name, "Velocity");
+  EXPECT_EQ(f.shared_data_.mode.velocity_source, ai_sapiens_sim2real::VelocitySource::Teleop);
+  EXPECT_FLOAT_EQ(f.shared_data_.mode.velocity_commands.x(), 0.3f);
 }

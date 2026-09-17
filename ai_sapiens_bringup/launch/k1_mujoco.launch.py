@@ -15,14 +15,32 @@
 #
 # Author: Kiwoong Park
 
+import os
+
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, RegisterEventHandler
+from launch.actions import DeclareLaunchArgument, OpaqueFunction, RegisterEventHandler
 from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
-from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import (
+    Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution, PythonExpression
+)
 from launch_ros.actions import Node
 from launch_ros.descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
+
+
+def validate_rc_devices(context):
+    """Reject aliases of one device when both USB receivers are enabled."""
+    enabled = LaunchConfiguration('group_usb').perform(context).lower() == 'true'
+    if not enabled:
+        return []
+    if LaunchConfiguration('radiomaster_usb').perform(context).lower() != 'true':
+        return []
+    individual = LaunchConfiguration('radiomaster_usb_device').perform(context)
+    group = LaunchConfiguration('group_usb_device').perform(context)
+    if os.path.realpath(individual) == os.path.realpath(group):
+        raise RuntimeError('Individual and group RC must use different USB devices')
+    return []
 
 
 def generate_launch_description():
@@ -35,6 +53,10 @@ def generate_launch_description():
                               description='Show the MuJoCo viewer window.'),
         DeclareLaunchArgument('mujoco_gantry', default_value='true',
                               description='Spawn hanging from the gantry.'),
+        DeclareLaunchArgument('group_usb', default_value='false',
+                              description='Enable a second RadioMaster USB input.'),
+        DeclareLaunchArgument('group_usb_device', default_value='/dev/input/js1',
+                              description='Group RadioMaster Linux joystick device.'),
         DeclareLaunchArgument('radiomaster_usb', default_value='false',
                               description='Read RC input from a RadioMaster USB device.'),
         DeclareLaunchArgument('radiomaster_usb_device', default_value='/dev/input/js0',
@@ -67,6 +89,8 @@ def generate_launch_description():
         ' ',
         'radiomaster_usb_device:=',
         LaunchConfiguration('radiomaster_usb_device'),
+        ' group_usb:=', LaunchConfiguration('group_usb'),
+        ' group_usb_device:=', LaunchConfiguration('group_usb_device'),
     ])
 
     controller_manager_config = PathJoinSubstitution([
@@ -121,6 +145,15 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration('radiomaster_usb'))
     )
 
+    group_rc_spawner = Node(
+        package='controller_manager', executable='spawner',
+        arguments=['group_rc_broadcaster'], output='screen',
+        condition=IfCondition(PythonExpression([
+            "'", LaunchConfiguration('radiomaster_usb'), "'.lower() == 'true' and '",
+            LaunchConfiguration('group_usb'), "'.lower() == 'true'"
+        ]))
+    )
+
     joint_group_impedance_controller_spawner = Node(
         package='controller_manager',
         executable='spawner',
@@ -137,10 +170,12 @@ def generate_launch_description():
 
     return LaunchDescription(
         declared_arguments + [
+            OpaqueFunction(function=validate_rc_devices),
             control_node,
             robot_state_pub_node,
             joint_state_broadcaster_spawner,
             rc_broadcaster_spawner,
+            group_rc_spawner,
             joint_group_impedance_controller_spawner,
             delay_rviz_after_joint_state_broadcaster_spawner,
         ]

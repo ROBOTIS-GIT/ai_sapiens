@@ -151,6 +151,7 @@ TeleopInputCommand RadiomasterPocketTeleopInputPlugin::make_command_from_message
   TeleopInputCommand command;
 
   command.api_mode = is_api_mode_requested(channels);
+  command.group_requested = is_group_mode_requested(channels);
   command.input_code = select_input_code(channels);
   command.selector_code = select_selector_code(channels);
 
@@ -178,6 +179,11 @@ void RadiomasterPocketTeleopInputPlugin::on_stale_message(
 void RadiomasterPocketTeleopInputPlugin::on_message_accepted(
   const RcStatus & msg)
 {
+  if (unhealthy_status_logged_) {
+    RCLCPP_INFO(node_->get_logger(), "[%s] RC input recovered (topic=%s)",
+      name().c_str(), topic_.c_str());
+    unhealthy_status_logged_ = false;
+  }
   has_last_realtime_tick_ = true;
   last_realtime_tick_ = msg.realtime_tick;
 }
@@ -245,6 +251,7 @@ void RadiomasterPocketTeleopInputPlugin::read_config(const YAML::Node & config)
   read_velocity_command_config(config);
 
   api_mode_conditions_ = read_optional_rc_conditions(config["api_mode"]);
+  group_conditions_ = read_optional_rc_conditions(config["group_mode"]);
   input_codes_ = read_input_code_configs(config["input_code"]);
   selector_code_ = read_selector_code_config(config["selector_code"]);
 
@@ -279,6 +286,10 @@ void RadiomasterPocketTeleopInputPlugin::update_always_required_channels()
   add_always_required_channel(linear_x_.channel);
   add_always_required_channel(linear_y_.channel);
   add_always_required_channel(angular_z_.channel);
+
+  for (const auto & condition : group_conditions_) {
+    add_always_required_channel(condition.channel);
+  }
 
   for (const auto & condition : api_mode_conditions_) {
     add_always_required_channel(condition.channel);
@@ -580,6 +591,19 @@ bool RadiomasterPocketTeleopInputPlugin::is_status_health_ok(const RcStatus & ms
     return true;
   }
 
+  log_unhealthy_status_once(msg);
+  return false;
+}
+
+void RadiomasterPocketTeleopInputPlugin::log_unhealthy_status_once(const RcStatus & msg) const
+{
+  // Latch per plugin instance until a valid, fresh command is accepted.
+  // An absent optional group receiver must not flood the operator log.
+  if (unhealthy_status_logged_) {
+    return;
+  }
+  unhealthy_status_logged_ = true;
+
   const auto * status_valid = msg.status_data_valid ? "true" : "false";
   const auto * tick_fresh = msg.realtime_tick_fresh ? "true" : "false";
   const auto * channels_valid = msg.all_channels_valid ? "true" : "false";
@@ -588,10 +612,8 @@ bool RadiomasterPocketTeleopInputPlugin::is_status_health_ok(const RcStatus & ms
   const auto * rc_link_ok = msg.rc_link_ok ? "true" : "false";
   const auto * control_safe = msg.is_control_input_safe ? "true" : "false";
 
-  RCLCPP_WARN_THROTTLE(
+  RCLCPP_WARN(
     node_->get_logger(),
-    *node_->get_clock(),
-    1000,
     "[%s] ignored RC status: status_valid=%s tick_fresh=%s channels_valid=%s "
     "hardware_ok=%s estop_released=%s rc_link_ok=%s control_safe=%s "
     "crsf_age=%ums crsf_failsafe=%u crsf_lq=%u%% (topic=%s)",
@@ -607,8 +629,6 @@ bool RadiomasterPocketTeleopInputPlugin::is_status_health_ok(const RcStatus & ms
     static_cast<unsigned>(msg.crsf_failsafe),
     static_cast<unsigned>(msg.crsf_link_quality),
     topic_.c_str());
-
-  return false;
 }
 
 bool RadiomasterPocketTeleopInputPlugin::are_channel_values_valid(
@@ -788,6 +808,12 @@ bool RadiomasterPocketTeleopInputPlugin::does_input_code_require_selector_code(
   uint16_t input_code) const
 {
   return contains_value(selector_code_.required_for_input_codes, input_code);
+}
+
+bool RadiomasterPocketTeleopInputPlugin::is_group_mode_requested(
+  const ChannelLookup & channels) const
+{
+  return !group_conditions_.empty() && are_rc_conditions_satisfied(channels, group_conditions_);
 }
 
 bool RadiomasterPocketTeleopInputPlugin::is_api_mode_requested(

@@ -100,6 +100,7 @@ void TeleopInputHandle::update(const rclcpp::Time & /*time*/)
     has_accepted_command && command_age > vel_command_timeout_;
   const bool is_input_unavailable = !has_accepted_command || is_command_timed_out;
 
+  teleop_->velocity_fresh = !is_input_unavailable && !is_velocity_command_timed_out;
   copy_command_state(command, has_accepted_command, is_input_unavailable);
   if (is_input_unavailable) {
     log_unavailable_input_once(command, has_accepted_command);
@@ -118,6 +119,7 @@ void TeleopInputHandle::update(const rclcpp::Time & /*time*/)
   bool out_of_range = false;
   const Eigen::Vector3f normalized = normalize_plugin_output(command.velocity, out_of_range);
   if (out_of_range) {
+    teleop_->velocity_fresh = false;
     teleop_->velocity_commands.setZero();
     teleop_->velocity_command_normalized.setZero();
     log_out_of_range_command(command.velocity);
@@ -139,6 +141,7 @@ void TeleopInputHandle::copy_command_state(
   teleop_->received = has_accepted_command;
   teleop_->unavailable = input_unavailable;
   teleop_->api_mode_requested = command.api_mode;
+  teleop_->group_requested = command.group_requested;
   teleop_->input_code = command.input_code;
   teleop_->selector_code = command.selector_code;
   teleop_->update_time = command.received_at;
