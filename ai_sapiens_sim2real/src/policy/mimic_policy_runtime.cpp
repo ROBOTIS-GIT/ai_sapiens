@@ -53,7 +53,8 @@ MotionPlayback MimicPolicyRuntime::load_playback(
 {
   MotionPlayback playback;
   const bool mjlab_format = mimic.mjlab_format.value_or(
-    static_cast<bool>(sim2real_config.observations()["robot_root_position_xy_w"]));
+    static_cast<bool>(sim2real_config.observations()["robot_root_position_xy_w"]) ||
+    static_cast<bool>(sim2real_config.observations()["robot_root_velocity_xy_h"]));
   if (sim2real_config.steering() && (!mjlab_format || !std::isfinite(mimic.fps) ||
     !std::isfinite(sim2real_config.step_dt()) ||
     std::abs(mimic.fps * sim2real_config.step_dt() - 1.0) > 1e-5))
@@ -101,7 +102,7 @@ MimicPolicyRuntime::MimicPolicyRuntime(
     steering_->validate();
     if (!requires_localization() || !has_velocity) {
       throw std::runtime_error(
-          "mimic steering requires global XY and velocity_commands observations");
+          "mimic steering requires localized root feedback and velocity_commands observations");
     }
     set_velocity_command_ranges(steering_->ranges);
   } else if (requires_localization() && has_velocity) {
@@ -155,10 +156,26 @@ void MimicPolicyRuntime::prepare_command_observation()
     return;
   }
   const Eigen::Vector2f root = playback_.reference->root_position().head<2>();
+  const auto orientation =
+    policy_->motion_frame.orientation(shared_data_->localization.orientation);
+  if (steering_->tracking_mode == "velocity") {
+    // Transform measured odometry into the same absolute motion coordinates
+    // as the raw CSV, also when playback starts partway through the clip.
+    const Eigen::Vector2f position = policy_->motion_frame.position(shared_data_->localization.position) +
+      root - policy_->motion_frame.reference_position(root);
+    const auto reference_orientation = playback_.reference->root_quaternion();
+    if (policy_->episode_time > 0.0) {
+      policy_->motion_steering.step_velocity(root, reference_orientation, position, orientation,
+        shared_data_->mode.velocity_commands, steering_dt_, *steering_);
+    } else {
+      policy_->motion_steering.reanchor(root, reference_orientation, position, orientation);
+      policy_->motion_steering.reset_velocity_estimator(position);
+    }
+    previous_root_ = root;
+    return;
+  }
   // Training reset observes frame zero with zero applied velocity, even for a held command.
   if (policy_->episode_time > 0.0) {
-    const auto orientation =
-      policy_->motion_frame.orientation(shared_data_->localization.orientation);
     policy_->motion_steering.step(previous_root_, root, orientation,
       shared_data_->mode.velocity_commands, steering_dt_, *steering_);
   }

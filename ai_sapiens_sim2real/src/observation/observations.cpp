@@ -265,6 +265,29 @@ std::vector<float> obs_reference_root_position_xy_w(
   return {position.x(), position.y()};
 }
 
+std::vector<float> obs_robot_root_velocity_xy_h(
+  const ObservationContext & context, const YAML::Node & /*params*/)
+{
+  const auto orientation = context.shared.policy.motion_frame.orientation(context.shared.localization.orientation);
+  const Eigen::Vector2f velocity = Eigen::Rotation2Df(-PlanarMotionSteering::heading(orientation)) *
+    context.shared.policy.motion_steering.measured_velocity;
+  return {velocity.x(), velocity.y()};
+}
+
+std::vector<float> obs_reference_root_velocity_xy_h(
+  const ObservationContext & context, const YAML::Node & /*params*/)
+{
+  if (!context.reference_motion) {
+    throw std::runtime_error("reference root velocity requires a motion reference");
+  }
+  const auto & steering = context.shared.policy.motion_steering;
+  const auto orientation = context.shared.policy.motion_frame.orientation(context.shared.localization.orientation);
+  const Eigen::Vector2f velocity =
+    Eigen::Rotation2Df(steering.yaw - PlanarMotionSteering::heading(orientation)) *
+    context.reference_motion->root_velocity().head<2>() + steering.velocity.head<2>();
+  return {velocity.x(), velocity.y()};
+}
+
 // Static registration
 struct ObservationRegistrar
 {
@@ -288,6 +311,8 @@ struct ObservationRegistrar
           obs_robot_root_position_xy_w);
     ObservationRegistry::register_observation(
       "reference_root_position_xy_w", obs_reference_root_position_xy_w);
+    ObservationRegistry::register_observation("robot_root_velocity_xy_h", obs_robot_root_velocity_xy_h);
+    ObservationRegistry::register_observation("reference_root_velocity_xy_h", obs_reference_root_velocity_xy_h);
   }
 };
 

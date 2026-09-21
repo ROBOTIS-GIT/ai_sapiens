@@ -54,6 +54,11 @@ public:
     return dof_positions_[index_0_] * (1.0f - blend_) + dof_positions_[index_1_] * blend_;
   }
 
+  Eigen::Vector3f root_velocity() const
+  {
+    return root_velocities_[index_0_] * (1.0f - blend_) + root_velocities_[index_1_] * blend_;
+  }
+
   Eigen::VectorXf joint_vel() const
   {
     return dof_velocities_[index_0_] * (1.0f - blend_) + dof_velocities_[index_1_] * blend_;
@@ -97,6 +102,7 @@ private:
   std::vector<std::string> joint_order_;
   std::unordered_map<std::string, Eigen::Index> joint_index_by_name_;
   std::vector<Eigen::VectorXf> root_positions_;
+  std::vector<Eigen::Vector3f> root_velocities_;
   std::vector<Eigen::Quaternionf> root_quaternions_;
   std::vector<Eigen::VectorXf> dof_positions_;
   std::vector<Eigen::VectorXf> dof_velocities_;

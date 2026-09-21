@@ -19,6 +19,7 @@
 
 #include <cmath>
 #include <stdexcept>
+#include <string>
 
 #include "ai_sapiens_sim2real/axis_range.hpp"
 
@@ -30,9 +31,17 @@ struct PlanarSteeringConfig
 {
   AxisRanges ranges{{-0.3, 0.3}, {-0.3, 0.3}, {-0.3, 0.3}};
   float smoothing_time_constant{0.5f};
+  std::string tracking_mode{"trajectory"};
+  float velocity_estimator_time_constant{0.1f};
 
   void validate() const
   {
+    if (tracking_mode != "trajectory" && tracking_mode != "velocity") {
+      throw std::runtime_error("mimic steering tracking_mode must be trajectory or velocity");
+    }
+    if (!std::isfinite(velocity_estimator_time_constant) || velocity_estimator_time_constant < 0.0f) {
+      throw std::runtime_error("mimic velocity estimator time constant must be finite and >= 0");
+    }
     for (const auto & range : {ranges.linear_x, ranges.linear_y, ranges.angular_z}) {
       if (!std::isfinite(range.min) || !std::isfinite(range.max) ||
         !(range.min <= 0.0 && range.max >= 0.0))

@@ -64,13 +64,21 @@ PolicyRuntime::PolicyRuntime(
   , sim2real_config_path_(sim2real_config.path())
 {
   const auto observations = sim2real_config.observations();
-  requires_localization_ = static_cast<bool>(observations["robot_root_position_xy_w"]);
+  const bool has_robot_xy = static_cast<bool>(observations["robot_root_position_xy_w"]);
   const bool has_reference_xy = static_cast<bool>(observations["reference_root_position_xy_w"]);
-  if (requires_localization_ != has_reference_xy ||
-    ((requires_localization_ || has_reference_xy) && reference_motion == nullptr))
+  const bool has_robot_velocity = static_cast<bool>(observations["robot_root_velocity_xy_h"]);
+  const bool has_reference_velocity = static_cast<bool>(observations["reference_root_velocity_xy_h"]);
+  requires_localization_ = has_robot_xy || has_robot_velocity;
+  if (has_robot_xy != has_reference_xy || has_robot_velocity != has_reference_velocity ||
+    (has_robot_xy && has_robot_velocity) || (requires_localization_ && reference_motion == nullptr))
   {
     throw std::runtime_error(
-        "Global-position observations require a mimic policy and both XY terms");
+        "Localized mimic observations require one complete position or velocity pair");
+  }
+  const bool velocity_steering = sim2real_config.steering() &&
+    sim2real_config.steering()->tracking_mode == "velocity";
+  if (has_robot_velocity != velocity_steering) {
+    throw std::runtime_error("velocity steering requires robot/reference_root_velocity_xy_h observations");
   }
   load_sim2real_config(sim2real_config, controller_joint_names);
   log_joint_coverage(controller_joint_names);

@@ -57,6 +57,16 @@ MotionReference::MotionReference(
     dof_positions_.push_back(Eigen::VectorXf::Map(data[i].data() + 7, data[i].size() - 7));
   }
 
+  // The local velocity actor uses backward differences of the localization
+  // point, exactly as the training CSV. Frame zero uses the first segment.
+  root_velocities_.resize(num_frames_, Eigen::Vector3f::Zero());
+  for (int i = 1; i < num_frames_; ++i) {
+    root_velocities_[i] = (root_positions_[i] - root_positions_[i - 1]) / dt_;
+  }
+  if (num_frames_ > 1) {
+    root_velocities_[0] = root_velocities_[1];
+  }
+
   // Preserve the derivative used by existing legacy policies.
   dof_velocities_ = compute_forward_derivative(dof_positions_, dt_);
   if (mjlab_format_) {

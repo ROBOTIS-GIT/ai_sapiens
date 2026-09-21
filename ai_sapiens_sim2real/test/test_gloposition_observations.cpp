@@ -184,6 +184,17 @@ commands:
   EXPECT_FLOAT_EQ(parsed.steering()->smoothing_time_constant, 0.8f);
   EXPECT_FALSE(parsed.velocity_command_ranges());
   auto steering = config["commands"]["reference_trajectory"]["steering"];
+  EXPECT_EQ(parsed.steering()->tracking_mode, "trajectory");
+  steering["tracking_mode"] = "velocity";
+  steering["velocity_estimator_time_constant"] = .1;
+  EXPECT_EQ(load().steering()->tracking_mode, "velocity");
+  EXPECT_FLOAT_EQ(load().steering()->velocity_estimator_time_constant, .1f);
+  steering["tracking_mode"] = "invalid";
+  EXPECT_THROW(load(), std::runtime_error);
+  steering["tracking_mode"] = "velocity";
+  steering["velocity_estimator_time_constant"] = -.1;
+  EXPECT_THROW(load(), std::runtime_error);
+  steering["velocity_estimator_time_constant"] = .1;
   for (const auto & limits : {"[0.1, 0.3]", "[.nan, 0.3]", "[-.inf, 0.3]", "[-0.3]"}) {
     steering["lin_vel_x"] = YAML::Load(limits);
     EXPECT_THROW(load(), std::runtime_error);
@@ -331,6 +342,66 @@ TEST(ActionPipeline, ClipsRawBeforeScaleAndKeepsAppliedHistory)
   EXPECT_NEAR(pipeline.process({20.0f})[0], 4.7f, 1e-6);
   EXPECT_FLOAT_EQ(pipeline.applied_raw_action()[0], 10.0f);
   EXPECT_FALSE(std::isfinite(pipeline.process({std::numeric_limits<float>::infinity()})[0]));
+}
+
+TEST(PlanarMotionSteering, VelocityModeDiscardsBlockedMotionAndReleaseDebt)
+{
+  PlanarMotionSteering steering;
+  PlanarSteeringConfig config;
+  config.tracking_mode = "velocity";
+  config.smoothing_time_constant = 0;
+  config.velocity_estimator_time_constant = 0;
+  Eigen::Vector2f root(2, 3);
+  const Eigen::Vector2f robot(10, -20);
+  const Eigen::Quaternionf robot_q(Eigen::AngleAxisf(1.2f, Eigen::Vector3f::UnitZ()));
+  const Eigen::Quaternionf reference_q(Eigen::AngleAxisf(-0.3f, Eigen::Vector3f::UnitZ()));
+  steering.reset_velocity_estimator(robot);
+  for (int i = 0; i < 500; ++i) {
+    root.x() += .002f;
+    steering.step_velocity(root, reference_q, robot, robot_q,
+      Eigen::Vector3f(.1f, -.1f, .2f), .02f, config);
+  }
+  EXPECT_TRUE((root + steering.offset).isApprox(robot));
+  EXPECT_NEAR(steering.yaw, 1.5f, 1e-6);
+  EXPECT_TRUE(steering.measured_velocity.isZero());
+  steering.step_velocity(root, reference_q, robot, robot_q, Eigen::Vector3f::Zero(), .02f, config);
+  EXPECT_TRUE(steering.velocity.isZero());
+  EXPECT_TRUE((root + steering.offset).isApprox(robot));
+  EXPECT_NEAR(steering.yaw, 1.5f, 1e-6);
+  steering.step_velocity(root, reference_q, robot, robot_q,
+    Eigen::Vector3f(-.1f, .1f, -.2f), .02f, config);
+  EXPECT_FLOAT_EQ(steering.velocity.x(), -.1f);
+  EXPECT_FLOAT_EQ(steering.velocity.z(), -.2f);
+  steering.reset_velocity_estimator(Eigen::Vector2f(100, 200));
+  steering.step_velocity(root, reference_q, Eigen::Vector2f(100, 200), robot_q,
+    Eigen::Vector3f::Zero(), .02f, config);
+  EXPECT_TRUE(steering.measured_velocity.isZero());
+}
+
+TEST_F(GlobalPositionTest, VelocityObservationsUseHeadingAxesAndCsvBackwardDifference)
+{
+  MotionReference motion(file_.string(), 50, {"waist_yaw_joint"}, true);
+  EXPECT_TRUE(motion.root_velocity().isApprox(Eigen::Vector3f(50, 50, 0)));
+  motion.seek(.02);
+  EXPECT_TRUE(motion.root_velocity().isApprox(Eigen::Vector3f(50, 50, 0)));
+  motion.seek(.04);
+  EXPECT_TRUE(motion.root_velocity().isApprox(Eigen::Vector3f(150, 50, 0)));
+  SharedControlData shared;
+  shared.resize(1, 1);
+  shared.localization.orientation = Eigen::AngleAxisf(1.57079632679f, Eigen::Vector3f::UnitZ());
+  shared.policy.motion_steering.reanchor(motion.root_position().head<2>(), motion.root_quaternion(),
+    Eigen::Vector2f(10, 20), shared.localization.orientation);
+  shared.policy.motion_steering.velocity = Eigen::Vector3f(.1f, -.05f, .2f);
+  shared.policy.motion_steering.measured_velocity = Eigen::Vector2f(.2f, .3f);
+  PolicyJointContext joints{{"waist_yaw_joint"}, {0}};
+  ObservationContext context{shared, joints, &motion};
+  auto & registry = ObservationRegistry::get_registry();
+  const auto actual = registry.at("robot_root_velocity_xy_h")(context, YAML::Node{});
+  const auto desired = registry.at("reference_root_velocity_xy_h")(context, YAML::Node{});
+  EXPECT_NEAR(actual[0], .3f, 1e-6);
+  EXPECT_NEAR(actual[1], -.2f, 1e-6);
+  EXPECT_NEAR(desired[0], 150.1f, 1e-5);
+  EXPECT_NEAR(desired[1], 49.95f, 1e-5);
 }
 
 }  // namespace

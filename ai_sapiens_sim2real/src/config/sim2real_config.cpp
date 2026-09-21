@@ -301,6 +301,12 @@ std::optional<PlanarSteeringConfig> read_planar_steering(const YAML::Node & conf
   result.ranges = {read_range("lin_vel_x"), read_range("lin_vel_y"), read_range("yaw_rate")};
   require_yaml_node(steering["smoothing_time_constant"], path + ".smoothing_time_constant");
   result.smoothing_time_constant = steering["smoothing_time_constant"].as<float>();
+  if (steering["tracking_mode"]) {
+    result.tracking_mode = steering["tracking_mode"].as<std::string>();
+  }
+  if (steering["velocity_estimator_time_constant"]) {
+    result.velocity_estimator_time_constant = steering["velocity_estimator_time_constant"].as<float>();
+  }
   result.validate();
   return result;
 }
