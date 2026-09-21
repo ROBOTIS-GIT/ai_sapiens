@@ -65,7 +65,8 @@ def main():
         obs, stamp = samples['obs']
         values = obs.data
         print(f'obs_size={len(values)} age={now-stamp:.1f}s')
-        if active == 'MimicGlopodanamiteController' and len(values) == 131:
+        steering_modes = ('MimicGlopodanamiteController', 'MimicGlopodanamiteControllerMoe')
+        if active in steering_modes and len(values) == 131:
             print('applied [vx,vy,yaw]=' + str([round(x, 5) for x in values[128:131]]))
             print('robot_xy=' + str([round(x, 5) for x in values[124:126]]) +
                   ' reference_xy=' + str([round(x, 5) for x in values[126:128]]))

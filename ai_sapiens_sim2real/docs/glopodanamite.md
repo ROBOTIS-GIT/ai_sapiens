@@ -6,6 +6,8 @@
 
 춤을 추면서 이동·회전을 조작하는 selector 204 버전은
 [glopodanamite_controller](glopodanamite_controller.md)를 참고한다.
+최신 controller MoE는 selector **205**이며
+[MoE sim2sim 문서](glopodanamite_controller_moe.md)에 연결 모델과 실행 절차를 정리했다.
 
 ## 정책과 모션
 

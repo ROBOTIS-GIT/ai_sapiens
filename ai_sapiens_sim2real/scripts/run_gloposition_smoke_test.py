@@ -95,13 +95,23 @@ def verify_steering_path(observations, frames, robot_heading):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--domain-id', type=int, default=187)
-    parser.add_argument(
+    policy = parser.add_mutually_exclusive_group()
+    policy.add_argument(
         '--controller', action='store_true', help='Test selector 204 steering policy')
+    policy.add_argument(
+        '--moe', action='store_true', help='Test selector 205 controller MoE policy')
     parser.add_argument('--teleop', choices=('keyboard', 'dualsense'), default='keyboard')
     args = parser.parse_args()
-    asset = 'glopodanamite_controller' if args.controller else 'glopodanamite'
-    mimic_state = 'MimicGlopodanamiteController' if args.controller else 'MimicGlopodanamite'
-    obs_size = 131 if args.controller else 128
+    has_steering = args.controller or args.moe
+    if args.moe:
+        asset, mimic_state, selector = (
+            'glopodanamite_controller_moe', 'MimicGlopodanamiteControllerMoe', 205)
+    elif args.controller:
+        asset, mimic_state, selector = (
+            'glopodanamite_controller', 'MimicGlopodanamiteController', 204)
+    else:
+        asset, mimic_state, selector = 'glopodanamite', 'MimicGlopodanamite', 203
+    obs_size = 131 if has_steering else 128
     os.environ['ROS_DOMAIN_ID'] = str(args.domain_id)
     os.environ['ROS_AUTOMATIC_DISCOVERY_RANGE'] = 'LOCALHOST'
 
@@ -127,7 +137,7 @@ def main():
         os.environ['ROS_LOG_DIR'] = str(temporary / 'ros_logs')
         keyboard = yaml.safe_load((share / f'config/teleop/{args.teleop}.yaml').read_text())
         if args.teleop == 'dualsense':
-            keyboard['selector_navigation']['initial_code'] = 204 if args.controller else 203
+            keyboard['selector_navigation']['initial_code'] = selector
         keyboard['topic'] = '/test_gloposition/keyboard'
         keyboard_path = temporary / 'keyboard.yaml'
         keyboard_path.write_text(yaml.safe_dump(keyboard))
@@ -212,7 +222,7 @@ def main():
                 sequence += 1
                 key.sequence = sequence
                 key.input_code = input_code
-                key.selector_code = 204 if args.controller else 203
+                key.selector_code = selector
                 key.linear_x, key.linear_y, key.angular_z = velocity
                 if args.teleop == 'dualsense':
                     joy = Joy()
@@ -306,7 +316,7 @@ def main():
             assert state['mode'] == mimic_state
             print('PASS: duplicate odometry timestamps keep mimic running')
 
-            if args.controller:
+            if has_steering:
                 velocity = [0.5, -0.4, 0.6]
                 drive(0.4)
                 applied = state['obs'][128:131]

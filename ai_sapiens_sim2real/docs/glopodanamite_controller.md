@@ -4,6 +4,8 @@ cyclo_mjlab의 `feature-k1-mimic-gloposition-controller` 브랜치,
 `Cyclo-Mimic-K1-Rev1-Dynamite-Gloposition-controller` 정책을 실행한다.
 기존 glopodanamite는 selector **203**, controller 버전은 **204**
 (`MimicGlopodanamiteController`, behavior `mimic_glopodanamite_controller`)다.
+최신 controller MoE는 별도 selector **205**로 등록했다.
+[MoE sim2sim 문서](glopodanamite_controller_moe.md)를 참고한다.
 
 ## 학습 코드와의 연결
 
@@ -49,10 +51,10 @@ reference_orientation = yaw_quaternion(yaw) * csv_reference_orientation
 세션 동안 유지한다. localization 누락·정지 시 기존과 동일하게 미믹을 종료하고
 Velocity로 전환한다.
 
-이전 요청에 따른 시작 XY 정규화를 유지했다. 학습 브랜치의 원래 XY obs는
+이전 요청에 따른 시작 XY 정규화를 유지했다. 기존 204 export의 학습 XY obs는
 CSV 시작점을 빼지 않으므로 기존 ONNX와 완전히 같은 절대 좌표 분포는 아니다.
-이는 두 모델에 공통이며 [기존 문서의 학습 좌표 차이](glopodanamite.md#학습-좌표와의-차이)를
-참고한다. 원점 처리를 학습에도 맞추려면 해당 방식으로 학습한 모델이 필요하다.
+이는 기존 203/204 모델에 공통이며 [기존 문서의 학습 좌표 차이](glopodanamite.md#학습-좌표와의-차이)를
+참고한다. 새 205 MoE export는 학습에서도 episode 원점을 사용한다.
 
 ## 파일과 실행
 
@@ -104,7 +106,7 @@ ros2 launch ai_sapiens_sim2real ai_sapiens_sim2real.launch.py robot:=k1
 ```
 
 추정기와 policy를 함께 시작할 때는 기존 `glopodanamite.launch.py`를 사용한다.
-이 wrapper는 두 glopodanamite 상태를 모두 포함하는 K1 설정을 로드한다.
+이 wrapper는 glopodanamite 계열 상태를 모두 포함하는 K1 설정을 로드한다.
 추정기 초기 활성화·bias 수집은 기존 절차대로 세션 시작 시 한 번 진행한다.
 
 RadioMaster는 CH11 **1080 → 204** 선택 후 기존 mimic 진입 조작을 사용한다.
