@@ -461,38 +461,6 @@ state_behaviors:
   EXPECT_FALSE(runtime.is_mimic_state("Velocity"));
 }
 
-TEST(RootConfig, ReadsReleaseReanchorAsAnOptInMimicOverride)
-{
-  auto doc = YAML::Load(root_config_with_authority(
-      "authority:\n  api_entry:\n    allowed_from_states: [Damping, Velocity]\n"
-      "  default_velocity_state: Velocity\n"));
-  const auto dummy = write_temp_config("{}\n");
-  for (const auto * name : {"velocity_policy", "mimic_run"}) {
-    auto node = doc["state_behaviors"][name];
-    node.remove("asset");
-    node["policy_path"] = dummy.string();
-    node["sim2real_yaml_path"] = dummy.string();
-  }
-  auto mimic = doc["state_behaviors"]["mimic_run"];
-  mimic["motion_file"] = dummy.string();
-  const auto read_mimic = [&]() {
-      RootConfig config(write_temp_config(YAML::Dump(doc)));
-      for (const auto & behavior : config.policy_behaviors()) {
-        if (behavior.mimic) {
-          return *behavior.mimic;
-        }
-      }
-      throw std::logic_error("No mimic behavior in test config");
-    };
-  EXPECT_FALSE(read_mimic().reanchor_on_release);
-  mimic["reanchor_on_release"] = true;
-  EXPECT_TRUE(read_mimic().reanchor_on_release);
-  mimic["reanchor_on_release"] = false;
-  EXPECT_FALSE(read_mimic().reanchor_on_release);
-  mimic["reanchor_on_release"] = "invalid";
-  EXPECT_THROW(read_mimic(), std::runtime_error);
-}
-
 TEST(StateMachineConfigValidation, RejectsSelectorTargetMissingState)
 {
   EXPECT_THROW(load_config(

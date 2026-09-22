@@ -48,8 +48,10 @@ estimator는 세션 내내 유지하며,
 `localization_align_on_entry:=true`를 유지한다.
 
 추가 이동 명령은 측정한 로봇 pelvis heading으로 회전시켜 누적한다. 원본 모션의
-프레임 간 이동량은 steering yaw의 중간값으로 회전한다. MoE의 K1 설정은
-`reanchor_on_release: true`를 사용한다. 각 축의 실제 요청 명령 절댓값이
+프레임 간 이동량은 steering yaw의 중간값으로 회전한다. 배포 runtime은
+`commands.reference_trajectory.steering`이 있는 모든 미믹에 다음 조종 규칙을
+기본 적용한다. 별도 설정 옵션 없이 controller 204와 MoE 205에 적용하며,
+steering이 없는 일반 미믹에는 적용하지 않는다. 각 축의 실제 요청 명령 절댓값이
 0.1 이하이면 0으로 처리한다(XY는 m/s, yaw는 rad/s). ±0.1도 포함하며,
 0.1을 초과하는 명령은 크기를 재조정하지 않고 그대로 사용한다. 정규화된
 조종기 축이 아닌 정책 범위로 변환된 속도에 적용한다. 이 중립 판정을 적분과
@@ -77,9 +79,8 @@ estimator는 세션 내내 유지하며,
 키보드 UI의 속도는 누적 설정값이며 키에서 손을 떼도 유지된다. `Space`로
 명령을 0으로 만들어야 이 해제 처리가 작동한다.
 
-이 옵션은 심투심에만 적용되며 학습 코드와 ONNX/YAML은 수정하지 않는다.
-따라서 해제 순간의 목표 갱신은 현재 정책이 학습한 규칙과 다르다. 기존
-학습 동작으로 비교하려면 이 옵션을 `false`로 바꾼다. 다른 mimic의 기본값은 `false`다.
+이 처리는 배포 C++ runtime의 기본 동작이며 학습 코드와 ONNX/YAML은 수정하지 않는다.
+따라서 작은 명령을 무시하는 규칙과 해제 순간의 목표 갱신은 학습 코드와 다르다.
 
 공통 K1 MuJoCo XML도 학습의 기본 물리 설정을 사용한다: implicitfast,
 0.005초 timestep, solver iterations 10, line-search iterations 20, CCD iterations 50.
@@ -111,7 +112,6 @@ mimic_glopodanamite_controller_moe:
   kind: mimic
   asset: mimic/glopodanamite_controller_moe
   motion: dynamite004_headwrap_v3.csv
-  reanchor_on_release: true
 ```
 
 **assets는 Git ignore 대상**이다. 다른 환경에는 이 폴더를 함께 복사해야 한다.
@@ -186,6 +186,7 @@ workspace를 source한 후 다음 명령으로 실제 MoE ONNX와 C++ runtime을
 ```bash
 python3 ai_sapiens_sim2real/scripts/run_gloposition_smoke_test.py --moe
 python3 ai_sapiens_sim2real/scripts/run_gloposition_smoke_test.py --moe --teleop dualsense
+python3 ai_sapiens_sim2real/scripts/run_gloposition_smoke_test.py --controller
 ```
 
 합성 센서와 별도 localhost ROS domain에서 131개 obs, 조종 입력·필터·reference

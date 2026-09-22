@@ -227,7 +227,6 @@ state_behaviors:
     kind: mimic
     asset: mimic/glopodanamite_controller_moe
     motion: dynamite004_headwrap_v3.csv
-    reanchor_on_release: true
   mimic_redred_glopo:
     kind: mimic
     asset: mimic/redred_glopo

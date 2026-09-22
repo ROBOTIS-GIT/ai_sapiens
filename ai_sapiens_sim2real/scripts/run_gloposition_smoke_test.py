@@ -130,7 +130,6 @@ def main():
     root = share / 'config/k1_config.yaml'
     config = yaml.safe_load(root.read_text())
     behavior = config['state_machine']['states'][mimic_state]['run']
-    reanchor_on_release = config['state_behaviors'][behavior].get('reanchor_on_release', False)
     motion_name = config['state_behaviors'][behavior]['motion']
     motion = share / f'assets/k1/mimic/{asset}/params' / motion_name
     with motion.open() as source:
@@ -345,54 +344,52 @@ def main():
                         previous[128:131], current[128:131], expected)
                 verify_steering_path(observations[entry_begin:], frames, ref_yaw)
                 # Normalized 0.3 maps to 0.09 m/s or rad/s: inside the 0.1 deadband.
-                velocity = [0.3, -0.3, 0.3] if reanchor_on_release else [0.0]*3
+                velocity = [0.3, -0.3, 0.3]
                 drive(0.2)
                 assert all(0 < v / p < 1 for v, p in zip(state['obs'][128:131], applied))
-                if reanchor_on_release:
-                    def assert_reached_xy():
-                        obs = state['obs']
-                        assert max(abs(obs[124+j] - obs[126+j]) for j in range(2)) < 1e-5
 
-                    assert_reached_xy()
-                    odom_xy[0] += 0.03  # The robot still moves during deceleration.
-                    drive(0.08)
-                    assert_reached_xy()
-                    drive(5, lambda: all(v == 0.0 for v in state['obs'][128:131]) and
-                          math.dist(state['obs'][124:126], state['obs'][126:128]) < 1e-5)
-                    assert_reached_xy()
-                    settled = state['obs'][:]
-                    drive(0.12)
+                def assert_reached_xy():
+                    obs = state['obs']
+                    assert max(abs(obs[124+j] - obs[126+j]) for j in range(2)) < 1e-5
 
-                    def frame_index_for(obs):
-                        return min(range(len(frames)), key=lambda i: sum(
-                            (obs[j] - frames[i][7+j])**2 for j in range(23)))
+                assert_reached_xy()
+                odom_xy[0] += 0.03  # The robot still moves during deceleration.
+                drive(0.08)
+                assert_reached_xy()
+                drive(5, lambda: all(v == 0.0 for v in state['obs'][128:131]) and
+                      math.dist(state['obs'][124:126], state['obs'][126:128]) < 1e-5)
+                assert_reached_xy()
+                settled = state['obs'][:]
+                drive(0.12)
 
-                    start = frame_index_for(settled)
-                    end = frame_index_for(state['obs'])
-                    x, y, z, w = frames[start][3:7]
-                    norm = math.sqrt(x*x + y*y + z*z + w*w)
-                    x, y, z, w = [v/norm for v in (x, y, z, w)]
-                    waist = frames[start][19]
-                    heading = math.atan2(
-                        2*(x*y+w*z)*math.cos(waist) + (1-2*(x*x+z*z))*math.sin(waist),
-                        (1-2*(y*y+z*z))*math.cos(waist) + 2*(x*y-w*z)*math.sin(waist))
-                    # Infer the completed steering yaw from the anchor observation.
-                    yaw_offset = (ref_yaw + first[19] +
-                                  math.atan2(settled[48], settled[46]) - heading)
-                    dx, dy = [frames[end][j] - frames[start][j] for j in range(2)]
-                    expected = [settled[126] + math.cos(yaw_offset)*dx - math.sin(yaw_offset)*dy,
-                                settled[127] + math.sin(yaw_offset)*dx + math.cos(yaw_offset)*dy]
-                    assert max(abs(state['obs'][126+j] - expected[j]) for j in range(2)) < 2e-5
-                    # Settled dancing must no longer follow arbitrary odometry motion.
-                    old_robot_xy = state['obs'][124:126]
-                    odom_xy[1] += 0.4
-                    drive(0.08)
-                    assert math.dist(state['obs'][124:126], old_robot_xy) > 0.39
-                    assert math.dist(state['obs'][124:126], state['obs'][126:128]) > 0.3
-                    assert state['mode'] == mimic_state
-                    print('PASS: commands below 0.1 release missed motion and resume the clip')
-                else:
-                    verify_steering_path(observations[entry_begin:], frames, ref_yaw)
+                def frame_index_for(obs):
+                    return min(range(len(frames)), key=lambda i: sum(
+                        (obs[j] - frames[i][7+j])**2 for j in range(23)))
+
+                start = frame_index_for(settled)
+                end = frame_index_for(state['obs'])
+                x, y, z, w = frames[start][3:7]
+                norm = math.sqrt(x*x + y*y + z*z + w*w)
+                x, y, z, w = [v/norm for v in (x, y, z, w)]
+                waist = frames[start][19]
+                heading = math.atan2(
+                    2*(x*y+w*z)*math.cos(waist) + (1-2*(x*x+z*z))*math.sin(waist),
+                    (1-2*(y*y+z*z))*math.cos(waist) + 2*(x*y-w*z)*math.sin(waist))
+                # Infer the completed steering yaw from the anchor observation.
+                yaw_offset = (ref_yaw + first[19] +
+                              math.atan2(settled[48], settled[46]) - heading)
+                dx, dy = [frames[end][j] - frames[start][j] for j in range(2)]
+                expected = [settled[126] + math.cos(yaw_offset)*dx - math.sin(yaw_offset)*dy,
+                            settled[127] + math.sin(yaw_offset)*dx + math.cos(yaw_offset)*dy]
+                assert max(abs(state['obs'][126+j] - expected[j]) for j in range(2)) < 2e-5
+                # Settled dancing must no longer follow arbitrary odometry motion.
+                old_robot_xy = state['obs'][124:126]
+                odom_xy[1] += 0.4
+                drive(0.08)
+                assert math.dist(state['obs'][124:126], old_robot_xy) > 0.39
+                assert math.dist(state['obs'][124:126], state['obs'][126:128]) > 0.3
+                assert state['mode'] == mimic_state
+                print('PASS: commands below 0.1 release missed motion and resume the clip')
                 print('PASS: 131D applied commands, smoothing/release, steered XY and anchor yaw')
                 # Re-entry with a held command must restart applied velocity from zero.
                 velocity = [0.5, -0.4, 0.6]
@@ -418,7 +415,7 @@ def main():
             assert max(abs(state['obs'][124 + i] - expected[i]) for i in range(2)) < 1e-4
             print('PASS: Velocity -> Mimic after translation/turn captures new XY and yaw offsets')
 
-            if args.moe:
+            if has_steering:
                 before = state['obs_count']
                 odom_xy[0] += 2.0
                 drive(0.12)

@@ -10,7 +10,8 @@ cyclo_mjlab의 `feature-k1-mimic-gloposition-controller` 브랜치,
 ## 학습 코드와의 연결
 
 학습의 `source/tasks/mimic/mdp/steering.py`와 `commands.py`를 기준으로
-동일한 명령 필터와 reference 보정을 C++ mimic runtime에 적용했다.
+기본 명령 필터와 reference 적분을 C++ mimic runtime에 적용했다.
+배포에서는 아래의 작은 명령 무시와 명령 해제 처리를 추가로 적용한다.
 원본 춤 관절 궤적을 재생하면서, 조작 입력으로 추가 이동과 회전을 지시한다.
 보행 정책의 절대 목표 속도와는 의미가 다르다.
 
@@ -31,7 +32,9 @@ cyclo_mjlab의 `feature-k1-mimic-gloposition-controller` 브랜치,
 원본 CSV의 한 프레임 이동량을 `dr`, 누적 회전을 `yaw`, 이번 회전량을 `dyaw`라고 하면:
 
 ```text
-applied_velocity += alpha * (clamped_requested_velocity - applied_velocity)
+requested = clamp_to_training_ranges(input)
+requested[abs(requested) <= 0.1] = 0
+applied_velocity += alpha * (requested - applied_velocity)
 v_add = R(current_robot_heading) * applied_velocity.xy
 dyaw = applied_velocity.z * dt
 offset += R(yaw + dyaw/2) * dr - dr + v_add * dt
@@ -40,10 +43,16 @@ reference_xy = csv_xy - csv_start_xy + offset
 reference_orientation = yaw_quaternion(yaw) * csv_reference_orientation
 ```
 
-회전 명령은 춤의 원래 이동 경로도 연속적으로 회전시킨다. 명령을 0으로 하면
-추가 속도가 점차 줄어들며, 이미 누적된 위치·방향 보정은 유지된다.
-원본 CSV를 변경하거나 춤 시작 위치로 되돌리지 않는다. 학습의 무작위 명령
-샘플링은 배포에서 사용하지 않는다.
+회전 명령은 춤의 원래 이동 경로도 연속적으로 회전시킨다. 각 축의 실제 요청
+명령 절댓값이 0.1 이하이면 0으로 처리한다(XY: m/s, yaw: rad/s).
+이동과 회전 명령 해제는 각각 감지한다. 위 적분 뒤, 해제된 명령이 감속하는
+동안 목표 XY 또는 heading을 측정한 로봇 pose에 맞춰 남은 추종 오차를 버린다.
+해당 적용 속도가 0.01 이하가 되면 0으로 정리하고, 도달한 위치·방향을 기준으로
+원래 춤 동선을 이어간다. 처음부터 중립이면 원본 동선을 그대로 추종한다.
+이 동작은 `commands.reference_trajectory.steering`이 있는 미믹의 공통 기본값이며,
+K1 설정이나 정책 YAML에 별도 해제 옵션을 작성하지 않는다.
+원본 CSV와 학습 코드는 변경하지 않으며, 학습의 무작위 명령 샘플링은 배포에서
+사용하지 않는다. 위치 오차만으로 Damping으로 자동 전환하지 않는다.
 
 보행 후 미믹에 다시 진입할 때마다 estimator XY/yaw 기준과 steering 누적값을
 새로 잡는다. **첫 obs는 로봇 XY, reference XY, applied velocity 모두 0**이다.

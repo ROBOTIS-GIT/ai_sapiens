@@ -64,8 +64,7 @@ public:
     const std::vector<std::string> & controller_joint_names,
     SharedControlData * shared_data,
     MotionPlayback playback,
-    std::string completion_state,
-    bool reanchor_on_release = false);
+    std::string completion_state);
 
 protected:
   void on_enter() override;
@@ -87,7 +86,6 @@ private:
   std::string completion_state_;
   std::optional<PlanarSteeringConfig> steering_;
   float steering_dt_;
-  bool reanchor_on_release_;
   MotionSteeringRelease steering_release_;
   Eigen::Vector2f previous_root_{Eigen::Vector2f::Zero()};
 };

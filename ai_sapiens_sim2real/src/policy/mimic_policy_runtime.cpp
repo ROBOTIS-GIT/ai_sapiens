@@ -43,8 +43,7 @@ std::unique_ptr<MimicPolicyRuntime> MimicPolicyRuntime::create(
     controller_joint_names,
     shared_data,
     load_playback(mimic, sim2real_config, controller_joint_names),
-    mimic.on_complete,
-    mimic.reanchor_on_release);
+    mimic.on_complete);
 }
 
 MotionPlayback MimicPolicyRuntime::load_playback(
@@ -83,8 +82,7 @@ MimicPolicyRuntime::MimicPolicyRuntime(
   const std::vector<std::string> & controller_joint_names,
   SharedControlData * shared_data,
   MotionPlayback playback,
-  std::string completion_state,
-  bool reanchor_on_release)
+  std::string completion_state)
 : PolicyRuntime(
     std::move(node),
     std::move(state_name),
@@ -97,11 +95,7 @@ MimicPolicyRuntime::MimicPolicyRuntime(
   , completion_state_(std::move(completion_state))
   , steering_(sim2real_config.steering())
   , steering_dt_(static_cast<float>(sim2real_config.step_dt()))
-  , reanchor_on_release_(reanchor_on_release)
 {
-  if (reanchor_on_release_ && !steering_) {
-    throw std::runtime_error("reanchor_on_release requires a localized Mimic steering policy");
-  }
   const bool has_velocity = static_cast<bool>(sim2real_config.observations()["velocity_commands"]);
   if (steering_) {
     steering_->validate();
@@ -164,21 +158,19 @@ void MimicPolicyRuntime::prepare_command_observation()
   const Eigen::Vector2f root = playback_.reference->root_position().head<2>();
   const auto orientation =
     policy_->motion_frame.orientation(shared_data_->localization.orientation);
-  const Eigen::Vector3f requested = reanchor_on_release_ ?
-    steering_release_.filter_command(shared_data_->mode.velocity_commands) :
-    shared_data_->mode.velocity_commands;
+  // All steering-enabled Mimic policies share the same deployment controls.
+  const Eigen::Vector3f requested =
+    steering_release_.filter_command(shared_data_->mode.velocity_commands);
   // Training reset observes frame zero with zero applied velocity, even for a held command.
   if (policy_->episode_time > 0.0) {
     policy_->motion_steering.step(previous_root_, root, orientation,
       requested, steering_dt_, *steering_);
   }
-  if (reanchor_on_release_) {
-    // Use episode-relative coordinates on both sides. Do not reset odometry,
-    // the motion frame, playback time, or the original joint reference.
-    steering_release_.apply(policy_->motion_steering, requested,
-      policy_->motion_frame.position(shared_data_->localization.position), orientation,
-      policy_->motion_frame.reference_position(root), playback_.reference->root_quaternion());
-  }
+  // Use episode-relative coordinates on both sides. Do not reset odometry,
+  // the motion frame, playback time, or the original joint reference.
+  steering_release_.apply(policy_->motion_steering, requested,
+    policy_->motion_frame.position(shared_data_->localization.position), orientation,
+    policy_->motion_frame.reference_position(root), playback_.reference->root_quaternion());
   previous_root_ = root;
 }
 
