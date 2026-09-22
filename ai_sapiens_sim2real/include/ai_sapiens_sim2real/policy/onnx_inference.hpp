@@ -76,6 +76,13 @@ public:
    */
   const std::vector<int64_t> & get_input_sizes() const;
 
+  // Match the exported semantic order as well as tensor dimensions. Localized
+  // Mimic policies must provide metadata; legacy exports may omit it.
+  void validate_policy_metadata(
+    const std::vector<std::string> & joint_names,
+    const std::vector<std::string> & observation_names,
+    bool require_metadata) const;
+
   /**
    * @brief Get output size for this model.
    * @return Output action dimension

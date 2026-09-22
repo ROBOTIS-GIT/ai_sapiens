@@ -205,6 +205,39 @@ const std::vector<int64_t> & OnnxInference::get_input_sizes() const
   return input_sizes_;
 }
 
+void OnnxInference::validate_policy_metadata(
+  const std::vector<std::string> & joint_names,
+  const std::vector<std::string> & observation_names,
+  bool require_metadata) const
+{
+  const auto metadata = session_->GetModelMetadata();
+  Ort::AllocatorWithDefaultOptions allocator;
+  const auto validate = [&](const char * key, const std::vector<std::string> & expected) {
+      const auto value = metadata.LookupCustomMetadataMapAllocated(key, allocator);
+      if (!value || value.get()[0] == '\0') {
+        if (require_metadata) {
+          throw std::runtime_error(std::string("Localized Mimic ONNX is missing ") + key +
+                  " metadata; export the policy with its matching sim2real.yaml");
+        }
+        return;
+      }
+      std::ostringstream names;
+      for (size_t i = 0; i < expected.size(); ++i) {
+        if (i != 0) {
+          names << ',';
+        }
+        names << expected[i];
+      }
+      if (names.str() != value.get()) {
+        throw std::runtime_error(std::string("ONNX ") + key +
+                " does not match sim2real.yaml order. Matching tensor sizes do not imply "
+                "compatible position/velocity observations; use ONNX and YAML from the same run.");
+      }
+    };
+  validate("joint_names", joint_names);
+  validate("observation_names", observation_names);
+}
+
 void OnnxInference::cache_name_pointers(
   const std::vector<std::string> & names,
   std::vector<const char *> & ptrs)

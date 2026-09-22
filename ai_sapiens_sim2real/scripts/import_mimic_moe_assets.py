@@ -37,6 +37,8 @@ OBSERVATIONS = {
     'velocity_commands': 3,
 }
 
+OBSERVATION_SCHEMA = 'mimic_global_position_v1'
+
 
 def require(condition, message):
     if not condition:
@@ -55,11 +57,20 @@ def validate(run, motion, joint_order):
     require(abs(config['step_dt'] - 0.02) < 1e-8, 'Expected 50 Hz policy / 50 FPS motion')
     reference = config['commands']['reference_trajectory']
     training_reference = env['commands']['reference_trajectory']
+    require(list(env['observations']['actor']['terms']) == list(OBSERVATIONS),
+            'Training actor must use global position observations; '
+            'do not re-export a velocity-trained checkpoint as a position policy')
     require(reference['observation_origin'] == 'episode', 'Expected episode XY origin')
     require(training_reference['observation_origin'] == 'episode', 'Training XY origin differs')
     require(Path(training_reference['root_position_csv_file']).name == motion.name,
             'CSV filename differs from training configuration')
     steering = reference['steering']
+    require(steering.get('tracking_mode', 'trajectory') == 'trajectory' and
+            training_reference['steering'].get('tracking_mode', 'trajectory') == 'trajectory',
+            'Position MoE requires integrated trajectory steering in export and training')
+    require('velocity_estimator_time_constant' not in steering and
+            'velocity_estimator_time_constant' not in training_reference['steering'],
+            'Velocity estimator settings belong to an incompatible training schema')
     for key in ('lin_vel_x', 'lin_vel_y', 'yaw_rate'):
         values = steering[key]
         require(len(values) == 2 and np.isfinite(values).all() and
@@ -80,6 +91,7 @@ def validate(run, motion, joint_order):
     for key in ('scale', 'offset'):
         require(len(actions[key]) == 23 and np.isfinite(actions[key]).all(),
                 f'Invalid action {key}')
+    require(actions.get('clip') is None, 'Unexpected processed action clipping')
     limit = float(agent['clip_actions'])
     require(limit > 0 and np.isfinite(limit) and
             actions['raw_clip'] == [[-limit, limit]] * 23, 'Training action clip differs')
@@ -124,21 +136,21 @@ def main():
              Path('params') / motion.name: motion}
     for name in ('sim2real.yaml', 'env.yaml', 'agent.yaml'):
         files[Path('params') / name] = run / 'params' / name
-    # Do not replace a previous bundle implicitly. A new output directory can be
-    # selected to review another checkpoint before changing the runtime asset.
+    # Import into a new directory so existing bundles are never replaced implicitly.
     require(not destination.exists(), f'Output already exists: {destination}')
     hashes = {str(relative): hashlib.sha256(source.read_bytes()).hexdigest()
               for relative, source in files.items()}
+    manifest = {
+        'task': 'Cyclo-Mimic-K1-Rev1-Dynamite-Gloposition-controller-moe',
+        'observation_schema': OBSERVATION_SCHEMA,
+        'source_run': str(run), 'source_motion': str(motion),
+        'motion_frames': frame_count, 'sha256': hashes,
+    }
     destination.mkdir(parents=True)
     for relative, source in files.items():
         target = destination / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
-    manifest = {
-        'task': 'Cyclo-Mimic-K1-Rev1-Dynamite-Gloposition-controller-moe',
-        'source_run': str(run), 'source_motion': str(motion),
-        'motion_frames': frame_count, 'sha256': hashes,
-    }
     (destination / 'source_manifest.yaml').write_text(yaml.safe_dump(manifest, sort_keys=False))
     print(f'Imported MoE bundle: {destination} '
           f'(131 observations, 23 actions, {frame_count} frames)')

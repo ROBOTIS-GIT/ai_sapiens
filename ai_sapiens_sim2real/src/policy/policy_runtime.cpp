@@ -67,18 +67,17 @@ PolicyRuntime::PolicyRuntime(
   const bool has_robot_xy = static_cast<bool>(observations["robot_root_position_xy_w"]);
   const bool has_reference_xy = static_cast<bool>(observations["reference_root_position_xy_w"]);
   const bool has_robot_velocity = static_cast<bool>(observations["robot_root_velocity_xy_h"]);
-  const bool has_reference_velocity = static_cast<bool>(observations["reference_root_velocity_xy_h"]);
-  requires_localization_ = has_robot_xy || has_robot_velocity;
-  if (has_robot_xy != has_reference_xy || has_robot_velocity != has_reference_velocity ||
-    (has_robot_xy && has_robot_velocity) || (requires_localization_ && reference_motion == nullptr))
-  {
+  const bool has_reference_velocity =
+    static_cast<bool>(observations["reference_root_velocity_xy_h"]);
+  if (has_robot_velocity || has_reference_velocity) {
     throw std::runtime_error(
-        "Localized mimic observations require one complete position or velocity pair");
+        "Global-position Mimic requires robot/reference_root_position_xy_w; "
+        "root velocity observations belong to an incompatible training schema");
   }
-  const bool velocity_steering = sim2real_config.steering() &&
-    sim2real_config.steering()->tracking_mode == "velocity";
-  if (has_robot_velocity != velocity_steering) {
-    throw std::runtime_error("velocity steering requires robot/reference_root_velocity_xy_h observations");
+  requires_localization_ = has_robot_xy;
+  if (has_robot_xy != has_reference_xy || (requires_localization_ && reference_motion == nullptr)) {
+    throw std::runtime_error(
+        "Global-position Mimic requires both robot/reference_root_position_xy_w and a motion reference");
   }
   load_sim2real_config(sim2real_config, controller_joint_names);
   log_joint_coverage(controller_joint_names);
@@ -86,6 +85,8 @@ PolicyRuntime::PolicyRuntime(
   load_onnx_model();
   const size_t observation_size =
     create_observation_manager(sim2real_config, shared_data, reference_motion);
+  inference_->validate_policy_metadata(
+    joint_context_.policy_joint_names, obs_manager_->get_term_names(), requires_localization_);
   gait_clock_ = make_gait_clock(sim2real_config.observations(), step_dt_);
   validate_observation_size(observation_size);
   obs_buffer_[onnx_input_name_].resize(observation_size);

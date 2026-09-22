@@ -1,6 +1,7 @@
 <mujoco model="k1">
   <compiler angle="radian" meshdir="../../meshes/k1_rev1" autolimits="true"/>
-  <option integrator="implicitfast"/>
+  <!-- Cyclo K1 Mimic: 4 physics steps per 0.02 s policy step. -->
+  <option integrator="implicitfast" timestep="0.005" iterations="10" ls_iterations="20" ccd_iterations="50"/>
   <default>
     <joint damping="0" armature="0" frictionloss="0"/>
     <!-- Visual / Collision -->
@@ -8,7 +9,11 @@
       <geom type="mesh" contype="0" conaffinity="0" group="2" density="0"/>
     </default>
     <default class="collision">
-      <geom contype="1" conaffinity="1" group="3" density="0" rgba="0.45 0.65 0.85 0.35"/>
+      <geom contype="1" conaffinity="1" condim="1" group="3" density="0" rgba="0.45 0.65 0.85 0.35"/>
+      <!-- Match k1_rev1.py FULL_COLLISION; priority selects foot friction over the floor. -->
+      <default class="foot_collision">
+        <geom condim="3" priority="1" friction="0.6 0.005 0.0001"/>
+      </default>
     </default>
     <!-- QC060-200-R020-RE motor: arms and ankle roll -->
     <default class="QC060-200-R020-RE">
@@ -107,23 +112,23 @@
                   <joint name="left_ankle_roll_joint" class="QC060-200-R020-RE" type="hinge" axis="1 0 0" range="-0.5236 0.5236"
                     limited="true" actuatorfrclimited="true" actuatorfrcrange="-47.277 47.277"/>
                   <geom class="visual" type="mesh" mesh="left_ankle_roll_link" material="dark"/>
-                  <geom class="collision" pos="-0.047 0.025 -0.06" type="sphere" size="0.005"
+                  <geom class="foot_collision" pos="-0.047 0.025 -0.06" type="sphere" size="0.005"
                     name="left_ankle_roll_link_collision_0"/>
-                  <geom class="collision" pos="-0.047 -0.025 -0.06" type="sphere" size="0.005"
+                  <geom class="foot_collision" pos="-0.047 -0.025 -0.06" type="sphere" size="0.005"
                     name="left_ankle_roll_link_collision_1"/>
-                  <geom class="collision" pos="0.05 0.038 -0.06" type="sphere" size="0.005"
+                  <geom class="foot_collision" pos="0.05 0.038 -0.06" type="sphere" size="0.005"
                     name="left_ankle_roll_link_collision_2"/>
-                  <geom class="collision" pos="0.05 -0.038 -0.06" type="sphere" size="0.005"
+                  <geom class="foot_collision" pos="0.05 -0.038 -0.06" type="sphere" size="0.005"
                     name="left_ankle_roll_link_collision_3"/>
-                  <geom class="collision" pos="0.112 0.027 -0.06" type="sphere" size="0.005"
+                  <geom class="foot_collision" pos="0.112 0.027 -0.06" type="sphere" size="0.005"
                     name="left_ankle_roll_link_collision_4"/>
-                  <geom class="collision" pos="0.122 0.015 -0.05" type="sphere" size="0.005"
+                  <geom class="foot_collision" pos="0.122 0.015 -0.05" type="sphere" size="0.005"
                     name="left_ankle_roll_link_collision_5"/>
-                  <geom class="collision" pos="0.125 0 -0.047" type="sphere" size="0.005"
+                  <geom class="foot_collision" pos="0.125 0 -0.047" type="sphere" size="0.005"
                     name="left_ankle_roll_link_collision_6"/>
-                  <geom class="collision" pos="0.122 -0.015 -0.05" type="sphere" size="0.005"
+                  <geom class="foot_collision" pos="0.122 -0.015 -0.05" type="sphere" size="0.005"
                     name="left_ankle_roll_link_collision_7"/>
-                  <geom class="collision" pos="0.112 -0.027 -0.06" type="sphere" size="0.005"
+                  <geom class="foot_collision" pos="0.112 -0.027 -0.06" type="sphere" size="0.005"
                     name="left_ankle_roll_link_collision_8"/>
                 </body>
               </body>
@@ -179,23 +184,23 @@
                   <joint name="right_ankle_roll_joint" class="QC060-200-R020-RE" type="hinge" axis="1 0 0" range="-0.5236 0.5236"
                     limited="true" actuatorfrclimited="true" actuatorfrcrange="-47.277 47.277"/>
                   <geom class="visual" type="mesh" mesh="right_ankle_roll_link" material="dark"/>
-                  <geom class="collision" pos="-0.047 0.025 -0.06" type="sphere" size="0.005"
+                  <geom class="foot_collision" pos="-0.047 0.025 -0.06" type="sphere" size="0.005"
                     name="right_ankle_roll_link_collision_0"/>
-                  <geom class="collision" pos="-0.047 -0.025 -0.06" type="sphere" size="0.005"
+                  <geom class="foot_collision" pos="-0.047 -0.025 -0.06" type="sphere" size="0.005"
                     name="right_ankle_roll_link_collision_1"/>
-                  <geom class="collision" pos="0.05 0.038 -0.06" type="sphere" size="0.005"
+                  <geom class="foot_collision" pos="0.05 0.038 -0.06" type="sphere" size="0.005"
                     name="right_ankle_roll_link_collision_2"/>
-                  <geom class="collision" pos="0.05 -0.038 -0.06" type="sphere" size="0.005"
+                  <geom class="foot_collision" pos="0.05 -0.038 -0.06" type="sphere" size="0.005"
                     name="right_ankle_roll_link_collision_3"/>
-                  <geom class="collision" pos="0.112 0.027 -0.06" type="sphere" size="0.005"
+                  <geom class="foot_collision" pos="0.112 0.027 -0.06" type="sphere" size="0.005"
                     name="right_ankle_roll_link_collision_4"/>
-                  <geom class="collision" pos="0.122 0.015 -0.05" type="sphere" size="0.005"
+                  <geom class="foot_collision" pos="0.122 0.015 -0.05" type="sphere" size="0.005"
                     name="right_ankle_roll_link_collision_5"/>
-                  <geom class="collision" pos="0.125 0 -0.047" type="sphere" size="0.005"
+                  <geom class="foot_collision" pos="0.125 0 -0.047" type="sphere" size="0.005"
                     name="right_ankle_roll_link_collision_6"/>
-                  <geom class="collision" pos="0.122 -0.015 -0.05" type="sphere" size="0.005"
+                  <geom class="foot_collision" pos="0.122 -0.015 -0.05" type="sphere" size="0.005"
                     name="right_ankle_roll_link_collision_7"/>
-                  <geom class="collision" pos="0.112 -0.027 -0.06" type="sphere" size="0.005"
+                  <geom class="foot_collision" pos="0.112 -0.027 -0.06" type="sphere" size="0.005"
                     name="right_ankle_roll_link_collision_8"/>
                 </body>
               </body>

@@ -8,6 +8,7 @@
 [glopodanamite_controller](glopodanamite_controller.md)를 참고한다.
 최신 controller MoE는 selector **205**이며
 [MoE sim2sim 문서](glopodanamite_controller_moe.md)에 연결 모델과 실행 절차를 정리했다.
+Redred 글로벌 XY 정책은 **206**이며 [Redred 실행 문서](redred_glopo.md)를 참고한다.
 
 ## 정책과 모션
 

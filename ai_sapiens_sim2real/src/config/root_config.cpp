@@ -267,6 +267,8 @@ MimicBehavior RootConfig::build_mimic_behavior(
   mimic.time_start = node["time_start"] ? node["time_start"].as<float>() : 0.0f;
   mimic.time_end = read_mimic_time_end(node);
   mimic.on_complete = read_mimic_on_complete(node);
+  mimic.reanchor_on_release = node["reanchor_on_release"] ?
+    node["reanchor_on_release"].as<bool>() : false;
 
   if (!mimic.on_complete.empty() && mimic.on_complete != "stay") {
     require_known_mimic_completion_state(mimic.on_complete, name);

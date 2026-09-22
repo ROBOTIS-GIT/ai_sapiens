@@ -67,7 +67,7 @@ selectors:
       203: MimicGlopodanamite
       204: MimicGlopodanamiteController
       205: MimicGlopodanamiteControllerMoe
-      # 206:
+      206: MimicRedredGlopo
       # 207:
       # 208:
       # 209:
@@ -137,6 +137,9 @@ state_machine:
     MimicGlopodanamiteControllerMoe:
       parent: Mimic
       run: mimic_glopodanamite_controller_moe
+    MimicRedredGlopo:
+      parent: Mimic
+      run: mimic_redred_glopo
 
 state_behaviors:
   damping:
@@ -224,3 +227,8 @@ state_behaviors:
     kind: mimic
     asset: mimic/glopodanamite_controller_moe
     motion: dynamite004_headwrap_v3.csv
+    reanchor_on_release: true
+  mimic_redred_glopo:
+    kind: mimic
+    asset: mimic/redred_glopo
+    motion: redred_k1_conver.csv

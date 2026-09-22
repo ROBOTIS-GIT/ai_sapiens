@@ -33,16 +33,12 @@ struct PlanarMotionSteering
   Eigen::Vector2f offset{Eigen::Vector2f::Zero()};
   Eigen::Vector3f velocity{Eigen::Vector3f::Zero()};
   float yaw{0.0f};
-  Eigen::Vector2f measured_velocity{Eigen::Vector2f::Zero()};
-  Eigen::Vector2f previous_robot_position{Eigen::Vector2f::Zero()};
 
   void reset()
   {
     offset.setZero();
     velocity.setZero();
     yaw = 0.0f;
-    measured_velocity.setZero();
-    previous_robot_position.setZero();
   }
 
   Eigen::Quaternionf orientation() const
@@ -68,42 +64,11 @@ struct PlanarMotionSteering
     velocity += alpha * (target - velocity);
   }
 
-  void reanchor(
-    const Eigen::Vector2f & root, const Eigen::Quaternionf & reference_orientation,
-    const Eigen::Vector2f & robot_position, const Eigen::Quaternionf & robot_orientation)
-  {
-    offset = robot_position - root;
-    const float angle = heading(robot_orientation) - heading(reference_orientation);
-    yaw = std::atan2(std::sin(angle), std::cos(angle));
-  }
-
-  void reset_velocity_estimator(const Eigen::Vector2f & robot_position)
-  {
-    previous_robot_position = robot_position;
-    measured_velocity.setZero();
-  }
-
-  void step_velocity(
-    const Eigen::Vector2f & root, const Eigen::Quaternionf & reference_orientation,
-    const Eigen::Vector2f & robot_position, const Eigen::Quaternionf & robot_orientation,
-    const Eigen::Vector3f & requested, float dt, const PlanarSteeringConfig & config)
-  {
-    update_command(requested, dt, config);
-    const float tau = config.velocity_estimator_time_constant;
-    const float alpha = tau == 0.0f ? 1.0f : -std::expm1(-dt / tau);
-    measured_velocity += alpha * ((robot_position - previous_robot_position) / dt - measured_velocity);
-    previous_robot_position = robot_position;
-    reanchor(root, reference_orientation, robot_position, robot_orientation);
-  }
-
   void step(
     const Eigen::Vector2f & previous_root, const Eigen::Vector2f & current_root,
     const Eigen::Quaternionf & robot_orientation, const Eigen::Vector3f & requested,
     float dt, const PlanarSteeringConfig & config)
   {
-    if (config.tracking_mode != "trajectory") {
-      throw std::runtime_error("velocity steering requires measured position via step_velocity");
-    }
     update_command(requested, dt, config);
     const float delta_yaw = dt * velocity.z();
     const Eigen::Vector2f root_delta = current_root - previous_root;

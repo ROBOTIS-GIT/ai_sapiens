@@ -35,6 +35,30 @@ def test_scene_has_imu_sensors():
         assert mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SENSOR, sensor) >= 0
 
 
+@pytest.mark.parametrize('scene', ['scene.xml', 'scene_gantry.xml'])
+def test_k1_mimic_physics_matches_training(scene):
+    model = load(scene)
+    assert model.opt.timestep == pytest.approx(0.005)
+    assert model.opt.iterations == 10
+    assert model.opt.ls_iterations == 20
+    assert model.opt.ccd_iterations == 50
+    assert model.opt.integrator == mujoco.mjtIntegrator.mjINT_IMPLICITFAST
+    feet = 0
+    for index in range(model.ngeom):
+        name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, index) or ''
+        if '_collision_' not in name:
+            continue
+        assert model.geom_contype[index] == model.geom_conaffinity[index] == 1
+        if '_ankle_roll_link_collision_' in name:
+            feet += 1
+            assert model.geom_condim[index] == 3
+            assert model.geom_priority[index] == 1
+            assert model.geom_friction[index, 0] == pytest.approx(0.6)
+        else:
+            assert model.geom_condim[index] == 1
+    assert feet == 18
+
+
 def test_gantry_scene():
     model = load('scene_gantry.xml')
     gantry_body = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, 'gantry')
@@ -55,7 +79,7 @@ def test_hanging_robot_settles_above_ground():
     dz = 0.90 - 0.7955
     data.qpos[2] += dz
     data.mocap_pos[0][2] += dz
-    for _ in range(1000):  # 2 s at 0.002 timestep
+    for _ in range(round(2.0 / model.opt.timestep)):
         mujoco.mj_step(model, data)
     # Base stays hanging near 0.90 m; feet never touch (standing height is 0.7955).
     assert data.qpos[2] > 0.85

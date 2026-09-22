@@ -43,7 +43,8 @@ std::unique_ptr<MimicPolicyRuntime> MimicPolicyRuntime::create(
     controller_joint_names,
     shared_data,
     load_playback(mimic, sim2real_config, controller_joint_names),
-    mimic.on_complete);
+    mimic.on_complete,
+    mimic.reanchor_on_release);
 }
 
 MotionPlayback MimicPolicyRuntime::load_playback(
@@ -53,8 +54,7 @@ MotionPlayback MimicPolicyRuntime::load_playback(
 {
   MotionPlayback playback;
   const bool mjlab_format = mimic.mjlab_format.value_or(
-    static_cast<bool>(sim2real_config.observations()["robot_root_position_xy_w"]) ||
-    static_cast<bool>(sim2real_config.observations()["robot_root_velocity_xy_h"]));
+    static_cast<bool>(sim2real_config.observations()["robot_root_position_xy_w"]));
   if (sim2real_config.steering() && (!mjlab_format || !std::isfinite(mimic.fps) ||
     !std::isfinite(sim2real_config.step_dt()) ||
     std::abs(mimic.fps * sim2real_config.step_dt() - 1.0) > 1e-5))
@@ -83,7 +83,8 @@ MimicPolicyRuntime::MimicPolicyRuntime(
   const std::vector<std::string> & controller_joint_names,
   SharedControlData * shared_data,
   MotionPlayback playback,
-  std::string completion_state)
+  std::string completion_state,
+  bool reanchor_on_release)
 : PolicyRuntime(
     std::move(node),
     std::move(state_name),
@@ -96,7 +97,11 @@ MimicPolicyRuntime::MimicPolicyRuntime(
   , completion_state_(std::move(completion_state))
   , steering_(sim2real_config.steering())
   , steering_dt_(static_cast<float>(sim2real_config.step_dt()))
+  , reanchor_on_release_(reanchor_on_release)
 {
+  if (reanchor_on_release_ && !steering_) {
+    throw std::runtime_error("reanchor_on_release requires a localized Mimic steering policy");
+  }
   const bool has_velocity = static_cast<bool>(sim2real_config.observations()["velocity_commands"]);
   if (steering_) {
     steering_->validate();
@@ -113,6 +118,7 @@ MimicPolicyRuntime::MimicPolicyRuntime(
 
 void MimicPolicyRuntime::on_enter()
 {
+  steering_release_.reset();
   playback_.reference->seek(playback_.time_start);
   policy_->uses_motion_steering = steering_.has_value();
   previous_root_ = playback_.reference->root_position().head<2>();
@@ -158,26 +164,20 @@ void MimicPolicyRuntime::prepare_command_observation()
   const Eigen::Vector2f root = playback_.reference->root_position().head<2>();
   const auto orientation =
     policy_->motion_frame.orientation(shared_data_->localization.orientation);
-  if (steering_->tracking_mode == "velocity") {
-    // Transform measured odometry into the same absolute motion coordinates
-    // as the raw CSV, also when playback starts partway through the clip.
-    const Eigen::Vector2f position = policy_->motion_frame.position(shared_data_->localization.position) +
-      root - policy_->motion_frame.reference_position(root);
-    const auto reference_orientation = playback_.reference->root_quaternion();
-    if (policy_->episode_time > 0.0) {
-      policy_->motion_steering.step_velocity(root, reference_orientation, position, orientation,
-        shared_data_->mode.velocity_commands, steering_dt_, *steering_);
-    } else {
-      policy_->motion_steering.reanchor(root, reference_orientation, position, orientation);
-      policy_->motion_steering.reset_velocity_estimator(position);
-    }
-    previous_root_ = root;
-    return;
-  }
+  const Eigen::Vector3f requested = reanchor_on_release_ ?
+    steering_release_.filter_command(shared_data_->mode.velocity_commands) :
+    shared_data_->mode.velocity_commands;
   // Training reset observes frame zero with zero applied velocity, even for a held command.
   if (policy_->episode_time > 0.0) {
     policy_->motion_steering.step(previous_root_, root, orientation,
-      shared_data_->mode.velocity_commands, steering_dt_, *steering_);
+      requested, steering_dt_, *steering_);
+  }
+  if (reanchor_on_release_) {
+    // Use episode-relative coordinates on both sides. Do not reset odometry,
+    // the motion frame, playback time, or the original joint reference.
+    steering_release_.apply(policy_->motion_steering, requested,
+      policy_->motion_frame.position(shared_data_->localization.position), orientation,
+      policy_->motion_frame.reference_position(root), playback_.reference->root_quaternion());
   }
   previous_root_ = root;
 }

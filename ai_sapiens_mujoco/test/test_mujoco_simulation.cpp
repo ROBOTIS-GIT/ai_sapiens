@@ -143,11 +143,13 @@ TEST(MujocoSimulation, AdvanceAccumulatesTime)
 {
   MujocoSimulation sim;
   sim.load(scene("scene.xml"), kJoints);
-  // CM period 1 ms < model timestep 2 ms: two advances -> one step.
+  // CM period 1 ms < K1 Mimic timestep 5 ms: five advances -> one step.
+  for (int i = 0; i < 4; ++i) {
+    sim.advance(0.001);
+    EXPECT_DOUBLE_EQ(sim.sim_time(), 0.0);
+  }
   sim.advance(0.001);
-  EXPECT_DOUBLE_EQ(sim.sim_time(), 0.0);
-  sim.advance(0.001);
-  EXPECT_NEAR(sim.sim_time(), 0.002, 1e-9);
+  EXPECT_NEAR(sim.sim_time(), 0.005, 1e-9);
 }
 
 TEST(MujocoSimulation, MitImpedanceHoldsJointAtTarget)
@@ -214,7 +216,7 @@ TEST(MujocoSimulation, AffineImpedanceRespectsActuatorForceLimit)
   command.kd = 10.0;
   sim.set_command(left_wrist, command);
 
-  sim.advance(0.002);
+  sim.advance(sim.model()->opt.timestep);
 
   EXPECT_LE(std::abs(sim.joint_state(left_wrist).effort), 47.277 + 1e-9);
 }
@@ -362,7 +364,7 @@ TEST(MujocoSimulationGantry, ReattachRestoresUprightHangingPoseForFallenRobot)
     EXPECT_NEAR(data->mocap_quat[4 * gantry_mocap + i], upright_gantry_quat[i], 1e-12);
   }
 
-  sim.advance(0.002);
+  sim.advance(sim.model()->opt.timestep);
   EXPECT_GT(std::abs(mju_dot(data->qpos + 3, upright_robot_quat.data(), 4)), 0.999);
 }
 

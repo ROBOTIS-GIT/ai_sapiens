@@ -267,6 +267,12 @@ if(BUILD_TESTING)
 
   find_package(ament_cmake_gtest REQUIRED)
 
+  ament_add_gtest(test_onnx_metadata
+    test/test_onnx_metadata.cpp src/policy/onnx_inference.cpp)
+  target_link_libraries(test_onnx_metadata ${ONNXRUNTIME_LIBRARY})
+  target_compile_definitions(test_onnx_metadata PRIVATE
+    TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/data")
+
   ament_add_gtest(test_gloposition_observations
     test/test_gloposition_observations.cpp
     src/config/config_utils.cpp

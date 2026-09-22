@@ -25,6 +25,7 @@
 #include "ai_sapiens_sim2real/policy/action_pipeline.hpp"
 #include "ai_sapiens_sim2real/policy/localization_pose.hpp"
 #include "ai_sapiens_sim2real/policy/motion_reference.hpp"
+#include "ai_sapiens_sim2real/policy/motion_steering_release.hpp"
 #include "ai_sapiens_sim2real/shared_control_data.hpp"
 
 namespace ai_sapiens_sim2real
@@ -184,17 +185,16 @@ commands:
   EXPECT_FLOAT_EQ(parsed.steering()->smoothing_time_constant, 0.8f);
   EXPECT_FALSE(parsed.velocity_command_ranges());
   auto steering = config["commands"]["reference_trajectory"]["steering"];
-  EXPECT_EQ(parsed.steering()->tracking_mode, "trajectory");
+  steering["tracking_mode"] = "trajectory";
+  EXPECT_NO_THROW(load());
   steering["tracking_mode"] = "velocity";
-  steering["velocity_estimator_time_constant"] = .1;
-  EXPECT_EQ(load().steering()->tracking_mode, "velocity");
-  EXPECT_FLOAT_EQ(load().steering()->velocity_estimator_time_constant, .1f);
+  EXPECT_THROW(load(), std::runtime_error);
   steering["tracking_mode"] = "invalid";
   EXPECT_THROW(load(), std::runtime_error);
-  steering["tracking_mode"] = "velocity";
-  steering["velocity_estimator_time_constant"] = -.1;
-  EXPECT_THROW(load(), std::runtime_error);
+  steering.remove("tracking_mode");
   steering["velocity_estimator_time_constant"] = .1;
+  EXPECT_THROW(load(), std::runtime_error);
+  steering.remove("velocity_estimator_time_constant");
   for (const auto & limits : {"[0.1, 0.3]", "[.nan, 0.3]", "[-.inf, 0.3]", "[-0.3]"}) {
     steering["lin_vel_x"] = YAML::Load(limits);
     EXPECT_THROW(load(), std::runtime_error);
@@ -344,64 +344,251 @@ TEST(ActionPipeline, ClipsRawBeforeScaleAndKeepsAppliedHistory)
   EXPECT_FALSE(std::isfinite(pipeline.process({std::numeric_limits<float>::infinity()})[0]));
 }
 
-TEST(PlanarMotionSteering, VelocityModeDiscardsBlockedMotionAndReleaseDebt)
-{
-  PlanarMotionSteering steering;
-  PlanarSteeringConfig config;
-  config.tracking_mode = "velocity";
-  config.smoothing_time_constant = 0;
-  config.velocity_estimator_time_constant = 0;
-  Eigen::Vector2f root(2, 3);
-  const Eigen::Vector2f robot(10, -20);
-  const Eigen::Quaternionf robot_q(Eigen::AngleAxisf(1.2f, Eigen::Vector3f::UnitZ()));
-  const Eigen::Quaternionf reference_q(Eigen::AngleAxisf(-0.3f, Eigen::Vector3f::UnitZ()));
-  steering.reset_velocity_estimator(robot);
-  for (int i = 0; i < 500; ++i) {
-    root.x() += .002f;
-    steering.step_velocity(root, reference_q, robot, robot_q,
-      Eigen::Vector3f(.1f, -.1f, .2f), .02f, config);
-  }
-  EXPECT_TRUE((root + steering.offset).isApprox(robot));
-  EXPECT_NEAR(steering.yaw, 1.5f, 1e-6);
-  EXPECT_TRUE(steering.measured_velocity.isZero());
-  steering.step_velocity(root, reference_q, robot, robot_q, Eigen::Vector3f::Zero(), .02f, config);
-  EXPECT_TRUE(steering.velocity.isZero());
-  EXPECT_TRUE((root + steering.offset).isApprox(robot));
-  EXPECT_NEAR(steering.yaw, 1.5f, 1e-6);
-  steering.step_velocity(root, reference_q, robot, robot_q,
-    Eigen::Vector3f(-.1f, .1f, -.2f), .02f, config);
-  EXPECT_FLOAT_EQ(steering.velocity.x(), -.1f);
-  EXPECT_FLOAT_EQ(steering.velocity.z(), -.2f);
-  steering.reset_velocity_estimator(Eigen::Vector2f(100, 200));
-  steering.step_velocity(root, reference_q, Eigen::Vector2f(100, 200), robot_q,
-    Eigen::Vector3f::Zero(), .02f, config);
-  EXPECT_TRUE(steering.measured_velocity.isZero());
-}
-
-TEST_F(GlobalPositionTest, VelocityObservationsUseHeadingAxesAndCsvBackwardDifference)
+TEST_F(GlobalPositionTest, BlockedRobotRetainsReferencePositionErrorAfterRelease)
 {
   MotionReference motion(file_.string(), 50, {"waist_yaw_joint"}, true);
-  EXPECT_TRUE(motion.root_velocity().isApprox(Eigen::Vector3f(50, 50, 0)));
-  motion.seek(.02);
-  EXPECT_TRUE(motion.root_velocity().isApprox(Eigen::Vector3f(50, 50, 0)));
-  motion.seek(.04);
-  EXPECT_TRUE(motion.root_velocity().isApprox(Eigen::Vector3f(150, 50, 0)));
   SharedControlData shared;
   shared.resize(1, 1);
-  shared.localization.orientation = Eigen::AngleAxisf(1.57079632679f, Eigen::Vector3f::UnitZ());
-  shared.policy.motion_steering.reanchor(motion.root_position().head<2>(), motion.root_quaternion(),
-    Eigen::Vector2f(10, 20), shared.localization.orientation);
-  shared.policy.motion_steering.velocity = Eigen::Vector3f(.1f, -.05f, .2f);
-  shared.policy.motion_steering.measured_velocity = Eigen::Vector2f(.2f, .3f);
+  shared.policy.uses_global_position = true;
+  shared.policy.uses_motion_steering = true;
+  shared.policy.motion_frame.align(Eigen::Vector2f::Zero(), Eigen::Quaternionf::Identity(),
+    motion.root_position().head<2>(), motion.root_quaternion());
   PolicyJointContext joints{{"waist_yaw_joint"}, {0}};
   ObservationContext context{shared, joints, &motion};
   auto & registry = ObservationRegistry::get_registry();
-  const auto actual = registry.at("robot_root_velocity_xy_h")(context, YAML::Node{});
-  const auto desired = registry.at("reference_root_velocity_xy_h")(context, YAML::Node{});
-  EXPECT_NEAR(actual[0], .3f, 1e-6);
-  EXPECT_NEAR(actual[1], -.2f, 1e-6);
-  EXPECT_NEAR(desired[0], 150.1f, 1e-5);
-  EXPECT_NEAR(desired[1], 49.95f, 1e-5);
+  auto & steering = shared.policy.motion_steering;
+  PlanarSteeringConfig config;
+  config.smoothing_time_constant = 0;
+  const Eigen::Vector2f root = motion.root_position().head<2>();
+  // The robot remains blocked while the command advances its reference for 10 seconds.
+  for (int i = 0; i < 500; ++i) {
+    steering.step(root, root, Eigen::Quaternionf::Identity(),
+      Eigen::Vector3f(0.1f, -0.1f, 0.2f), 0.02f, config);
+  }
+  const auto robot = registry.at("robot_root_position_xy_w")(context, YAML::Node{});
+  const auto reference = registry.at("reference_root_position_xy_w")(context, YAML::Node{});
+  EXPECT_EQ(robot, (std::vector<float>{0, 0}));
+  EXPECT_NEAR(reference[0], 1.0f, 1e-5);
+  EXPECT_NEAR(reference[1], -1.0f, 1e-5);
+  EXPECT_NEAR(steering.yaw, 2.0f, 2e-5);
+  steering.step(root, root, Eigen::Quaternionf::Identity(),
+    Eigen::Vector3f::Zero(), 0.02f, config);
+  EXPECT_TRUE(steering.velocity.isZero());
+  EXPECT_EQ(registry.at("reference_root_position_xy_w")(context, YAML::Node{}), reference);
+  EXPECT_NEAR(steering.yaw, 2.0f, 2e-5);
+  steering.reset();
+  EXPECT_EQ(registry.at("reference_root_position_xy_w")(context, YAML::Node{}), robot);
+}
+
+TEST_F(GlobalPositionTest, RejectsObsoleteVelocityObservationSchema)
+{
+  auto & registry = ObservationRegistry::get_registry();
+  EXPECT_THROW(registry.at("robot_root_velocity_xy_h"), std::out_of_range);
+  EXPECT_THROW(registry.at("reference_root_velocity_xy_h"), std::out_of_range);
+}
+
+TEST_F(GlobalPositionTest, ReleaseUsesReachedEpisodePoseThenContinuesOriginalClip)
+{
+  MotionReference motion(file_.string(), 50, {"waist_yaw_joint"}, true);
+  SharedControlData shared;
+  shared.resize(1, 1);
+  shared.policy.uses_global_position = true;
+  shared.policy.uses_motion_steering = true;
+  const Eigen::Quaternionf entry_yaw(Eigen::AngleAxisf(0.7f, Eigen::Vector3f::UnitZ()));
+  shared.policy.motion_frame.align(Eigen::Vector2f(10, 20), entry_yaw,
+    motion.root_position().head<2>(), motion.root_quaternion());
+  shared.localization.position = Eigen::Vector2f(10, 20) +
+    Eigen::Rotation2Df(0.7f) * Eigen::Vector2f(0.7f, 0);
+  shared.localization.orientation = Eigen::AngleAxisf(0.8f, Eigen::Vector3f::UnitZ());
+  const auto robot_xy = shared.policy.motion_frame.position(shared.localization.position);
+  const auto robot_q = shared.policy.motion_frame.orientation(shared.localization.orientation);
+  auto & steering = shared.policy.motion_steering;
+  steering.offset = Eigen::Vector2f(1, 0);  // Commanded 1 m, only reached 0.7 m.
+  steering.yaw = 0.4f;  // Also discard the missed turn on release.
+  MotionSteeringRelease release;
+  const auto apply = [&](const Eigen::Vector3f & requested) {
+      release.apply(steering, requested, robot_xy, robot_q,
+        shared.policy.motion_frame.reference_position(motion.root_position().head<2>()),
+        motion.root_quaternion());
+    };
+  apply(Eigen::Vector3f(0.2f, 0, 0.2f));
+  EXPECT_TRUE(steering.offset.isApprox(Eigen::Vector2f(1, 0)));
+  apply(Eigen::Vector3f::Zero());
+  EXPECT_TRUE(steering.offset.isApprox(Eigen::Vector2f(0.7f, 0), 2e-6));
+  EXPECT_NEAR(steering.yaw, 0.1f, 1e-6);
+
+  PolicyJointContext joints{{"waist_yaw_joint"}, {0}};
+  ObservationContext context{shared, joints, &motion};
+  auto & registry = ObservationRegistry::get_registry();
+  EXPECT_EQ(registry.at("reference_root_position_xy_w")(context, YAML::Node{}),
+    registry.at("robot_root_position_xy_w")(context, YAML::Node{}));
+  const auto old_root = motion.root_position().head<2>().eval();
+  motion.seek(0.02);
+  steering.step(old_root, motion.root_position().head<2>(), robot_q,
+    Eigen::Vector3f::Zero(), 0.02f, PlanarSteeringConfig{});
+  apply(Eigen::Vector3f::Zero());
+  const auto reference = registry.at("reference_root_position_xy_w")(context, YAML::Node{});
+  const Eigen::Vector2f expected = robot_xy +
+    Eigen::Rotation2Df(0.1f) * Eigen::Vector2f(1, 1);
+  EXPECT_NEAR(reference[0], expected.x(), 2e-6);
+  EXPECT_NEAR(reference[1], expected.y(), 2e-6);
+  EXPECT_NEAR(motion.joint_pos()[0], 0.1f, 1e-6);  // Playback was not restarted.
+}
+
+TEST(MotionSteeringRelease, DecaysCommandWhileDiscardingDebtThenStopsReanchoring)
+{
+  PlanarMotionSteering steering;
+  MotionSteeringRelease release;
+  PlanarSteeringConfig config;
+  const auto q = Eigen::Quaternionf::Identity();
+  const auto root = Eigen::Vector2f::Zero().eval();
+  const Eigen::Vector3f command(0.3f, 0, 0.3f);
+  for (int i = 0; i < 50; ++i) {
+    steering.step(root, root, q, command, 0.02f, config);
+    release.apply(steering, command, root, q, root, q);
+  }
+  ASSERT_GT(steering.offset.norm(), 0.1f);
+  Eigen::Vector2f reached(0.07f, -0.1f);
+  const auto before = steering.velocity.eval();
+  steering.step(root, root, q, Eigen::Vector3f::Zero(), 0.02f, config);
+  release.apply(steering, Eigen::Vector3f::Zero(), reached, q, root, q);
+  EXPECT_TRUE(steering.velocity.isApprox(before * std::exp(-0.04f), 1e-6));
+  EXPECT_TRUE(steering.offset.isApprox(reached));
+  EXPECT_FLOAT_EQ(steering.yaw, 0);
+  for (int i = 0; i < 200 && !steering.velocity.isZero(); ++i) {
+    reached.x() += 0.001f;  // Measured motion during deceleration.
+    steering.step(root, root, q, Eigen::Vector3f::Zero(), 0.02f, config);
+    release.apply(steering, Eigen::Vector3f::Zero(), reached, q, root, q);
+    EXPECT_TRUE(steering.offset.isApprox(reached));
+  }
+  ASSERT_TRUE(steering.velocity.isZero());
+  const auto settled = steering.offset.eval();
+  reached.x() += 2.0f;
+  release.apply(steering, Eigen::Vector3f::Zero(), reached, q, root, q);
+  EXPECT_TRUE(steering.offset.isApprox(settled));
+}
+
+TEST(MotionSteeringRelease, InitialNeutralAndResetDoNotDiscardDanceTrackingError)
+{
+  PlanarMotionSteering steering;
+  MotionSteeringRelease release;
+  const auto q = Eigen::Quaternionf::Identity();
+  const auto zero = Eigen::Vector2f::Zero().eval();
+  const Eigen::Vector2f measured(1, 2);
+  release.apply(steering, Eigen::Vector3f::Zero(), measured, q, zero, q);
+  EXPECT_TRUE(steering.offset.isZero());
+  // Even a command held on the first zero-velocity frame arms the release.
+  release.apply(steering, Eigen::Vector3f(0.2f, 0, 0), measured, q, zero, q);
+  release.apply(steering, Eigen::Vector3f::Zero(), measured, q, zero, q);
+  EXPECT_TRUE(steering.offset.isApprox(measured));
+  release.apply(steering, Eigen::Vector3f(0.2f, 0, 0), measured, q, zero, q);
+  release.reset();
+  steering.reset();
+  release.apply(steering, Eigen::Vector3f::Zero(), measured, q, zero, q);
+  EXPECT_TRUE(steering.offset.isZero());
+}
+
+TEST(MotionSteeringRelease, TranslationReleaseWorksWhileTurnRemainsActive)
+{
+  PlanarMotionSteering steering;
+  MotionSteeringRelease release;
+  PlanarSteeringConfig config;
+  const auto q = Eigen::Quaternionf::Identity();
+  const auto zero = Eigen::Vector2f::Zero().eval();
+  const Eigen::Vector2f measured(0.7f, -0.2f);
+  steering.velocity = Eigen::Vector3f(0.2f, 0, 0.2f);
+  steering.offset = Eigen::Vector2f(1, 0);
+  release.apply(steering, steering.velocity, measured, q, zero, q);
+  release.apply(steering, Eigen::Vector3f(0, 0, 0.2f), measured, q, zero, q);
+  EXPECT_TRUE(steering.offset.isApprox(measured));
+  EXPECT_FLOAT_EQ(steering.velocity.z(), 0.2f);
+  release.apply(steering, Eigen::Vector3f::Zero(), measured, q, zero, q);
+  EXPECT_TRUE(steering.offset.isApprox(measured));
+  const Eigen::Vector3f reverse(-0.2f, 0, -0.2f);
+  steering.step(zero, zero, q, reverse, 0.02f, config);
+  const auto integrated = steering.offset.eval();
+  release.apply(steering, reverse, measured, q, zero, q);
+  EXPECT_TRUE(steering.offset.isApprox(integrated));
+  EXPECT_FALSE(steering.offset.isApprox(measured));
+  release.apply(steering, Eigen::Vector3f::Zero(), measured, q, zero, q);
+  EXPECT_LT((steering.offset - measured).norm(), (integrated - measured).norm());
+}
+
+TEST(MotionSteeringRelease, CommandsWithinDeadbandDoNotAccumulateOrCancelRelease)
+{
+  MotionSteeringRelease release;
+  PlanarMotionSteering steering;
+  PlanarSteeringConfig config;
+  const Eigen::Vector2f zero = Eigen::Vector2f::Zero();
+  const auto q = Eigen::Quaternionf::Identity();
+  const auto tick = [&](Eigen::Vector3f raw) {
+      const auto command = release.filter_command(raw);
+      steering.step(zero, zero, q, command, 0.02f, config);
+      release.apply(steering, command, zero, q, zero, q);
+    };
+  for (int i = 0; i < 10000; ++i) {
+    tick(Eigen::Vector3f(0.1f, -0.1f, 0.09f));
+  }
+  EXPECT_TRUE(steering.offset.isZero());
+  EXPECT_FLOAT_EQ(steering.yaw, 0);
+  for (int i = 0; i < 200; ++i) {
+    tick(Eigen::Vector3f(0.3f, 0, 0));
+  }
+  ASSERT_GT(steering.offset.norm(), 1.0f);
+  for (int i = 0; i < 500; ++i) {
+    tick(Eigen::Vector3f(0.1f, -0.09f, -0.1f));
+  }
+  EXPECT_LT(steering.offset.norm(), 1e-6);
+  EXPECT_TRUE(steering.velocity.isZero());
+  EXPECT_FLOAT_EQ(steering.yaw, 0);
+}
+
+TEST(MotionSteeringRelease, DeadbandIncludesBothBoundariesAndPreservesOtherAxes)
+{
+  MotionSteeringRelease release;
+  const float above = std::nextafter(0.1f, 1.0f);
+  for (int axis = 0; axis < 3; ++axis) {
+    Eigen::Vector3f command(0.2f, -0.2f, 0.3f);
+    for (const float value : {-0.1f, -0.09f, 0.0f, 0.09f, 0.1f}) {
+      command[axis] = value;
+      auto expected = command.eval();
+      expected[axis] = 0.0f;
+      EXPECT_TRUE(release.filter_command(command).isApprox(expected));
+    }
+  }
+  const Eigen::Vector3f outside(above, -above, above);
+  EXPECT_TRUE(release.filter_command(outside).isApprox(outside));
+  // Returning from an active command must use the same threshold.
+  EXPECT_TRUE(release.filter_command(Eigen::Vector3f::Constant(0.1f)).isZero());
+}
+
+TEST(MotionSteeringRelease, TranslationOnlyReleasePreservesHeading)
+{
+  MotionSteeringRelease release;
+  PlanarMotionSteering steering;
+  steering.yaw = 0.6f;
+  const auto q = Eigen::Quaternionf::Identity();
+  const Eigen::Vector2f zero = Eigen::Vector2f::Zero();
+  release.apply(steering, Eigen::Vector3f(0.2f, 0, 0), zero, q, zero, q);
+  for (int i = 0; i < 200; ++i) {
+    release.apply(steering, Eigen::Vector3f::Zero(), zero, q, zero, q);
+  }
+  EXPECT_FLOAT_EQ(steering.yaw, 0.6f);
+}
+
+TEST(MotionSteeringRelease, TurnReleaseWrapsHeadingWithoutChangingActiveTranslation)
+{
+  MotionSteeringRelease release;
+  PlanarMotionSteering steering;
+  steering.yaw = 3.13f;
+  steering.offset = Eigen::Vector2f(0.7f, 0.2f);
+  const Eigen::Quaternionf q(Eigen::AngleAxisf(-3.13f, Eigen::Vector3f::UnitZ()));
+  const Eigen::Vector2f zero = Eigen::Vector2f::Zero();
+  const auto ref_q = Eigen::Quaternionf::Identity();
+  release.apply(steering, Eigen::Vector3f(0.2f, 0, 0.2f), zero, q, zero, ref_q);
+  release.apply(steering, Eigen::Vector3f(0.2f, 0, 0), zero, q, zero, ref_q);
+  EXPECT_NEAR(steering.yaw, -3.13f, 1e-6);
+  EXPECT_TRUE(steering.offset.isApprox(Eigen::Vector2f(0.7f, 0.2f)));
 }
 
 }  // namespace
