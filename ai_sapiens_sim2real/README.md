@@ -156,6 +156,51 @@ marking the teleop input unavailable. `teleop_input.timeout` triggers the full
 input-loss failsafe. The velocity timeout must not exceed the input timeout; when
 it is omitted, it inherits the input timeout for backward compatibility.
 
+### Joint targets during policy transitions
+
+```yaml
+policy_action_transition:
+  enabled: true
+  duration: 0.3  # seconds; 0 disables interpolation
+```
+
+Restart the node after editing the root YAML. Omitting this section defaults to
+disabled; the example K1 configuration enables a 0.3-second transition. This only
+applies to policy-to-policy changes (including locomotion/mimic in either
+direction) and posture-to-policy changes (including ReadyPose). Both use the same
+enabled flag and duration. Entry from damping or startup without a previous
+posture/policy command remains immediate. Transitions into damping are unaffected.
+
+The start is the last published joint target after position limiting (or the
+previous output if nothing has been published). The destination policy keeps
+inferring. At the control rate, its scaled/offset joint targets are blended with
+that fixed start using `alpha = 3*s*s - 2*s*s*s`, where `s` runs from zero to one.
+Targets are validated before blending and publisher position limits still apply.
+New policy limits can still clip the transition if the old target is outside
+their range. Inference failure holds the output until valid inference resumes.
+Stiffness (kp) and damping (kd) use the same smoothstep and timer as joint targets,
+starting from the last published gains. Switching again during a transition
+captures the gains actually sent, so it starts from the intermediate values.
+Disabling this section switches both joint targets and gains immediately.
+Raw last-action observations and motion timing are unchanged. This reduces
+command discontinuity but does not guarantee balance during a skill change.
+
+Policy runtimes produce validated `JointCommand` targets and report whether an
+inference produced a target, was skipped, or requires holding the output.
+`PolicyController` owns a single `CommandTransition` and applies it after target
+production on every control tick. Policy entry itself only initializes the policy.
+The transition snapshots position and both gains together; `BehaviorOutput.command`
+is the command to publish, and `last_published` retains the publisher's limited
+values. Posture/damping still write directly to the output and bypass this stage.
+The existing posture/damping position mirroring into `last_published` is retained.
+
+The transition uses the preceding tick's target validity when advancing time,
+then consumes the current inference result. This intentionally preserves the
+previous implementation's failure-tick timing, zero-progress first inference,
+and holding behavior. The differential test keeps a frozen pre-refactor algorithm
+and compares every command component bit-for-bit across changing targets,
+failures, skipped updates, subset mappings, clipping, and repeated entries.
+
 ### Policy assets
 
 An `asset` entry is resolved below each `policy_asset_roots` directory:

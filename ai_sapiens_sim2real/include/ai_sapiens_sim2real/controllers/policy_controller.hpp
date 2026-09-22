@@ -29,6 +29,8 @@
 #include <yaml-cpp/yaml.h>  // NOLINT(build/include_order)
 
 #include "ai_sapiens_sim2real/interfaces/controller_base.hpp"
+#include "ai_sapiens_sim2real/command_transition.hpp"
+#include "ai_sapiens_sim2real/config/action_transition_config.hpp"
 #include "ai_sapiens_sim2real/policy/mimic_policy_runtime.hpp"
 #include "ai_sapiens_sim2real/policy/policy_runtime.hpp"
 #include "ai_sapiens_sim2real/config/sim2real_config.hpp"
@@ -37,8 +39,6 @@
 namespace ai_sapiens_sim2real
 {
 
-// Defined in root_config.hpp; only referenced here, so forward-declared to keep
-// the bootstrap header (pulled in by root_config.hpp) out of this include cycle.
 class RootConfig;
 
 class PolicyController : public ControllerBase
@@ -69,17 +69,24 @@ private:
   // Runtime lookup follows the active mode's policy name.
   PolicyRuntime * active_runtime(const std::string & policy_name);
 
+  void enter_policy(PolicyRuntime & runtime);
+
   rclcpp::Node::SharedPtr node_;
   // Reads the operator availability flag; owns the policy output buffers. Holds
   // no path to the mode block, which arrives per tick as a const argument.
   const TeleopInput * teleop_;
   PolicyState * policy_;
+  BehaviorOutput * output_;
+  const ActionTransitionConfig transition_config_;
+  CommandTransition command_transition_;
 
   // Stored by base pointer so mimic policies keep their derived behavior; the
   // active state's policy name selects which runtime drives the act stage.
   std::unordered_map<std::string, std::unique_ptr<PolicyRuntime>> runtimes_;
   // SharedControlData::mode.transition_count value at our last runtime enter.
   uint64_t entered_transition_count_{0};
+  // True after a posture or policy command; false at startup/reset or in damping.
+  bool can_blend_from_previous_{false};
 };
 
 }  // namespace ai_sapiens_sim2real
