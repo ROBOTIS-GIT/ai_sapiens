@@ -3,6 +3,8 @@
   <option integrator="implicitfast"/>
   <default>
     <joint damping="0" armature="0" frictionloss="0"/>
+    <!-- Posture support: mesh collisions except original shins/ankles/feet.
+         MuJoCo uses convex mesh hulls; Newton training uses convex decomposition. -->
     <!-- Visual / Collision -->
     <default class="visual">
       <geom type="mesh" contype="0" conaffinity="0" group="2" density="0"/>
@@ -59,6 +61,7 @@
         pos="-2.925359500e-03 1.127629500e-06 -5.031528100e-02"/>
       <site name="imu" pos="0 0 0" quat="1 0 0 0" size="0.01" group="4"/>
       <geom class="visual" type="mesh" mesh="pelvis" material="white"/>
+      <geom class="collision" type="mesh" mesh="pelvis" name="pelvis_collision_0"/>
       <body name="left_hip_pitch_link" pos="0.0 0.040 -0.081">
         <inertial mass="1.145107600000e+00"
           fullinertia="1.421889812386e-03 1.033629795483e-03 1.088132517762e-03 2.042184810525e-05 -1.676488789760e-05 1.517172548758e-04"
@@ -66,8 +69,7 @@
         <joint name="left_hip_pitch_joint" class="QC080-240-R020-RE" type="hinge" axis="0 1 0" range="-2.4435 2.4435" limited="true"
           actuatorfrclimited="true" actuatorfrcrange="-96.864 96.864"/>
         <geom class="visual" type="mesh" mesh="left_hip_pitch_link" material="white"/>
-        <geom class="collision" pos="0 0.05 -0.02" euler="1.5708 0 0" type="cylinder" size="0.04 0.035"
-          name="left_hip_pitch_link_collision_0"/>
+        <geom class="collision" type="mesh" mesh="left_hip_pitch_link" name="left_hip_pitch_link_collision_0"/>
         <body name="left_hip_roll_link" pos="-0.008 0.085 -0.030">
           <inertial mass="1.553528600000e+00"
             fullinertia="2.895593913609e-03 3.373453150000e-03 1.930057813609e-03 0.000000000000e+00 -7.419460800000e-05 -2.389544800000e-07"
@@ -75,6 +77,7 @@
           <joint name="left_hip_roll_joint" class="QC080-240-R020-RE" type="hinge" axis="1 0 0" range="-0.6109 2.5307"
             limited="true" actuatorfrclimited="true" actuatorfrcrange="-96.864 96.864"/>
           <geom class="visual" type="mesh" mesh="left_hip_roll_link" material="white"/>
+          <geom class="collision" type="mesh" mesh="left_hip_roll_link" name="left_hip_roll_link_collision_0"/>
           <body name="left_hip_yaw_link" pos="0.015 0.0 -0.0905">
             <inertial mass="1.835774100000e+00"
               fullinertia="1.056957363374e-02 1.098149862574e-02 1.600639866804e-03 -5.176745338720e-05 -4.528312668963e-04 -5.657788862029e-04"
@@ -82,8 +85,7 @@
             <joint name="left_hip_yaw_joint" class="QC080-240-R020-RE" type="hinge" axis="0 0 1" range="-3.1416 3.1416"
               limited="true" actuatorfrclimited="true" actuatorfrcrange="-96.864 96.864"/>
             <geom class="visual" type="mesh" mesh="left_hip_yaw_link" material="white"/>
-            <geom class="collision" pos="0.0 0 -0.08" type="cylinder" size="0.045 0.065"
-              name="left_hip_yaw_link_collision_0"/>
+            <geom class="collision" type="mesh" mesh="left_hip_yaw_link" name="left_hip_yaw_link_collision_0"/>
             <body name="left_knee_link" pos="-0.007 0.0 -0.2365">
               <inertial mass="2.527145400000e+00"
                 fullinertia="1.262780659654e-02 1.311422450046e-02 2.980295546432e-03 1.945190841167e-04 -7.980998797765e-04 -3.173312502248e-04"
@@ -138,8 +140,7 @@
         <joint name="right_hip_pitch_joint" class="QC080-240-R020-RE" type="hinge" axis="0 1 0" range="-2.4435 2.4435"
           limited="true" actuatorfrclimited="true" actuatorfrcrange="-96.864 96.864"/>
         <geom class="visual" type="mesh" mesh="right_hip_pitch_link" material="white"/>
-        <geom class="collision" pos="0 -0.05 -0.02" euler="1.5708 0 0" type="cylinder" size="0.04 0.035"
-          name="right_hip_pitch_link_collision_0"/>
+        <geom class="collision" type="mesh" mesh="right_hip_pitch_link" name="right_hip_pitch_link_collision_0"/>
         <body name="right_hip_roll_link" pos="-0.008 -0.085 -0.030">
           <inertial mass="1.553528600000e+00"
             fullinertia="2.895593913609e-03 3.373453150000e-03 1.930057813609e-03 0.000000000000e+00 -7.419460800000e-05 2.389544800000e-07"
@@ -147,6 +148,7 @@
           <joint name="right_hip_roll_joint" class="QC080-240-R020-RE" type="hinge" axis="1 0 0" range="-2.5307 0.6109"
             limited="true" actuatorfrclimited="true" actuatorfrcrange="-96.864 96.864"/>
           <geom class="visual" type="mesh" mesh="right_hip_roll_link" material="white"/>
+          <geom class="collision" type="mesh" mesh="right_hip_roll_link" name="right_hip_roll_link_collision_0"/>
           <body name="right_hip_yaw_link" pos="0.015 0.0 -0.0905">
             <inertial mass="1.835774100000e+00"
               fullinertia="1.056957363374e-02 1.098149862574e-02 1.600639866804e-03 5.176745338720e-05 -4.528312668963e-04 5.657788862029e-04"
@@ -154,8 +156,7 @@
             <joint name="right_hip_yaw_joint" class="QC080-240-R020-RE" type="hinge" axis="0 0 1" range="-3.1416 3.1416"
               limited="true" actuatorfrclimited="true" actuatorfrcrange="-96.864 96.864"/>
             <geom class="visual" type="mesh" mesh="right_hip_yaw_link" material="white"/>
-            <geom class="collision" pos="0.0 0 -0.08" type="cylinder" size="0.045 0.065"
-              name="right_hip_yaw_link_collision_0"/>
+            <geom class="collision" type="mesh" mesh="right_hip_yaw_link" name="right_hip_yaw_link_collision_0"/>
             <body name="right_knee_link" pos="-0.007 0.0 -0.2365">
               <inertial mass="2.527145400000e+00"
                 fullinertia="1.262780659654e-02 1.311422450046e-02 2.980295546432e-03 -1.945190841167e-04 -7.980998797765e-04 3.173312502248e-04"
@@ -210,7 +211,7 @@
         <joint name="waist_yaw_joint" class="QC080-240-R020-RE" type="hinge" axis="0 0 1" range="-6.2832 6.2832" limited="true"
           actuatorfrclimited="true" actuatorfrcrange="-96.864 96.864"/>
         <geom class="visual" type="mesh" mesh="torso_link" material="white"/>
-        <geom class="collision" pos="-0.02 0 0.24" type="box" size="0.1 0.085 0.085" name="torso_link_collision_0"/>
+        <geom class="collision" type="mesh" mesh="torso_link" name="torso_link_collision_0"/>
         <body name="head_link" pos="-0.02725 0 0.361">
           <inertial mass="6.792353500e-01"
             fullinertia="2.471933800e-03 2.738339300e-03 1.531146400e-03 -8.394472500e-08 2.835210500e-05 -9.341772900e-08"
@@ -225,8 +226,7 @@
           <joint name="left_shoulder_pitch_joint" class="QC060-200-R020-RE" type="hinge" axis="0 1 0" range="-3.1416 3.1416"
             limited="true" actuatorfrclimited="true" actuatorfrcrange="-47.277 47.277"/>
           <geom class="visual" type="mesh" mesh="left_shoulder_pitch_link" material="white"/>
-          <geom class="collision" pos="0 0.075 0.0" euler="0 1.5707963267948966 0" type="cylinder" size="0.032 0.025"
-            name="left_shoulder_pitch_link_collision_0"/>
+          <geom class="collision" type="mesh" mesh="left_shoulder_pitch_link" name="left_shoulder_pitch_link_collision_0"/>
           <body name="left_shoulder_roll_link" pos="-0.005 0.077 0.0">
             <inertial mass="7.676193300000e-01"
               fullinertia="7.540640315074e-04 9.381096300000e-04 5.306054865074e-04 -3.848386467835e-14 -3.800846300000e-05 5.500000000099e-15"
@@ -234,8 +234,7 @@
             <joint name="left_shoulder_roll_joint" class="QC060-200-R020-RE" type="hinge" axis="1 0 0" range="0 3.1416"
               limited="true" actuatorfrclimited="true" actuatorfrcrange="-47.277 47.277"/>
             <geom class="visual" type="mesh" mesh="left_shoulder_roll_link" material="white"/>
-            <geom class="collision" pos="0.0 0.000 -0.13" type="cylinder" size="0.035 0.04"
-              name="left_shoulder_roll_link_collision_0"/>
+            <geom class="collision" type="mesh" mesh="left_shoulder_roll_link" name="left_shoulder_roll_link_collision_0"/>
             <body name="left_shoulder_yaw_link" pos="0.0 0.0 -0.0687">
               <inertial mass="6.946265100000e-01"
                 fullinertia="7.202233300000e-04 7.634050600000e-04 3.599643200000e-04 1.411072400000e-05 1.081796000000e-04 -3.396234100000e-05"
@@ -243,6 +242,7 @@
               <joint name="left_shoulder_yaw_joint" class="QC060-200-R020-RE" type="hinge" axis="0 0 1" range="-3.1416 3.1416"
                 limited="true" actuatorfrclimited="true" actuatorfrcrange="-47.277 47.277"/>
               <geom class="visual" type="mesh" mesh="left_shoulder_yaw_link" material="white"/>
+              <geom class="collision" type="mesh" mesh="left_shoulder_yaw_link" name="left_shoulder_yaw_link_collision_0"/>
               <body name="left_elbow_link" pos="0.016 -0.007 -0.1153">
                 <inertial mass="6.689549900000e-01"
                   fullinertia="3.736555131490e-04 5.869930881490e-04 6.490868800000e-04 1.216866050000e-04 0.000000000000e+00 -3.369916297683e-12"
@@ -250,6 +250,7 @@
                 <joint name="left_elbow_joint" class="QC060-200-R020-RE" type="hinge" axis="0 1 0" range="-0.7854 2.1817"
                   limited="true" actuatorfrclimited="true" actuatorfrcrange="-47.277 47.277"/>
                 <geom class="visual" type="mesh" mesh="left_elbow_link" material="white"/>
+                <geom class="collision" type="mesh" mesh="left_elbow_link" name="left_elbow_link_collision_0"/>
                 <body name="left_wrist_roll_rubber_hand" pos="0.0687 0.0 0.0">
                   <inertial mass="3.690000000000e-01"
                     fullinertia="2.034216700000e-04 2.413813900000e-03 2.355377400000e-03 1.009162200000e-04 4.214169350000e-05 -3.970702750000e-06"
@@ -271,8 +272,7 @@
           <joint name="right_shoulder_pitch_joint" class="QC060-200-R020-RE" type="hinge" axis="0 1 0" range="-3.1416 3.1416"
             limited="true" actuatorfrclimited="true" actuatorfrcrange="-47.277 47.277"/>
           <geom class="visual" type="mesh" mesh="right_shoulder_pitch_link" material="white"/>
-          <geom class="collision" pos="0 -0.075 0.0" euler="0 1.5707963267948966 0" type="cylinder" size="0.032 0.025"
-            name="right_shoulder_pitch_link_collision_0"/>
+          <geom class="collision" type="mesh" mesh="right_shoulder_pitch_link" name="right_shoulder_pitch_link_collision_0"/>
           <body name="right_shoulder_roll_link" pos="-0.005 -0.077 0.0">
             <inertial mass="7.676193300000e-01"
               fullinertia="7.540640315074e-04 9.381096300000e-04 5.306054865074e-04 3.848386467835e-14 -3.800846300000e-05 -5.500000000099e-15"
@@ -280,8 +280,7 @@
             <joint name="right_shoulder_roll_joint" class="QC060-200-R020-RE" type="hinge" axis="1 0 0" range="-3.1416 0"
               limited="true" actuatorfrclimited="true" actuatorfrcrange="-47.277 47.277"/>
             <geom class="visual" type="mesh" mesh="right_shoulder_roll_link" material="white"/>
-            <geom class="collision" pos="0.0 0.000 -0.13" type="cylinder" size="0.035 0.04"
-              name="right_shoulder_roll_link_collision_0"/>
+            <geom class="collision" type="mesh" mesh="right_shoulder_roll_link" name="right_shoulder_roll_link_collision_0"/>
             <body name="right_shoulder_yaw_link" pos="0.0 0.0 -0.0687">
               <inertial mass="6.946265100000e-01"
                 fullinertia="7.202233300000e-04 7.634050600000e-04 3.599643200000e-04 -1.411072400000e-05 1.081796000000e-04 3.396234100000e-05"
@@ -289,6 +288,7 @@
               <joint name="right_shoulder_yaw_joint" class="QC060-200-R020-RE" type="hinge" axis="0 0 1" range="-3.1416 3.1416"
                 limited="true" actuatorfrclimited="true" actuatorfrcrange="-47.277 47.277"/>
               <geom class="visual" type="mesh" mesh="right_shoulder_yaw_link" material="white"/>
+              <geom class="collision" type="mesh" mesh="right_shoulder_yaw_link" name="right_shoulder_yaw_link_collision_0"/>
               <body name="right_elbow_link" pos="0.016 0.007 -0.1153">
                 <inertial mass="6.689549900000e-01"
                   fullinertia="3.736555131490e-04 5.869930881490e-04 6.490868800000e-04 -1.216866050000e-04 0.000000000000e+00 3.369916297683e-12"
@@ -296,6 +296,7 @@
                 <joint name="right_elbow_joint" class="QC060-200-R020-RE" type="hinge" axis="0 1 0" range="-0.7854 2.1817"
                   limited="true" actuatorfrclimited="true" actuatorfrcrange="-47.277 47.277"/>
                 <geom class="visual" type="mesh" mesh="right_elbow_link" material="white"/>
+                <geom class="collision" type="mesh" mesh="right_elbow_link" name="right_elbow_link_collision_0"/>
                 <body name="right_wrist_roll_rubber_hand" pos="0.0687 0.0 0.0">
                   <inertial mass="3.690000000000e-01"
                     fullinertia="2.034216700000e-04 2.413813900000e-03 2.355377400000e-03 -1.009162200000e-04 4.214169350000e-05 3.970702750000e-06"
