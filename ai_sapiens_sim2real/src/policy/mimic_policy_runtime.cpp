@@ -21,6 +21,7 @@
 #include <utility>
 
 #include "ai_sapiens_sim2real/config/mimic_behavior.hpp"
+#include "ai_sapiens_sim2real/policy/mimic_heading_alignment.hpp"
 #include "ai_sapiens_sim2real/policy/motion_source.hpp"
 #include "ai_sapiens_sim2real/policy/torso_orientation.hpp"
 
@@ -93,10 +94,11 @@ MimicPolicyRuntime::MimicPolicyRuntime(
 void MimicPolicyRuntime::on_enter()
 {
   playback_.reference->seek(playback_.time_start);
-  const auto ref_yaw = yaw_quaternion(playback_.reference->root_quaternion()).toRotationMatrix();
-  const auto robot_yaw =
-    yaw_quaternion(torso_orientation_in_world(*sensors_, joint_context())).toRotationMatrix();
-  policy_->motion_init_quat = Eigen::Quaternionf(robot_yaw * ref_yaw.transpose());
+  const Eigen::Quaternionf reference_torso = playback_.reference->root_quaternion() *
+    Eigen::AngleAxisf(playback_.reference->joint_pos_for_joint(kWaistYawJointName),
+      Eigen::Vector3f::UnitZ());
+  policy_->motion_init_quat = mimic_heading_alignment(
+    reference_torso, torso_orientation_in_world(*sensors_, joint_context()));
 }
 
 bool MimicPolicyRuntime::prepare_observation()
@@ -113,15 +115,6 @@ bool MimicPolicyRuntime::prepare_observation()
 
   playback_.reference->seek(*motion_time);
   return true;
-}
-
-Eigen::Quaternionf MimicPolicyRuntime::yaw_quaternion(const Eigen::Quaternionf & q)
-{
-  const float yaw = std::atan2(
-          2.0f * (q.w() * q.z() + q.x() * q.y()),
-          1.0f - 2.0f * (q.y() * q.y() + q.z() * q.z()));
-  const float half_yaw = yaw * 0.5f;
-  return Eigen::Quaternionf(std::cos(half_yaw), 0.0f, 0.0f, std::sin(half_yaw)).normalized();
 }
 
 }  // namespace ai_sapiens_sim2real

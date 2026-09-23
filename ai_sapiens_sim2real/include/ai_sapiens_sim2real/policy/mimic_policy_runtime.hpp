@@ -74,7 +74,6 @@ private:
   static MotionPlayback load_playback(
     const MimicBehavior & mimic,
     const std::vector<std::string> & controller_joint_names);
-  static Eigen::Quaternionf yaw_quaternion(const Eigen::Quaternionf & q);
 
   // Outlives the runtime, so the reference-motion pointer the base handed to
   // its observation manager stays valid for the runtime's lifetime.

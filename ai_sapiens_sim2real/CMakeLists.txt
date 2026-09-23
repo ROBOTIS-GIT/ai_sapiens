@@ -313,6 +313,8 @@ if(BUILD_TESTING)
   target_link_libraries(test_mode_controller yaml-cpp Eigen3::Eigen)
 
   # MotionPlayback: absolute-motion-time seek/completion window.
+  ament_add_gtest(test_mimic_heading_alignment test/test_mimic_heading_alignment.cpp)
+  target_link_libraries(test_mimic_heading_alignment Eigen3::Eigen)
   ament_add_gtest(test_imu_validation test/test_imu_validation.cpp
     src/sensor_handles/imu_sensor_handle.cpp)
   ament_target_dependencies(test_imu_validation rclcpp realtime_tools sensor_msgs)
