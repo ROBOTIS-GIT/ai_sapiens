@@ -29,7 +29,8 @@ ModeController::ModeController(
   state_(shared_data),
   mode_(&shared_data->mode),
   requests_(&shared_data->requests),
-  output_(&shared_data->output)
+  output_(&shared_data->output),
+  entry_validator_(PolicyEntryValidator::from_config(root_config))
 {
   service_request_gate_.init();
   initialize_joint_counts();
@@ -39,6 +40,7 @@ ModeController::ModeController(
 
 void ModeController::update(const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
+  update_policy_retry_gate();
   const Decision decision = decide();
   apply(decision);
   run_active_mode();
@@ -87,19 +89,24 @@ void ModeController::apply_state_request(const StateRequest & requested)
     return;
   }
 
-  if (is_transition_allowed(requested)) {
+  const bool manual_policy_request =
+    requested.reason == TransitionReason::TeleopInputCondition &&
+    requested.behavior_kind == BehaviorKind::Policy;
+  if (manual_policy_request && policy_retry_gate_.blocked()) {
+    return;
+  }
+
+  const auto entry = evaluate_state_entry(requested);
+  if (entry.allowed()) {
     enter_state(requested);
     return;
   }
 
-  RCLCPP_WARN_THROTTLE(
-    node_->get_logger(),
-    *node_->get_clock(),
-    1000,
-    "[ModeController] rejected transition active(%s) requested(%s) reason(%s)",
-    mode_->active_state_name.c_str(),
-    requested.name.c_str(),
-    transition_reason_name(requested.reason));
+  if (manual_policy_request) {
+    policy_retry_gate_.reject(make_current_teleop_input().input_code);
+  }
+
+  log_entry_rejection(requested, entry);
 }
 
 void ModeController::run_active_mode()
@@ -955,9 +962,37 @@ bool ModeController::is_orientation_unsafe() const
   return std::abs(std::acos(z)) > limit_angle;
 }
 
-bool ModeController::is_transition_allowed(const StateRequest & request) const
+void ModeController::update_policy_retry_gate()
 {
-  return is_transition_allowed(current_behavior_kind_, request.behavior_kind);
+  const auto input = make_current_teleop_input();
+  policy_retry_gate_.observe(input.available, input.input_code);
+}
+
+PolicyEntryResult ModeController::evaluate_state_entry(const StateRequest & request) const
+{
+  if (!is_transition_allowed(current_behavior_kind_, request.behavior_kind)) {
+    return {EntryRejection::TransitionNotAllowed};
+  }
+  return entry_validator_.evaluate_transition(
+    current_behavior_kind_, behavior_for_state(request.name),
+    state_->sensors.orientation, state_->sensors.imu_usable);
+}
+
+void ModeController::log_entry_rejection(
+  const StateRequest & request, const PolicyEntryResult & result) const
+{
+  if (result.reason == EntryRejection::TiltMismatch) {
+    RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 1000,
+      "[ModeController] entry rejected: active=%s requested=%s reason=%s "
+      "gravity_error=%.1f deg limit=%.1f deg source=%s",
+      mode_->active_state_name.c_str(), request.name.c_str(), entry_rejection_name(result.reason),
+      result.tilt_error_deg, result.tilt_limit_deg, transition_reason_name(request.reason));
+    return;
+  }
+  RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 1000,
+    "[ModeController] entry rejected: active=%s requested=%s reason=%s source=%s",
+    mode_->active_state_name.c_str(), request.name.c_str(), entry_rejection_name(result.reason),
+    transition_reason_name(request.reason));
 }
 
 bool ModeController::is_transition_allowed(BehaviorKind from, BehaviorKind to) const

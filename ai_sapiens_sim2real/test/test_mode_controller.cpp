@@ -50,6 +50,8 @@ std::filesystem::path write_root_config()
   static int index = 0;
   const auto path = std::filesystem::temp_directory_path() /
     ("ai_sapiens_sim2real_mode_controller_test_" + std::to_string(++index) + ".yaml");
+  const auto motion_path = path.string() + ".csv";
+  std::ofstream(motion_path) << "0,0,0,0,0,0,1,0\n0,0,0,0,0,0,1,0\n";
 
   std::ofstream file(path);
   file <<
@@ -133,9 +135,14 @@ state_behaviors:
   velocity_policy:
     kind: policy
     asset: test/velocity
+    policy_path: )" << path.string() << R"(
+    sim2real_yaml_path: )" << path.string() << R"(
   mimic_run:
     kind: mimic
     asset: test/mimic
+    policy_path: )" << path.string() << R"(
+    sim2real_yaml_path: )" << path.string() << R"(
+    motion_file: )" << motion_path << R"(
 )";
   return path;
 }
@@ -155,6 +162,7 @@ public:
     shared_data_.teleop.unavailable.store(false);
     shared_data_.teleop.input_code = kReadyPoseInputCode;
     shared_data_.sensors.projected_gravity = Eigen::Vector3f(0.0F, 0.0F, -1.0F);
+    shared_data_.sensors.imu_usable = true;
 
     node_ = std::make_shared<rclcpp::Node>("mode_controller_test");
     controller_ = std::make_unique<ai_sapiens_sim2real::ModeController>(
@@ -222,6 +230,125 @@ using mode_controller_test::ModeControllerFixture;
 using mode_controller_test::kMimicInputCode;
 using mode_controller_test::kMimicSquatSelectorCode;
 using mode_controller_test::kVelocityInputCode;
+
+TEST(RejectedRequestGate, BlocksUntilExplicitlyRearmed)
+{
+  ai_sapiens_sim2real::RejectedRequestGate gate;
+  EXPECT_FALSE(gate.blocked());
+  gate.reject(kMimicInputCode);
+  EXPECT_TRUE(gate.blocked());
+  gate.reject(kMimicInputCode);
+  EXPECT_TRUE(gate.blocked());
+  gate.observe(true, kMimicInputCode);
+  EXPECT_TRUE(gate.blocked());
+  gate.observe(false, kVelocityInputCode);
+  EXPECT_TRUE(gate.blocked());
+  gate.observe(true, kMimicInputCode);
+  EXPECT_TRUE(gate.blocked());
+  gate.observe(true, kVelocityInputCode);
+  EXPECT_FALSE(gate.blocked());
+}
+
+TEST(MotionSource, RootConfigRetainsSourcesAcrossConsumers)
+{
+  ai_sapiens_sim2real::RootConfig config(mode_controller_test::write_root_config());
+  const auto first = config.policy_behaviors();
+  const auto second = config.policy_behaviors();
+  ASSERT_EQ(first.size(), second.size());
+  for (size_t i = 0; i < first.size(); ++i) {
+    if (first[i].mimic) {
+      ASSERT_TRUE(second[i].mimic);
+      ASSERT_NE(first[i].mimic->source, nullptr);
+      EXPECT_EQ(first[i].mimic->source, second[i].mimic->source);
+    }
+  }
+}
+
+TEST(ModeController, WrongMimicTiltKeepsCurrentState)
+{
+  ModeControllerFixture fixture;
+  fixture.release_startup_gate();
+  fixture.shared_data_.sensors.orientation = Eigen::Quaternionf(
+    Eigen::AngleAxisf(1.5707963f, Eigen::Vector3f::UnitY()));
+  fixture.shared_data_.teleop.input_code = kMimicInputCode;
+  fixture.shared_data_.teleop.selector_code = kMimicSquatSelectorCode;
+  fixture.update_controller();
+  EXPECT_EQ(fixture.controller_->status_snapshot().active_state, "ReadyPose");
+}
+
+TEST(ModeController, RejectedLevelMimicNeedsOperatorReleaseEvenAfterPoseRecovers)
+{
+  ModeControllerFixture fixture;
+  fixture.release_startup_gate();
+  fixture.shared_data_.sensors.orientation = Eigen::Quaternionf(
+    Eigen::AngleAxisf(1.5707963f, Eigen::Vector3f::UnitY()));
+  fixture.shared_data_.teleop.input_code = kMimicInputCode;
+  fixture.shared_data_.teleop.selector_code = kMimicSquatSelectorCode;
+  fixture.update_controller();
+  ASSERT_EQ(fixture.controller_->status_snapshot().active_state, "ReadyPose");
+  fixture.shared_data_.sensors.orientation = Eigen::Quaternionf::Identity();
+  for (int i = 0; i < 5; ++i) {
+    fixture.update_controller();
+    EXPECT_EQ(fixture.controller_->status_snapshot().active_state, "ReadyPose");
+  }
+  // Changing only the selector must not rearm.
+  fixture.shared_data_.teleop.selector_code = 201;
+  fixture.update_controller();
+  fixture.shared_data_.teleop.selector_code = kMimicSquatSelectorCode;
+  fixture.update_controller();
+  EXPECT_EQ(fixture.controller_->status_snapshot().active_state, "ReadyPose");
+  fixture.shared_data_.teleop.input_code = mode_controller_test::kReadyPoseInputCode;
+  fixture.update_controller();
+  fixture.shared_data_.teleop.input_code = kMimicInputCode;
+  fixture.update_controller();
+  EXPECT_EQ(fixture.controller_->status_snapshot().active_state, "MimicSquat");
+}
+
+TEST(ModeController, ReleasedMimicInputAllowsVelocityAndDamping)
+{
+  ModeControllerFixture fixture;
+  fixture.release_startup_gate();
+  fixture.shared_data_.sensors.orientation = Eigen::Quaternionf(
+    Eigen::AngleAxisf(1.5707963f, Eigen::Vector3f::UnitY()));
+  fixture.shared_data_.teleop.input_code = kMimicInputCode;
+  fixture.shared_data_.teleop.selector_code = kMimicSquatSelectorCode;
+  fixture.update_controller();
+  ASSERT_EQ(fixture.controller_->status_snapshot().active_state, "ReadyPose");
+  fixture.shared_data_.sensors.orientation = Eigen::Quaternionf::Identity();
+  fixture.shared_data_.teleop.input_code = kVelocityInputCode;
+  fixture.update_controller();
+  EXPECT_EQ(fixture.controller_->status_snapshot().active_state, "Velocity");
+  fixture.shared_data_.requests.damping = true;
+  fixture.update_controller();
+  EXPECT_EQ(fixture.controller_->status_snapshot().active_state, "Damping");
+  fixture.shared_data_.teleop.input_code = mode_controller_test::kReadyPoseInputCode;
+  fixture.update_controller();
+  fixture.shared_data_.teleop.input_code = kVelocityInputCode;
+  fixture.update_controller();
+  EXPECT_EQ(fixture.controller_->status_snapshot().active_state, "Velocity");
+}
+
+TEST(ModeController, VelocityCanRetryMimicAfterReturningToVelocityInput)
+{
+  ModeControllerFixture fixture;
+  fixture.release_startup_gate();
+  fixture.shared_data_.teleop.input_code = kVelocityInputCode;
+  fixture.update_controller();
+  fixture.shared_data_.sensors.orientation = Eigen::Quaternionf(
+    Eigen::AngleAxisf(1.5707963f, Eigen::Vector3f::UnitY()));
+  fixture.shared_data_.teleop.input_code = kMimicInputCode;
+  fixture.shared_data_.teleop.selector_code = kMimicSquatSelectorCode;
+  fixture.update_controller();
+  ASSERT_EQ(fixture.controller_->status_snapshot().active_state, "Velocity");
+  fixture.shared_data_.sensors.orientation = Eigen::Quaternionf::Identity();
+  fixture.update_controller();
+  EXPECT_EQ(fixture.controller_->status_snapshot().active_state, "Velocity");
+  fixture.shared_data_.teleop.input_code = kVelocityInputCode;
+  fixture.update_controller();
+  fixture.shared_data_.teleop.input_code = kMimicInputCode;
+  fixture.update_controller();
+  EXPECT_EQ(fixture.controller_->status_snapshot().active_state, "MimicSquat");
+}
 
 TEST(ModeController, TeleopTransitionRunsAfterStartupInputIsSafe)
 {

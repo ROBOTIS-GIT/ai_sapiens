@@ -66,6 +66,7 @@ add_executable(ai_sapiens_sim2real_node
   src/mode_runtime/startup_gate.cpp
   src/policy/gait_clock.cpp
   src/policy/motion_reference.cpp
+  src/policy/policy_entry_validator.cpp
   src/policy/mimic_policy_runtime.cpp
   src/observation/observation_manager.cpp
   src/observation/observations.cpp
@@ -307,6 +308,8 @@ if(BUILD_TESTING)
     src/config/root_sections/state_machine_config.cpp
     src/config/root_sections/teleop_conditions_config.cpp
     src/controllers/mode_controller.cpp
+    src/policy/motion_reference.cpp
+    src/policy/policy_entry_validator.cpp
     src/mode_runtime/authority_runtime.cpp
     src/mode_runtime/mode_state_machine.cpp)
   ament_target_dependencies(test_mode_controller rclcpp realtime_tools)
@@ -315,6 +318,10 @@ if(BUILD_TESTING)
   # MotionPlayback: absolute-motion-time seek/completion window.
   ament_add_gtest(test_mimic_heading_alignment test/test_mimic_heading_alignment.cpp)
   target_link_libraries(test_mimic_heading_alignment Eigen3::Eigen)
+  ament_add_gtest(test_mimic_entry_guard test/test_mimic_entry_guard.cpp)
+  target_link_libraries(test_mimic_entry_guard Eigen3::Eigen)
+  ament_add_gtest(test_policy_entry_validator test/test_policy_entry_validator.cpp)
+  target_link_libraries(test_policy_entry_validator Eigen3::Eigen yaml-cpp)
   ament_add_gtest(test_imu_validation test/test_imu_validation.cpp
     src/sensor_handles/imu_sensor_handle.cpp)
   ament_target_dependencies(test_imu_validation rclcpp realtime_tools sensor_msgs)
