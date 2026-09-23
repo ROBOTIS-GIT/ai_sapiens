@@ -113,7 +113,7 @@ state_machine:
         - when: MimicRequested
           select: mimic_selector
     Velocity:
-      run: velocity_policy
+      run: velocity_e1_motifect_v2_forward3_lpf6_29999 # velocity_fullbody_mm_run15_lpf6_29600
       transitions:
         - when: DampingRequested
           to: Damping
@@ -228,6 +228,31 @@ state_behaviors:
   velocity_policy:
     kind: policy
     asset: locomotion/velocity/walk_default
+
+  # 학습 시작 시점 기준: 오래된 실험 → 최신 실험
+  # 전신 E1 reference: 30,000 iterations 완료한 마지막 29999 체크포인트.
+  # 최대 전진 1.4 m/s, gait phase 없음. Motifect v2 모션 교체 및 3.0 m/s 확장 이전 버전.
+  velocity_e1_reference_lpf6_29999:
+    kind: policy
+    asset: locomotion/velocity/walk_e1_reference_lpf6_29999
+
+  # 전신 AMP Motifect v2: 최대 전진 속도 3.0 m/s 확장 전, 11800 체크포인트.
+  # 전진 최대 1.4 m/s, gait phase 없음. Kimodo/run_jog 제외 및 기본 정지 자세 사용.
+  velocity_e1_motifect_v2_lpf6_11800:
+    kind: policy
+    asset: locomotion/velocity/walk_e1_motifect_v2_lpf6_11800
+
+  # 전신 AMP Motifect v2: 13200에서 이어 학습한 마지막 29999 체크포인트.
+  # 최대 전진 2.0→2.5→3.0 m/s 확장. run_jog/Kimodo 제외, gait phase 없음.
+  velocity_e1_motifect_v2_forward3_lpf6_29999:
+    kind: policy
+    asset: locomotion/velocity/walk_e1_motifect_v2_forward3_lpf6_29999
+
+  # 전신 AMP: MM/GMR 모션, gait phase 없음. 직진 비교 후 선택한 29600 체크포인트.
+  # run15는 달리기 레퍼런스 선택 기준 1.5 m/s이며 실제 보행 전환 속도를 강제하지 않음.
+  velocity_fullbody_mm_run15_lpf6_29600:
+    kind: policy
+    asset: locomotion/velocity/walk_fullbody_mm_run15_lpf6_29600
 
   mimic_squat:
     kind: mimic
