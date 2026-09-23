@@ -64,6 +64,9 @@ selectors:
       200: MimicSquat
       201: MimicDance1
       202: MimicDance2
+      222: MimicPostureStandToSupine
+      224: MimicPostureStandToProne
+      # Get-up policies are available from ReadyPose only, or via lying-state transitions.
       # 203:
       # 204:
       # 205:
@@ -71,6 +74,15 @@ selectors:
       # 207:
       # 208:
       # 209:
+  ready_pose_mimic_selector:
+    table:
+      200: MimicSquat
+      201: MimicDance1
+      202: MimicDance2
+      222: MimicPostureStandToSupine
+      223: MimicPostureSupineToStand
+      224: MimicPostureStandToProne
+      225: MimicPostureProneToStand
 
 state_machine:
   initial: Damping
@@ -88,7 +100,7 @@ state_machine:
         - when: VelocityRequested
           to: Velocity
         - when: MimicRequested
-          select: mimic_selector
+          select: ready_pose_mimic_selector
     ZeroPose:
       run: posture_zero_pose
       transitions:
@@ -128,6 +140,32 @@ state_machine:
     MimicDance2:
       parent: Mimic
       run: mimic_dance2
+    MimicPostureStandToSupine:
+      run: mimic_posture_stand_to_supine
+      transitions:
+        - when: DampingRequested
+          to: Damping
+        - when: ReadyPoseRequested
+          to: ReadyPose
+        - when: MimicRequested
+          trigger: edge
+          to: MimicPostureSupineToStand
+    MimicPostureSupineToStand:
+      parent: Mimic
+      run: mimic_posture_supine_to_stand
+    MimicPostureStandToProne:
+      run: mimic_posture_stand_to_prone
+      transitions:
+        - when: DampingRequested
+          to: Damping
+        - when: ReadyPoseRequested
+          to: ReadyPose
+        - when: MimicRequested
+          trigger: edge
+          to: MimicPostureProneToStand
+    MimicPostureProneToStand:
+      parent: Mimic
+      run: mimic_posture_prone_to_stand
 
 state_behaviors:
   damping:
@@ -203,3 +241,23 @@ state_behaviors:
     kind: mimic
     asset: mimic/dance2
     motion: dance2.csv
+  mimic_posture_stand_to_supine:
+    kind: mimic
+    asset: mimic/posture_stand_to_supine
+    motion: posture_stand_to_supine.csv
+    on_complete: stay
+  mimic_posture_supine_to_stand:
+    kind: mimic
+    asset: mimic/posture_supine_to_stand
+    motion: posture_supine_to_stand.csv
+    on_complete: Velocity
+  mimic_posture_stand_to_prone:
+    kind: mimic
+    asset: mimic/posture_stand_to_prone
+    motion: posture_stand_to_prone.csv
+    on_complete: stay
+  mimic_posture_prone_to_stand:
+    kind: mimic
+    asset: mimic/posture_prone_to_stand
+    motion: posture_prone_to_stand.csv
+    on_complete: Velocity

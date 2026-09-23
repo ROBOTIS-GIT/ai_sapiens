@@ -421,6 +421,45 @@ state_behaviors:
   EXPECT_TRUE(runtime.is_mimic_state("SoloMotion"));
 }
 
+TEST(ModeStateMachine, SupineTeleopExitUsesDirectTransition)
+{
+  auto config = load_config(R"(
+teleop_conditions:
+  DampingRequested: {input_code: 1}
+  VelocityRequested: {input_code: 3}
+  MimicRequested: {input_code: 4}
+state_machine:
+  initial: Damping
+  states:
+    Damping: {run: damping}
+    Velocity: {run: velocity}
+    StandUp: {run: motion}
+    Supine:
+      run: motion
+      transitions:
+        - {when: DampingRequested, to: Damping}
+        - {when: MimicRequested, trigger: edge, to: StandUp}
+state_behaviors:
+  damping: {kind: damping, damping: {values: [0.0]}}
+  velocity: {kind: policy, asset: velocity}
+  motion: {kind: mimic, asset: mimic/test}
+)");
+  auto runtime = make_runtime(config);
+  // Direct API requests retain their existing semantics.
+  EXPECT_TRUE(runtime.resolve_state_request_from_state_name("Supine", "Velocity"));
+  EXPECT_TRUE(runtime.resolve_state_request_from_state_name("Supine", "StandUp"));
+  EXPECT_TRUE(runtime.resolve_state_request_from_state_name("Supine", "Damping"));
+  EXPECT_FALSE(runtime.resolve_state_request_by_level_match("Supine", {true, 3, 223}));
+  EXPECT_TRUE(runtime.resolve_state_request_by_level_match("Supine", {true, 4, 222}));
+  EXPECT_TRUE(runtime.resolve_state_request_by_level_match("Supine", {true, 1, 222}));
+  const auto request = runtime.resolve_state_request_with_trigger_rules(
+    "Supine", {true, 4, 223}, {true, 3, 223});
+  ASSERT_TRUE(request);
+  EXPECT_EQ(request->name, "StandUp");
+  EXPECT_FALSE(runtime.resolve_state_request_with_trigger_rules(
+    "Supine", {true, 4, 223}, {true, 4, 223}));
+}
+
 TEST(ModeStateMachine, FollowsSelectorTargetAndParentStateChain)
 {
   auto config =
