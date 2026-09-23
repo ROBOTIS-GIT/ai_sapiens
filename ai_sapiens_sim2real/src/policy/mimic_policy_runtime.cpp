@@ -21,6 +21,7 @@
 #include <utility>
 
 #include "ai_sapiens_sim2real/config/mimic_behavior.hpp"
+#include "ai_sapiens_sim2real/policy/motion_source.hpp"
 #include "ai_sapiens_sim2real/policy/torso_orientation.hpp"
 
 namespace ai_sapiens_sim2real
@@ -51,8 +52,10 @@ MotionPlayback MimicPolicyRuntime::load_playback(
   const std::vector<std::string> & controller_joint_names)
 {
   MotionPlayback playback;
-  playback.reference = std::make_shared<MotionReference>(
+  // Directly constructed behaviors (outside RootConfig) own their own source.
+  const auto source = mimic.source ? mimic.source : std::make_shared<MotionSource>(
     mimic.motion_file.string(), mimic.fps, controller_joint_names);
+  playback.reference = source->make_cursor();
   const float duration = playback.reference->duration();
   // Reject an obviously bad window on the raw config (before clamping hides it).
   const float requested_end = mimic.time_end.value_or(duration);

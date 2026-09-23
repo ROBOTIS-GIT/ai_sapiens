@@ -18,6 +18,8 @@
 #define AI_SAPIENS_SIM2REAL__CONFIG__ROOT_CONFIG_HPP_
 
 #include <filesystem>
+#include <map>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
@@ -109,6 +111,8 @@ private:
   StateBehaviorsConfig state_behaviors_config_;
   TeleopConditionsConfig teleop_conditions_config_;
   SelectorsConfig selectors_config_;
+  mutable std::mutex motion_sources_mutex_;
+  mutable std::map<std::pair<std::string, float>, std::shared_ptr<MotionSource>> motion_sources_;
 };
 
 }  // namespace ai_sapiens_sim2real

@@ -18,11 +18,13 @@
 #define AI_SAPIENS_SIM2REAL__CONFIG__MIMIC_BEHAVIOR_HPP_
 
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <string>
 
 namespace ai_sapiens_sim2real
 {
+class MotionSource;
 
 // A mimic policy's reference-motion playback config, resolved from the root
 // config. RootConfig produces it; MimicPolicyRuntime consumes it.
@@ -33,6 +35,7 @@ struct MimicBehavior
   float time_start{0.0f};               // absolute motion start time
   std::optional<float> time_end;        // absolute motion end time; nullopt: motion's end
   std::string on_complete{"Velocity"};  // state to hand off to when the window ends
+  std::shared_ptr<MotionSource> source;
 };
 
 }  // namespace ai_sapiens_sim2real

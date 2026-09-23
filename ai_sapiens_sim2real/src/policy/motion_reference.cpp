@@ -40,18 +40,18 @@ MotionReference::MotionReference(
   duration_ = num_frames_ * dt_;
 
   for (int i = 0; i < num_frames_; ++i) {
-    root_positions_.push_back(Eigen::VectorXf::Map(data[i].data(), 3));
-    root_quaternions_.push_back(
+    frames_->root_positions_.push_back(Eigen::VectorXf::Map(data[i].data(), 3));
+    frames_->root_quaternions_.push_back(
       Eigen::Quaternionf(data[i][6], data[i][3], data[i][4], data[i][5]));
-    dof_positions_.push_back(Eigen::VectorXf::Map(data[i].data() + 7, data[i].size() - 7));
+    frames_->dof_positions_.push_back(Eigen::VectorXf::Map(data[i].data() + 7, data[i].size() - 7));
   }
 
   // TODO(kiwoong): Consider central differences for smoother motion velocity after
   // policy revalidation.
-  dof_velocities_ = compute_forward_derivative(dof_positions_, dt_);
+  frames_->dof_velocities_ = compute_forward_derivative(frames_->dof_positions_, dt_);
 
-  for (size_t i = 0; i < joint_order_.size(); ++i) {
-    joint_index_by_name_[joint_order_[i]] = static_cast<Eigen::Index>(i);
+  for (size_t i = 0; i < frames_->joint_order_.size(); ++i) {
+    frames_->joint_index_by_name_[frames_->joint_order_[i]] = static_cast<Eigen::Index>(i);
   }
 
   seek(0.0f);
@@ -74,8 +74,8 @@ void MotionReference::seek(float time)
 
 float MotionReference::joint_pos_for_joint(const std::string & joint_name) const
 {
-  const auto it = joint_index_by_name_.find(joint_name);
-  if (it == joint_index_by_name_.end()) {
+  const auto it = frames_->joint_index_by_name_.find(joint_name);
+  if (it == frames_->joint_index_by_name_.end()) {
     throw std::runtime_error("Motion CSV is missing joint: " + joint_name);
   }
 
@@ -84,7 +84,7 @@ float MotionReference::joint_pos_for_joint(const std::string & joint_name) const
 
 const std::vector<std::string> & MotionReference::joint_order() const
 {
-  return joint_order_;
+  return frames_->joint_order_;
 }
 
 std::string MotionReference::trim(const std::string & value)
@@ -147,7 +147,7 @@ bool MotionReference::parse_numeric_row(
 void MotionReference::validate_joint_order() const
 {
   std::unordered_map<std::string, bool> seen;
-  for (const auto & joint_name : joint_order_) {
+  for (const auto & joint_name : frames_->joint_order_) {
     if (joint_name.empty()) {
       throw std::runtime_error("Motion CSV joint header contains an empty joint name");
     }
@@ -188,7 +188,7 @@ std::vector<std::vector<float>> MotionReference::load_motion_csv(
             "Motion CSV header must contain root columns and at least one joint");
         }
 
-        joint_order_.assign(tokens.begin() + 7, tokens.end());
+        frames_->joint_order_.assign(tokens.begin() + 7, tokens.end());
         validate_joint_order();
         continue;
       }
@@ -196,13 +196,13 @@ std::vector<std::vector<float>> MotionReference::load_motion_csv(
         throw std::runtime_error("Motion CSV has no header; robot_joint_order is required");
       }
 
-      joint_order_ = fallback_joint_order;
+      frames_->joint_order_ = fallback_joint_order;
       validate_joint_order();
     } else if (!is_numeric_row) {
       throw std::runtime_error("Motion CSV contains a non-numeric data row: " + line);
     }
 
-    if (row.size() != joint_order_.size() + 7U) {
+    if (row.size() != frames_->joint_order_.size() + 7U) {
       throw std::runtime_error(
         "Motion CSV row width does not match root columns plus motion joints");
     }

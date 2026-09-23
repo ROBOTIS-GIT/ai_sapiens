@@ -15,6 +15,7 @@
 // Author: Kiwoong Park
 
 #include "ai_sapiens_sim2real/config/root_config.hpp"
+#include "ai_sapiens_sim2real/policy/motion_source.hpp"
 
 #include <cmath>
 #include <stdexcept>
@@ -259,6 +260,18 @@ MimicBehavior RootConfig::build_mimic_behavior(
   mimic.time_start = node["time_start"] ? node["time_start"].as<float>() : 0.0f;
   mimic.time_end = read_mimic_time_end(node);
   mimic.on_complete = read_mimic_on_complete(node);
+  if (!std::isfinite(mimic.fps) || mimic.fps <= 0) {
+    throw std::runtime_error("Mimic fps must be finite and positive");
+  }
+  {
+    std::lock_guard<std::mutex> lock(motion_sources_mutex_);
+    const auto key = std::make_pair(mimic.motion_file.string(), mimic.fps);
+    auto & source = motion_sources_[key];
+    if (!source) {
+      source = std::make_shared<MotionSource>(key.first, mimic.fps, controller_joints_);
+    }
+    mimic.source = source;
+  }
 
   if (!mimic.on_complete.empty() && mimic.on_complete != "stay") {
     require_known_mimic_completion_state(mimic.on_complete, name);

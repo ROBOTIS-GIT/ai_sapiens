@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -45,17 +46,17 @@ public:
 
   Eigen::VectorXf joint_pos() const
   {
-    return dof_positions_[index_0_] * (1.0f - blend_) + dof_positions_[index_1_] * blend_;
+    return frames_->dof_positions_[index_0_] * (1.0f - blend_) + frames_->dof_positions_[index_1_] * blend_;
   }
 
   Eigen::VectorXf joint_vel() const
   {
-    return dof_velocities_[index_0_] * (1.0f - blend_) + dof_velocities_[index_1_] * blend_;
+    return frames_->dof_velocities_[index_0_] * (1.0f - blend_) + frames_->dof_velocities_[index_1_] * blend_;
   }
 
   Eigen::Quaternionf root_quaternion() const
   {
-    return root_quaternions_[index_0_].slerp(blend_, root_quaternions_[index_1_]);
+    return frames_->root_quaternions_[index_0_].slerp(blend_, frames_->root_quaternions_[index_1_]);
   }
 
   float joint_pos_for_joint(const std::string & joint_name) const;
@@ -86,13 +87,17 @@ private:
   int index_1_{0};
   float blend_{0.0f};
 
-  // Motion data in motion-file joint order.
-  std::vector<std::string> joint_order_;
-  std::unordered_map<std::string, Eigen::Index> joint_index_by_name_;
-  std::vector<Eigen::VectorXf> root_positions_;
-  std::vector<Eigen::Quaternionf> root_quaternions_;
-  std::vector<Eigen::VectorXf> dof_positions_;
-  std::vector<Eigen::VectorXf> dof_velocities_;
+  // Initialized once by the constructor; never mutated by seek/copy.
+  struct FrameData
+  {
+    std::vector<std::string> joint_order_;
+    std::unordered_map<std::string, Eigen::Index> joint_index_by_name_;
+    std::vector<Eigen::VectorXf> root_positions_;
+    std::vector<Eigen::Quaternionf> root_quaternions_;
+    std::vector<Eigen::VectorXf> dof_positions_;
+    std::vector<Eigen::VectorXf> dof_velocities_;
+  };
+  std::shared_ptr<FrameData> frames_{std::make_shared<FrameData>()};
 };
 
 }  // namespace ai_sapiens_sim2real

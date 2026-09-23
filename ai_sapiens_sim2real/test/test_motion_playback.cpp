@@ -15,12 +15,37 @@
 #include <gtest/gtest.h>
 
 #include <limits>
+#include <cstdio>
+#include <unistd.h>
+#include "ai_sapiens_sim2real/policy/motion_source.hpp"
 
 #include "ai_sapiens_sim2real/policy/motion_playback.hpp"
 #include "ai_sapiens_sim2real/policy/motion_reference.hpp"
 
 using ai_sapiens_sim2real::MotionPlayback;
 using ai_sapiens_sim2real::MotionReference;
+
+TEST(MotionSource, LoadsOnceSharesFramesAndKeepsCursorsIndependent)
+{
+  char path[] = "/tmp/motion_source_test_XXXXXX";
+  const int fd = mkstemp(path);
+  ASSERT_GE(fd, 0);
+  close(fd);
+  struct Cleanup
+  {
+    const char * path;
+    ~Cleanup() {std::remove(path);}
+  } cleanup{path};
+  std::ofstream(path) << "0,0,0,0,0,0,1,0\n0,0,0,0,0,0,1,1\n";
+  ai_sapiens_sim2real::MotionSource source(path, 50, {"joint"});
+  auto first = source.make_cursor();
+  std::ofstream(path) << "not a motion\n";  // Subsequent cursor must not re-read.
+  auto second = source.make_cursor();
+  EXPECT_EQ(&first->joint_order(), &second->joint_order());
+  first->seek(first->duration());
+  EXPECT_FLOAT_EQ(first->joint_pos()[0], 1);
+  EXPECT_FLOAT_EQ(second->joint_pos()[0], 0);
+}
 
 TEST(MotionPlayback, OpenEndedWindowNeverCompletes)
 {
