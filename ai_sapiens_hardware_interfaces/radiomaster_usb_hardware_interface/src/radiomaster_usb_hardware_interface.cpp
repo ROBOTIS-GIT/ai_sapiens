@@ -300,7 +300,6 @@ void RadiomasterUsbHardwareInterface::Receiver::reset()
   close_device(false);
   axes_.fill(0.0);
   axes_initialized_.fill(false);
-  realtime_tick_ = 0;
   next_reconnect_ns_ = 0;
   open_failure_reported_ = false;
 }
@@ -360,7 +359,6 @@ bool RadiomasterUsbHardwareInterface::Receiver::try_open_device(std::int64_t now
 
   axes_.fill(0.0);
   axes_initialized_.fill(false);
-  realtime_tick_ = 0;
   open_failure_reported_ = false;
   RCLCPP_INFO(
     logger_, "Opened RadioMaster joystick %s (%s, %u axes)",

@@ -324,4 +324,52 @@ TEST_F(DualReceiverTest, EachReceiverRestoresItsOwnCorrectionOnDisconnectAndClea
   EXPECT_EQ(joysticks[1].closes, 1);
 }
 
+TEST_F(DualReceiverTest, ReconnectionAndLifecycleResetDoNotRewindAcceptedTicks)
+{
+  queue_axes(0, 1024);
+  queue_axes(1, 1024);
+  initialize();
+  for (int i = 0; i < 2078; ++i) {
+    read();
+  }
+  ASSERT_DOUBLE_EQ(state("Realtime Tick"), 2078.0);
+
+  joysticks[0].connected = false;
+  read();
+  EXPECT_DOUBLE_EQ(state("CRSF Failsafe"), 1.0);
+  joysticks[0].connected = true;
+  std::this_thread::sleep_for(std::chrono::milliseconds(3));
+  read();
+  EXPECT_DOUBLE_EQ(state("CRSF Failsafe"), 1.0);  // Still waiting for all axis initialization events.
+  queue_axes(0, 1024);
+  read();
+  EXPECT_DOUBLE_EQ(state("CRSF Failsafe"), 0.0);
+  EXPECT_DOUBLE_EQ(state("Realtime Tick"), 2079.0);
+
+  ASSERT_EQ(hardware_.on_deactivate(rclcpp_lifecycle::State()), CallbackReturn::SUCCESS);
+  ASSERT_EQ(hardware_.on_cleanup(rclcpp_lifecycle::State()), CallbackReturn::SUCCESS);
+  queue_axes(0, 1024);
+  queue_axes(1, 1024);
+  ASSERT_EQ(hardware_.on_configure(rclcpp_lifecycle::State()), CallbackReturn::SUCCESS);
+  ASSERT_EQ(hardware_.on_activate(rclcpp_lifecycle::State()), CallbackReturn::SUCCESS);
+  read();
+  EXPECT_DOUBLE_EQ(state("CRSF Failsafe"), 0.0);
+  EXPECT_DOUBLE_EQ(state("Realtime Tick"), 2080.0);
+}
+
+TEST_F(DualReceiverTest, TickStillRollsOverAtTheHatCounterLimit)
+{
+  queue_axes(0, 1024);
+  initialize(false);
+  for (int i = 0; i < 32767; ++i) {
+    read();
+  }
+  ASSERT_DOUBLE_EQ(state("Realtime Tick"), 32767.0);
+  read();
+  EXPECT_DOUBLE_EQ(state("Realtime Tick"), 0.0);
+  EXPECT_DOUBLE_EQ(state("CRSF Failsafe"), 0.0);
+  read();
+  EXPECT_DOUBLE_EQ(state("Realtime Tick"), 1.0);
+}
+
 }  // namespace

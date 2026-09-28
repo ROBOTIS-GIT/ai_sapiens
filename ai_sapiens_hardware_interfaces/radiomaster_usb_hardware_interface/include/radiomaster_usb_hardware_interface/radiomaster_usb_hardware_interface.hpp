@@ -102,6 +102,7 @@ private:
     std::vector<js_corr> joydev_correction_;
     std::vector<js_corr> original_joydev_correction_;
     int joystick_fd_{-1};
+    // Preserve the accepted-sample sequence across USB reconnects and lifecycle resets.
     std::uint32_t realtime_tick_{0};
     std::int64_t next_reconnect_ns_{0};
     bool open_failure_reported_{false};
