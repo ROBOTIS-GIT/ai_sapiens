@@ -186,6 +186,8 @@ def test_xacro_expands_with_mujoco_and_radiomaster_usb():
     assert controls[0].find("./sensor[@name='hat']") is None
     assert controls[1].find("./sensor[@name='hat']") is not None
     assert controls[1].find(".//param[@name='device']").text == '/dev/input/js7'
+    assert controls[1].find(".//param[@name='group_device']") is None
+    assert len(controls[1].findall('sensor/state_interface')) == 23
 
 
 def test_xacro_ignores_radiomaster_usb_without_mujoco():
@@ -320,8 +322,8 @@ def test_mujoco_files_load():
         assert math.isclose(model.dof_armature[dof_id], expected_armature)
 
 
-def test_xacro_expands_with_two_independent_radiomaster_receivers():
-    """Two USB inputs must export disjoint interfaces and preserve the original input."""
+def test_xacro_exposes_both_usb_receivers_through_one_hat():
+    """Both broadcasters use the same channel and status interfaces as the real HAT."""
     document = xacro.process_file(
         str(XACRO_PATH),
         mappings={
@@ -335,19 +337,21 @@ def test_xacro_expands_with_two_independent_radiomaster_receivers():
     )
     root = ET.fromstring(document.toxml())
     controls = {item.attrib['name']: item for item in root.findall('ros2_control')}
-    individual = controls['k1_radiomaster_usb']
-    group = controls['k1_group_usb']
-    for control, device, sensor in (
-        (individual, '/dev/input/js0', 'hat'),
-        (group, '/dev/input/js1', 'group_hat'),
-    ):
-        assert control.find("hardware/param[@name='device']").text == device
-        assert control.find('sensor').attrib['name'] == sensor
-        assert len(control.findall('sensor/state_interface')) == 23
-    interfaces = [
-        (sensor.attrib['name'], interface.attrib['name'])
-        for control in controls.values()
-        for sensor in control.findall('sensor')
-        for interface in sensor.findall('state_interface')
-    ]
-    assert len(interfaces) == len(set(interfaces))
+    assert set(controls) == {'k1_mujoco', 'k1_radiomaster_usb'}
+    usb = controls['k1_radiomaster_usb']
+    assert usb.find("hardware/param[@name='device']").text == '/dev/input/js0'
+    assert usb.find("hardware/param[@name='group_device']").text == '/dev/input/js1'
+    assert len(usb.findall('sensor')) == 1
+    sensor = usb.find('sensor')
+    assert sensor.attrib['name'] == 'hat'
+    interfaces = [item.attrib['name'] for item in sensor.findall('state_interface')]
+    assert len(interfaces) == len(set(interfaces)) == 39
+    assert {f'RC Channel {i}' for i in range(1, 17)} <= set(interfaces)
+    assert {f'Remote 2 CH{i}' for i in range(1, 17)} <= set(interfaces)
+
+    real = ET.fromstring(xacro.process_file(str(XACRO_PATH)).toxml())
+    real_interfaces = {
+        item.attrib['name']
+        for item in real.findall("ros2_control[@name='k1_hat']/sensor/state_interface")
+    }
+    assert set(interfaces) <= real_interfaces

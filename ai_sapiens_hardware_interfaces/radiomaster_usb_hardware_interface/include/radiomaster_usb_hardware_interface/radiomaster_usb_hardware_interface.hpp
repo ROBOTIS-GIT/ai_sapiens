@@ -11,6 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+//
+// Author: Kiwoong Park
 
 #ifndef RADIOMASTER_USB_HARDWARE_INTERFACE__RADIOMASTER_USB_HARDWARE_INTERFACE_HPP_
 #define RADIOMASTER_USB_HARDWARE_INTERFACE__RADIOMASTER_USB_HARDWARE_INTERFACE_HPP_
@@ -60,28 +62,39 @@ public:
     const rclcpp::Time & time, const rclcpp::Duration & period) override;
 
 private:
-  bool try_open_device(std::int64_t now_ns);
-  bool read_joydev_correction(std::uint8_t axis_count);
-  bool read_device_events();
-  void process_axis_event(std::uint8_t axis, std::int16_t value);
-  void close_device(bool report_disconnect);
-  bool all_required_axes_initialized() const;
+  struct Receiver
+  {
+    std::string device;
+    std::string channel_prefix;
+    std::array<double, kRcChannelCount> unavailable_channels{};
+    std::array<double, kRequiredJoyAxisCount> axes{};
+    std::array<bool, kRequiredJoyAxisCount> axes_initialized{};
+    std::vector<js_corr> joydev_correction{};
+    int joystick_fd{-1};
+    std::uint32_t realtime_tick{0};
+    std::int64_t next_reconnect_ns{0};
+    bool open_failure_reported{false};
+    bool ready{false};
+  };
+
+  bool read_receiver(Receiver & receiver, std::int64_t now_ns);
+  bool try_open_device(Receiver & receiver, std::int64_t now_ns);
+  bool read_joydev_correction(Receiver & receiver, std::uint8_t axis_count);
+  bool read_device_events(Receiver & receiver);
+  void process_axis_event(Receiver & receiver, std::uint8_t axis, std::int16_t value);
+  void close_device(Receiver & receiver, bool report_disconnect);
+  bool all_required_axes_initialized(const Receiver & receiver) const;
   void publish_safe_states();
-  void publish_rc_states(const std::array<double, kRcChannelCount> & channels);
+  void publish_channels(
+    const Receiver & receiver, const std::array<double, kRcChannelCount> & channels);
+  void publish_status(const Receiver & individual);
   static std::int64_t steady_now_ns();
 
   std::string sensor_name_{"hat"};
-  std::string device_{"/dev/input/js0"};
   double reconnect_interval_ms_{1000.0};
   bool reverse_axes_{false};
   std::array<double, kRcChannelCount> channel_defaults_{};
-  std::array<double, kRequiredJoyAxisCount> axes_{};
-  std::array<bool, kRequiredJoyAxisCount> axes_initialized_{};
-  std::vector<js_corr> joydev_correction_;
-  int joystick_fd_{-1};
-  std::uint32_t realtime_tick_{0};
-  std::int64_t next_reconnect_ns_{0};
-  bool open_failure_reported_{false};
+  std::vector<Receiver> receivers_;
 };
 
 }  // namespace radiomaster_usb_hardware_interface

@@ -1,8 +1,11 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <xacro:macro name="k1_radiomaster_usb_system" params="device:=^|/dev/input/js0 name:=k1_radiomaster_usb sensor_name:=hat">
+  <xacro:macro name="k1_radiomaster_usb_system" params="device:=^|/dev/input/js0 name:=k1_radiomaster_usb sensor_name:=hat group_enabled:=false group_device:=/dev/input/js1">
     <ros2_control name="${name}" type="sensor" rw_rate="100">
       <hardware>
+        <xacro:if value="${group_enabled}">
+          <param name="group_device">${group_device}</param>
+        </xacro:if>
         <plugin>radiomaster_usb_hardware_interface/RadiomasterUsbHardwareInterface</plugin>
         <param name="device">${device}</param>
         <param name="reconnect_interval_ms">1000.0</param>
@@ -33,6 +36,24 @@
         <state_interface name="RC Channel 14"/>
         <state_interface name="RC Channel 15"/>
         <state_interface name="RC Channel 16"/>
+        <xacro:if value="${group_enabled}">
+          <state_interface name="Remote 2 CH1"/>
+          <state_interface name="Remote 2 CH2"/>
+          <state_interface name="Remote 2 CH3"/>
+          <state_interface name="Remote 2 CH4"/>
+          <state_interface name="Remote 2 CH5"/>
+          <state_interface name="Remote 2 CH6"/>
+          <state_interface name="Remote 2 CH7"/>
+          <state_interface name="Remote 2 CH8"/>
+          <state_interface name="Remote 2 CH9"/>
+          <state_interface name="Remote 2 CH10"/>
+          <state_interface name="Remote 2 CH11"/>
+          <state_interface name="Remote 2 CH12"/>
+          <state_interface name="Remote 2 CH13"/>
+          <state_interface name="Remote 2 CH14"/>
+          <state_interface name="Remote 2 CH15"/>
+          <state_interface name="Remote 2 CH16"/>
+        </xacro:if>
       </sensor>
     </ros2_control>
   </xacro:macro>

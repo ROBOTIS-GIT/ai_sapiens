@@ -26,12 +26,9 @@
       gantry="$(arg mujoco_gantry)"/>
     <xacro:if value="$(arg radiomaster_usb)">
       <xacro:k1_radiomaster_usb_system
-        device="$(arg radiomaster_usb_device)"/>
-    </xacro:if>
-    <xacro:if value="$(arg group_usb)">
-      <xacro:k1_radiomaster_usb_system
-        device="$(arg group_usb_device)"
-        name="k1_group_usb" sensor_name="group_hat"/>
+        device="$(arg radiomaster_usb_device)"
+        group_enabled="$(arg group_usb)"
+        group_device="$(arg group_usb_device)"/>
     </xacro:if>
   </xacro:if>
   <xacro:unless value="$(arg sim_mujoco)">
