@@ -103,7 +103,7 @@ def generate_launch_description():
     rc_broadcaster_spawner = Node(
         package='controller_manager',
         executable='spawner',
-        arguments=['rc_broadcaster'],
+        arguments=['rc_broadcaster', 'group_rc_broadcaster'],
         output='screen'
     )
 

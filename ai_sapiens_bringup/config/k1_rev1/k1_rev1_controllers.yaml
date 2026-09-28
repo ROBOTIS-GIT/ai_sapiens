@@ -80,32 +80,32 @@
       input_publish_rate: 100.0
       status_publish_rate: 100.0
       watchdog_crsf_frame_timeout_ms: 100.0
-      watchdog_realtime_tick_timeout_ms: 100.0
+      watchdog_realtime_tick_timeout_ms: 3000.0
       min_crsf_link_quality: 1.0
 
   group_rc_broadcaster:
     ros__parameters:
-      sensor_name: "group_hat"
+      sensor_name: "hat"
       input_topic_name: /ai_sapiens_rc/group/input
       status_topic_name: /ai_sapiens_rc/group/status
-      frame_id: group_hat
+      frame_id: hat
       channels:
-        - RC Channel 1
-        - RC Channel 2
-        - RC Channel 3
-        - RC Channel 4
-        - RC Channel 5
-        - RC Channel 6
-        - RC Channel 7
-        - RC Channel 8
-        - RC Channel 9
-        - RC Channel 10
-        - RC Channel 11
-        - RC Channel 12
-        - RC Channel 13
-        - RC Channel 14
-        - RC Channel 15
-        - RC Channel 16
+        - Remote 2 CH1
+        - Remote 2 CH2
+        - Remote 2 CH3
+        - Remote 2 CH4
+        - Remote 2 CH5
+        - Remote 2 CH6
+        - Remote 2 CH7
+        - Remote 2 CH8
+        - Remote 2 CH9
+        - Remote 2 CH10
+        - Remote 2 CH11
+        - Remote 2 CH12
+        - Remote 2 CH13
+        - Remote 2 CH14
+        - Remote 2 CH15
+        - Remote 2 CH16
       channel_names:
         - Right Gimbal Horizontal
         - Right Gimbal Vertical
@@ -138,7 +138,7 @@
       input_publish_rate: 100.0
       status_publish_rate: 100.0
       watchdog_crsf_frame_timeout_ms: 100.0
-      watchdog_realtime_tick_timeout_ms: 100.0
+      watchdog_realtime_tick_timeout_ms: 3000.0
       min_crsf_link_quality: 1.0
 
   joint_group_impedance_controller:

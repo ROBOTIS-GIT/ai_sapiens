@@ -41,7 +41,6 @@
         <state_interface name="BMS Current"/>
         <state_interface name="BMS Temperature"/>
         <state_interface name="BMS Service Error Flags"/>
-        <state_interface name="BMS Remaining Energy"/>
         <state_interface name="CRSF Failsafe"/>
         <state_interface name="CRSF Link Quality"/>
         <state_interface name="CRSF RSSI 1"/>
@@ -62,6 +61,22 @@
         <state_interface name="RC Channel 14"/>
         <state_interface name="RC Channel 15"/>
         <state_interface name="RC Channel 16"/>
+        <state_interface name="Remote 2 CH1"/>
+        <state_interface name="Remote 2 CH2"/>
+        <state_interface name="Remote 2 CH3"/>
+        <state_interface name="Remote 2 CH4"/>
+        <state_interface name="Remote 2 CH5"/>
+        <state_interface name="Remote 2 CH6"/>
+        <state_interface name="Remote 2 CH7"/>
+        <state_interface name="Remote 2 CH8"/>
+        <state_interface name="Remote 2 CH9"/>
+        <state_interface name="Remote 2 CH10"/>
+        <state_interface name="Remote 2 CH11"/>
+        <state_interface name="Remote 2 CH12"/>
+        <state_interface name="Remote 2 CH13"/>
+        <state_interface name="Remote 2 CH14"/>
+        <state_interface name="Remote 2 CH15"/>
+        <state_interface name="Remote 2 CH16"/>
       </sensor>
 
       <xacro:unless value="${use_mock_hardware}">
@@ -76,7 +91,6 @@
           <state_interface name="BMS Current"/>
           <state_interface name="BMS Temperature"/>
           <state_interface name="BMS Service Error Flags"/>
-          <state_interface name="BMS Remaining Energy"/>
           <state_interface name="CRSF Failsafe"/>
           <state_interface name="CRSF Link Quality"/>
           <state_interface name="CRSF RSSI 1"/>
@@ -97,6 +111,22 @@
           <state_interface name="RC Channel 14"/>
           <state_interface name="RC Channel 15"/>
           <state_interface name="RC Channel 16"/>
+          <state_interface name="Remote 2 CH1"/>
+          <state_interface name="Remote 2 CH2"/>
+          <state_interface name="Remote 2 CH3"/>
+          <state_interface name="Remote 2 CH4"/>
+          <state_interface name="Remote 2 CH5"/>
+          <state_interface name="Remote 2 CH6"/>
+          <state_interface name="Remote 2 CH7"/>
+          <state_interface name="Remote 2 CH8"/>
+          <state_interface name="Remote 2 CH9"/>
+          <state_interface name="Remote 2 CH10"/>
+          <state_interface name="Remote 2 CH11"/>
+          <state_interface name="Remote 2 CH12"/>
+          <state_interface name="Remote 2 CH13"/>
+          <state_interface name="Remote 2 CH14"/>
+          <state_interface name="Remote 2 CH15"/>
+          <state_interface name="Remote 2 CH16"/>
         </gpio>
       </xacro:unless>
     </ros2_control>
