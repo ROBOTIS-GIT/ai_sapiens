@@ -44,6 +44,7 @@ struct FakeJoystick
   int opens{0};
   int closes{0};
   std::deque<js_event> events;
+  std::array<js_corr, 9> correction{};
 };
 
 constexpr int kFirstFakeFd = 100000;
@@ -99,9 +100,9 @@ int __wrap_ioctl(int fd, unsigned long request, void * data)  // NOLINT(runtime/
   if (request == JSIOCGAXES) {
     *static_cast<std::uint8_t *>(data) = 9;
   } else if (request == JSIOCGCORR) {
-    std::memset(data, 0, sizeof(js_corr) * 9);
+    std::memcpy(data, joystick(fd)->correction.data(), sizeof(js_corr) * 9);
   } else if (request == JSIOCSCORR) {
-    return 0;
+    std::memcpy(joystick(fd)->correction.data(), data, sizeof(js_corr) * 9);
   } else if (request == JSIOCGNAME(128)) {
     std::strcpy(static_cast<char *>(data), "Test RadioMaster");
   } else {
@@ -285,6 +286,42 @@ TEST_F(DualReceiverTest, SingleUsbKeepsLegacyInterfacesAndLifecycle)
   ASSERT_EQ(hardware_.on_activate(rclcpp_lifecycle::State()), CallbackReturn::SUCCESS);
   read();
   EXPECT_DOUBLE_EQ(state("RC Channel 1"), 1000.0);
+}
+
+TEST_F(DualReceiverTest, EachReceiverRestoresItsOwnCorrectionOnDisconnectAndCleanup)
+{
+  for (std::size_t receiver = 0; receiver < joysticks.size(); ++receiver) {
+    for (std::size_t axis = 0; axis < 9; ++axis) {
+      joysticks[receiver].correction[axis].type = JS_CORR_BROKEN;
+      joysticks[receiver].correction[axis].coef[0] = static_cast<int>(100 * receiver + axis);
+    }
+    queue_axes(receiver, 1024);
+  }
+  const auto individual_original = joysticks[0].correction;
+  const auto group_original = joysticks[1].correction;
+  initialize();
+  read();
+  for (const auto & device : joysticks) {
+    for (const auto & correction : device.correction) {
+      EXPECT_EQ(correction.type, JS_CORR_NONE);
+    }
+  }
+
+  joysticks[1].connected = false;
+  read();
+  for (std::size_t axis = 0; axis < 9; ++axis) {
+    EXPECT_EQ(joysticks[1].correction[axis].type, group_original[axis].type);
+    EXPECT_EQ(joysticks[1].correction[axis].coef[0], group_original[axis].coef[0]);
+    EXPECT_EQ(joysticks[0].correction[axis].type, JS_CORR_NONE);
+  }
+
+  ASSERT_EQ(hardware_.on_cleanup(rclcpp_lifecycle::State()), CallbackReturn::SUCCESS);
+  for (std::size_t axis = 0; axis < 9; ++axis) {
+    EXPECT_EQ(joysticks[0].correction[axis].type, individual_original[axis].type);
+    EXPECT_EQ(joysticks[0].correction[axis].coef[0], individual_original[axis].coef[0]);
+  }
+  EXPECT_EQ(joysticks[0].closes, 1);
+  EXPECT_EQ(joysticks[1].closes, 1);
 }
 
 }  // namespace

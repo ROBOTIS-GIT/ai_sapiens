@@ -22,6 +22,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -46,7 +47,7 @@ std::array<double, kRcChannelCount> joy_axes_to_rc_channels(
 class RadiomasterUsbHardwareInterface : public hardware_interface::SensorInterface
 {
 public:
-  ~RadiomasterUsbHardwareInterface() override;
+  ~RadiomasterUsbHardwareInterface() override = default;
 
   hardware_interface::CallbackReturn on_init(
     const hardware_interface::HardwareComponentInterfaceParams & params) override;
@@ -62,39 +63,63 @@ public:
     const rclcpp::Time & time, const rclcpp::Duration & period) override;
 
 private:
-  struct Receiver
+  struct ReceiverSample
   {
-    std::string device;
-    std::string channel_prefix;
-    std::array<double, kRcChannelCount> unavailable_channels{};
     std::array<double, kRequiredJoyAxisCount> axes{};
-    std::array<bool, kRequiredJoyAxisCount> axes_initialized{};
-    std::vector<js_corr> joydev_correction{};
-    int joystick_fd{-1};
     std::uint32_t realtime_tick{0};
-    std::int64_t next_reconnect_ns{0};
-    bool open_failure_reported{false};
     bool ready{false};
   };
 
-  bool read_receiver(Receiver & receiver, std::int64_t now_ns);
-  bool try_open_device(Receiver & receiver, std::int64_t now_ns);
-  bool read_joydev_correction(Receiver & receiver, std::uint8_t axis_count);
-  bool read_device_events(Receiver & receiver);
-  void process_axis_event(Receiver & receiver, std::uint8_t axis, std::int16_t value);
-  void close_device(Receiver & receiver, bool report_disconnect);
-  bool all_required_axes_initialized(const Receiver & receiver) const;
+  class Receiver
+  {
+public:
+    Receiver(
+      const std::string & device, double reconnect_interval_ms,
+      const rclcpp::Logger & logger);
+    ~Receiver();
+    Receiver(const Receiver &) = delete;
+    Receiver & operator=(const Receiver &) = delete;
+
+    void configure();
+    void activate();
+    void deactivate();
+    void reset();
+    ReceiverSample read(std::int64_t now_ns);
+
+private:
+    bool try_open_device(std::int64_t now_ns);
+    bool read_joydev_correction(std::uint8_t axis_count);
+    bool read_device_events();
+    void process_axis_event(std::uint8_t axis, std::int16_t value);
+    void close_device(bool report_disconnect);
+    bool all_required_axes_initialized() const;
+
+    std::string device_;
+    std::int64_t reconnect_interval_ns_;
+    rclcpp::Logger logger_;
+    std::array<double, kRequiredJoyAxisCount> axes_{};
+    std::array<bool, kRequiredJoyAxisCount> axes_initialized_{};
+    std::vector<js_corr> joydev_correction_;
+    std::vector<js_corr> original_joydev_correction_;
+    int joystick_fd_{-1};
+    std::uint32_t realtime_tick_{0};
+    std::int64_t next_reconnect_ns_{0};
+    bool open_failure_reported_{false};
+  };
+
+  bool validate_channel_interfaces(const std::string & prefix) const;
   void publish_safe_states();
+  void publish_inputs(const ReceiverSample & individual, const ReceiverSample & group);
   void publish_channels(
-    const Receiver & receiver, const std::array<double, kRcChannelCount> & channels);
-  void publish_status(const Receiver & individual);
+    const std::string & prefix, const std::array<double, kRcChannelCount> & channels);
+  void publish_individual_status(const ReceiverSample & individual);
   static std::int64_t steady_now_ns();
 
   std::string sensor_name_{"hat"};
-  double reconnect_interval_ms_{1000.0};
   bool reverse_axes_{false};
   std::array<double, kRcChannelCount> channel_defaults_{};
-  std::vector<Receiver> receivers_;
+  std::unique_ptr<Receiver> individual_receiver_;
+  std::unique_ptr<Receiver> group_receiver_;
 };
 
 }  // namespace radiomaster_usb_hardware_interface
