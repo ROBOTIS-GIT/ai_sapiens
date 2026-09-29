@@ -2,6 +2,10 @@
 Changelog for package ai_sapiens_description
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.2.3 (2026-09-29)
+------------------
+* None
+
 0.2.2 (2026-09-14)
 ------------------
 * Update K1 model with revised inertial properties and mesh files
