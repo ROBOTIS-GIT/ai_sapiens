@@ -27,6 +27,7 @@ import xacro
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 URDF_PATH = PACKAGE_ROOT / 'urdf' / 'k1_rev1' / 'k1.urdf'
 XACRO_PATH = PACKAGE_ROOT / 'urdf' / 'k1_rev1' / 'k1.urdf.xacro'
+MODEL_XACRO_PATH = PACKAGE_ROOT / 'urdf' / 'k1_rev1' / 'k1_rev1.urdf.xacro'
 MJCF_PATH = PACKAGE_ROOT / 'mujoco' / 'k1' / 'k1.xml'
 SCENE_PATH = PACKAGE_ROOT / 'mujoco' / 'k1' / 'scene.xml'
 MESH_ROOT = PACKAGE_ROOT / 'meshes' / 'k1_rev1'
@@ -101,12 +102,61 @@ def test_urdf_structure_and_inertias():
         assert inertia[0] <= inertia[1] + inertia[2]
         assert inertia[1] <= inertia[0] + inertia[2]
         assert inertia[2] <= inertia[0] + inertia[1]
+        # The second-moment matrix must also be positive definite. Unlike
+        # diagonal triangle checks, this includes products of inertia.
+        half_trace = sum(inertia[:3]) / 2.0
+        second_moment = tuple(half_trace - value for value in inertia[:3]) + tuple(
+            -value for value in inertia[3:]
+        )
+        assert _is_positive_definite(second_moment)
 
     for mesh in root.findall('.//mesh'):
         uri = mesh.attrib['filename']
         prefix = 'package://ai_sapiens_description/meshes/k1_rev1/'
         assert uri.startswith(prefix)
         assert (MESH_ROOT / uri.removeprefix(prefix)).is_file()
+
+
+def test_limb_inertials_are_mirrored():
+    """Keep all 11 limb pairs symmetric in their aligned link frames."""
+    _, links, joints = _urdf_model()
+    child_joints = {joint.find('child').attrib['link']: joint for joint in joints.values()}
+    left_names = [name for name in links if name.startswith('left_')]
+    assert len(left_names) == 11
+
+    for left_name in left_names:
+        right_name = left_name.replace('left_', 'right_', 1)
+        origins = [child_joints[name].find('origin') for name in (left_name, right_name)]
+        for origin in origins:
+            assert _values(origin.attrib.get('rpy', '0 0 0')) == (0.0, 0.0, 0.0)
+        lx, ly, lz = _values(origins[0].attrib['xyz'])
+        assert _values(origins[1].attrib['xyz']) == (lx, -ly, lz)
+
+        left = links[left_name].find('inertial')
+        right = links[right_name].find('inertial')
+        assert float(left.find('mass').attrib['value']) == float(
+            right.find('mass').attrib['value'])
+        for inertial in (left, right):
+            assert _values(inertial.find('origin').attrib.get('rpy', '0 0 0')) == (
+                0.0, 0.0, 0.0)
+        x, y, z = _values(left.find('origin').attrib['xyz'])
+        assert _values(right.find('origin').attrib['xyz']) == (x, -y, z)
+        for key in ('ixx', 'iyy', 'izz', 'ixy', 'ixz', 'iyz'):
+            sign = -1 if key in ('ixy', 'iyz') else 1
+            assert float(right.find('inertia').attrib[key]) == (
+                sign * float(left.find('inertia').attrib[key]))
+
+
+def test_source_inertials_match_standalone_urdf():
+    """Keep runtime Xacro and the standalone physical model synchronized."""
+    _, links, _ = _urdf_model()
+    source = ET.parse(MODEL_XACRO_PATH).getroot()
+    source_links = {link.attrib['name']: link for link in source.findall('.//link')}
+    assert set(source_links) == set(links)
+    for name, link in links.items():
+        for tag in ('mass', 'origin', 'inertia'):
+            assert link.find(f'inertial/{tag}').attrib == (
+                source_links[name].find(f'inertial/{tag}').attrib)
 
 
 def test_xacro_expands_with_mock_hardware():
@@ -239,6 +289,8 @@ def test_mujoco_model_matches_urdf():
             float(mjcf_inertial.attrib['mass']),
             float(urdf_inertial.find('mass').attrib['value']),
         )
+        assert _values(mjcf_inertial.attrib['pos']) == _values(
+            urdf_inertial.find('origin').attrib['xyz'])
 
         values = urdf_inertial.find('inertia').attrib
         expected = tuple(
