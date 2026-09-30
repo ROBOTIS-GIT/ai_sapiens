@@ -4,7 +4,8 @@ Changelog for package ai_sapiens_description
 
 0.2.3 (2026-09-29)
 ------------------
-* None
+* Removed the BMS remaining energy from the HAT sensor
+* Contributors: Wonho Yun
 
 0.2.2 (2026-09-14)
 ------------------
