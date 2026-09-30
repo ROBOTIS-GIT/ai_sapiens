@@ -107,6 +107,7 @@ void RadiomasterPocketTeleopInputPlugin::configure(
     topic_,
     10,
     [this](const RcStatus::SharedPtr msg) {
+      warn_if_hardware_error(*msg);
       handle_raw_message(*msg);
     });
 
@@ -571,6 +572,24 @@ RadiomasterPocketTeleopInputPlugin::make_channel_lookup(
   }
 
   return channels;
+}
+
+void RadiomasterPocketTeleopInputPlugin::warn_if_hardware_error(const RcStatus & msg) const
+{
+  if (msg.hardware_error_status == 0U) {
+    return;
+  }
+
+  RCLCPP_WARN_THROTTLE(
+    node_->get_logger(),
+    *node_->get_clock(),
+    1000,
+    "[%s] RC hardware_error_status=%u (0x%02X) status_valid=%s (topic=%s)",
+    name().c_str(),
+    static_cast<unsigned>(msg.hardware_error_status),
+    static_cast<unsigned>(msg.hardware_error_status),
+    msg.status_data_valid ? "true" : "false",
+    topic_.c_str());
 }
 
 bool RadiomasterPocketTeleopInputPlugin::is_status_health_ok(const RcStatus & msg) const
