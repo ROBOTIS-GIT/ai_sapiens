@@ -2,6 +2,14 @@
 Changelog for package ai_sapiens
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.2.3 (2026-09-29)
+------------------
+* Allowed RC input with nonzero hardware error codes without triggering
+  teleoperation timeout and failsafe damping solely due to those codes.
+* Added throttled warnings with hardware error codes in decimal and hexadecimal.
+* Removed the BMS remaining energy from the HAT sensor
+* Contributors: Kiwoong Park, Wonho Yun
+
 0.2.2 (2026-09-14)
 ------------------
 * Update K1 model with revised inertial properties and mesh files

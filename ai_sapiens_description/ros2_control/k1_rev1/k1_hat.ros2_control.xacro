@@ -41,7 +41,6 @@
         <state_interface name="BMS Current"/>
         <state_interface name="BMS Temperature"/>
         <state_interface name="BMS Service Error Flags"/>
-        <state_interface name="BMS Remaining Energy"/>
         <state_interface name="CRSF Failsafe"/>
         <state_interface name="CRSF Link Quality"/>
         <state_interface name="CRSF RSSI 1"/>
@@ -76,7 +75,6 @@
           <state_interface name="BMS Current"/>
           <state_interface name="BMS Temperature"/>
           <state_interface name="BMS Service Error Flags"/>
-          <state_interface name="BMS Remaining Energy"/>
           <state_interface name="CRSF Failsafe"/>
           <state_interface name="CRSF Link Quality"/>
           <state_interface name="CRSF RSSI 1"/>
