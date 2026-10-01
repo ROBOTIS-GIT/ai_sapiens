@@ -2,6 +2,21 @@
 Changelog for package ai_sapiens
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.2.3 (2026-09-29)
+------------------
+* Allowed RC input with nonzero hardware error codes without triggering
+  teleoperation timeout and failsafe damping solely due to those codes.
+* Added throttled warnings with hardware error codes in decimal and hexadecimal.
+* Removed the BMS remaining energy from the HAT sensor
+* Contributors: Kiwoong Park, Wonho Yun
+
+0.2.2 (2026-09-14)
+------------------
+* Update K1 model with revised inertial properties and mesh files
+* Fixed viewer camera controls to compile with MuJoCo 3.11.0 and newer
+  while preserving compatibility with earlier versions.
+* Contributors: Wonho Yun, Kiwoong Park
+
 0.2.1 (2026-09-01)
 ------------------
 * Added a separate timeout that zeros stale manual velocity commands before

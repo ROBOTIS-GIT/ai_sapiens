@@ -2,6 +2,17 @@
 Changelog for package ai_sapiens_rc_broadcaster
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.2.3 (2026-09-29)
+------------------
+* Removed hardware error codes from the RC control-input safety decision while
+  retaining status validity, E-stop, link health, and channel checks.
+* Added regression tests for hardware-error tolerance and E-stop rejection.
+* Contributors: Kiwoong Park
+
+0.2.2 (2026-09-14)
+------------------
+* None
+
 0.2.1 (2026-09-01)
 ------------------
 * None

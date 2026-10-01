@@ -383,8 +383,14 @@ void MujocoViewer::handle_cursor_pos(GLFWwindow * window, double xpos, double yp
   }
 
   // Move camera.
+#if mjVERSION_HEADER >= 3011000
+  // MuJoCo 3.11.0 removed the scene argument.
+  mjv_moveCamera(
+    sim_->model(), mouse_action, dx / height, dy / height, &cam_);
+#else
   mjv_moveCamera(
     sim_->model(), mouse_action, dx / height, dy / height, &scn_, &cam_);
+#endif
 }
 
 void MujocoViewer::handle_scroll(
@@ -404,7 +410,11 @@ void MujocoViewer::handle_scroll(
   }
 
   // Emulate vertical mouse motion = 5% of window height.
+#if mjVERSION_HEADER >= 3011000
+  mjv_moveCamera(sim_->model(), mjMOUSE_ZOOM, 0.0, -0.05 * yoffset, &cam_);
+#else
   mjv_moveCamera(sim_->model(), mjMOUSE_ZOOM, 0.0, -0.05 * yoffset, &scn_, &cam_);
+#endif
 }
 
 ViewerUiEvent MujocoViewer::make_pointer_event(

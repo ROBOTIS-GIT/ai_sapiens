@@ -2,6 +2,16 @@
 Changelog for package ai_sapiens_sim2real
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.2.3 (2026-09-29)
+------------------
+* Added RadioMaster hardware error warnings with decimal and hexadecimal codes,
+  throttled to once per second and separate from input validation.
+* Contributors: Kiwoong Park
+
+0.2.2 (2026-09-14)
+------------------
+* None
+
 0.2.1 (2026-09-01)
 ------------------
 * Added a separate timeout that zeros stale manual velocity commands before

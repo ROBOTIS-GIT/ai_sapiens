@@ -27,7 +27,7 @@ uint8 crsf_rssi_1
 bool status_data_valid
 bool realtime_tick_fresh
 bool all_channels_valid
-bool hardware_ok
+bool hardware_ok  # Diagnostic only; does not gate is_control_input_safe.
 bool estop_released
 bool rc_link_ok
 bool is_control_input_safe
