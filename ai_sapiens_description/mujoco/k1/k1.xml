@@ -59,6 +59,7 @@
         pos="-2.925359500e-03 1.127629500e-06 -5.031528100e-02"/>
       <site name="imu" pos="0 0 0" quat="1 0 0 0" size="0.01" group="4"/>
       <geom class="visual" type="mesh" mesh="pelvis" material="white"/>
+      <geom class="collision" type="mesh" mesh="pelvis" name="pelvis_collision_0"/>
       <body name="left_hip_pitch_link" pos="0.0 0.040 -0.081">
         <inertial mass="1.145107600000e+00"
           fullinertia="1.421889812386e-03 1.033629795483e-03 1.088132517762e-03 2.042184810525e-05 -1.676488789760e-05 1.517172548758e-04"
@@ -66,7 +67,7 @@
         <joint name="left_hip_pitch_joint" class="QC080-240-R020-RE" type="hinge" axis="0 1 0" range="-2.4435 2.4435" limited="true"
           actuatorfrclimited="true" actuatorfrcrange="-96.864 96.864"/>
         <geom class="visual" type="mesh" mesh="left_hip_pitch_link" material="white"/>
-        <geom class="collision" pos="0 0.05 -0.02" euler="1.5708 0 0" type="cylinder" size="0.04 0.035"
+        <geom class="collision" type="mesh" mesh="left_hip_pitch_link"
           name="left_hip_pitch_link_collision_0"/>
         <body name="left_hip_roll_link" pos="-0.008 0.085 -0.030">
           <inertial mass="1.553528600000e+00"
@@ -138,7 +139,7 @@
         <joint name="right_hip_pitch_joint" class="QC080-240-R020-RE" type="hinge" axis="0 1 0" range="-2.4435 2.4435"
           limited="true" actuatorfrclimited="true" actuatorfrcrange="-96.864 96.864"/>
         <geom class="visual" type="mesh" mesh="right_hip_pitch_link" material="white"/>
-        <geom class="collision" pos="0 -0.05 -0.02" euler="1.5708 0 0" type="cylinder" size="0.04 0.035"
+        <geom class="collision" type="mesh" mesh="right_hip_pitch_link"
           name="right_hip_pitch_link_collision_0"/>
         <body name="right_hip_roll_link" pos="-0.008 -0.085 -0.030">
           <inertial mass="1.553528600000e+00"
@@ -210,7 +211,7 @@
         <joint name="waist_yaw_joint" class="QC080-240-R020-RE" type="hinge" axis="0 0 1" range="-6.2832 6.2832" limited="true"
           actuatorfrclimited="true" actuatorfrcrange="-96.864 96.864"/>
         <geom class="visual" type="mesh" mesh="torso_link" material="white"/>
-        <geom class="collision" pos="-0.02 0 0.24" type="box" size="0.1 0.085 0.085" name="torso_link_collision_0"/>
+        <geom class="collision" type="mesh" mesh="torso_link" name="torso_link_collision_0"/>
         <body name="head_link" pos="-0.02725 0 0.361">
           <inertial mass="6.792353500e-01"
             fullinertia="2.471933800e-03 2.738339300e-03 1.531146400e-03 -8.394472500e-08 2.835210500e-05 -9.341772900e-08"
