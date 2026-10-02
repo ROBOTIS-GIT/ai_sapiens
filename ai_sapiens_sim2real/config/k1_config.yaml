@@ -23,6 +23,12 @@ robot_joint_order:  # Corresponds to ai_sapiens_bringup/config/k1_rev1/k1_rev1_c
 - right_elbow_joint
 - right_wrist_roll_joint
 
+# Smooth joint targets and kp/kd on posture/policy -> policy changes; duration is in seconds.
+# Set enabled: false (or duration: 0.0) for direct switching.
+policy_action_transition:
+  enabled: true
+  duration: 0.3
+
 policy_asset_roots:
   - ../assets/k1
 
@@ -55,22 +61,86 @@ teleop_conditions:
     input_code: 2
   VelocityRequested:
     input_code: 3
+  ManualMimicServiceAllowed:
+    input_code: 5
   MimicRequested:
     input_code: 4
+    
 
 selectors:
   mimic_selector:
     table:
-      200: MimicSquat
-      201: MimicDance1
-      202: MimicDance2
-      203: MimicDynamite
-      204: MimicDynamiteYaw
-      205: MimicDynamiteVelestimator
-      # 206:
-      # 207:
-      # 208:
-      # 209:
+      200: MimicWaveOneHand
+      201: MimicWaveRightHandOnly
+      202: MimicWaveTwoHand
+      203: MimicWaveOneHandWaistYaw
+      204: MimicWaveRightHandOnlyWaistYaw
+      205: MimicWaveTwoHandWaistYaw
+      206: MimicWaveOneHandWaistYawLarge
+      207: MimicWaveRightHandOnlyWaistYawLarge
+      208: MimicWaveTwoHandWaistYawLarge
+      209: MimicMotifectTauntMockBow
+      210: MimicSquat
+      211: MimicBowNavel
+      212: MimicCoinPickNewton # MimicCoinPick
+      213: MimicBoxingNewton # MimicBoxingNewUrdf
+      214: MimicRedredNewton #MimicRedredMjlab # MimicRedredWoojinK1First
+      215: MimicLemonade
+      216: MimicAny2TrackRedredSpecialist #MimicJumpNewton # MimicJump
+      217: MimicUMRStandUp #MimicDance1
+      218: MimicUMRLieDown #MimicDance2
+      219: MimicTurn
+      220: MimicFlower3
+      221: SubVelocityTerrain
+      222: SubVelocityHangangRun
+
+      224: MimicPostureStandToProneBlenderV3Hip250
+      226: MimicPostureStandToProneBlenderVer2
+
+      
+      227: MimicAPT003RhythmV2
+      228: MimicDynamite004RhythmV2
+      229: MimicGangnamStyle004Rhythm
+
+  mimic_ready_selector:
+    table:
+      # 224: MimicPostureStandToProneBlenderV3Hip250
+      225: MimicPostureProneToStandBlenderV3Hip250
+      # 226: MimicPostureStandToProneBlenderVer2
+      227: MimicPostureProneToStandBlenderVer2
+
+  mimic_prone_exit_selector:
+    table:
+      225: MimicPostureProneToStandBlenderV3Hip250
+      227: MimicPostureProneToStandBlenderVer2
+     
+
+
+  # mimic_selector_2:
+  #   table:
+  #     200: MimicSquat
+  #     201: MimicBowNavel
+  #     202: MimicCoinPickNewton # MimicCoinPick
+  #     203: MimicWaveOneHand
+  #     204: MimicBoxingNewton # MimicBoxingNewUrdf
+  #     205: MimicRedredNewton #MimicRedredMjlab # MimicRedredWoojinK1First
+  #     206: MimicLemonade
+  #     207: MimicJumpNewton # MimicJump
+  #     208: MimicDance1
+  #     209: MimicDance2
+  #     210: MimicWaveOneHand
+  #     211: MimicWaveRightHandOnly
+  #     212: MimicWaveTwoHand
+  #     213: MimicWaveOneHandWaistYaw
+  #     214: MimicWaveRightHandOnlyWaistYaw
+  #     215: MimicWaveTwoHandWaistYaw
+  #     216: MimicWaveOneHandWaistYawLarge
+  #     217: MimicWaveRightHandOnlyWaistYawLarge
+  #     218: MimicWaveTwoHandWaistYawLarge
+  #     219: MimicMotifectTauntMockBow
+  #     220: MimicFlower3
+  #     221: MimicTurn
+  #     230: SubVelocityTerrain
 
 state_machine:
   initial: Damping
@@ -88,7 +158,7 @@ state_machine:
         - when: VelocityRequested
           to: Velocity
         - when: MimicRequested
-          select: mimic_selector
+          select: mimic_ready_selector 
     ZeroPose:
       run: posture_zero_pose
       transitions:
@@ -101,7 +171,16 @@ state_machine:
         - when: MimicRequested
           select: mimic_selector
     Velocity:
-      run: velocity_policy
+      # run: velocity_policy_amp_hangang # velocity_policy_amp_hangang # velocity_policy_insu_mjlab     #velocity_policy_jhl_0806_v1    #velocity_policy_jhl_0715_v1 # velocity_policy_woojin_pure_k1
+      # run: velocity_policy_amp_hangang
+      # run: velocity_policy_amp_hangang_limited
+      # run: velocity_policy_insu_mjlab
+      # run: velocity_policy_woojin_amp_mjlab_k1_head_safe_50000
+      # run: velocity_policy_walk_terrain
+      # run: velocity_e1_reference_lpf6_29999
+      # run: velocity_fullbody_mm_run15_lpf6_29600
+      # run: velocity_fullbody_als_hangang_recovery_public_body_lateral1_v6_lpf6_69999
+      run: velocity_fullbody_als_hangang_recovery_public_body_lateral1_v6_scratch40k_resume20k_lpf6_54500
       transitions:
         - when: DampingRequested
           to: Damping
@@ -110,6 +189,27 @@ state_machine:
         - when: MimicRequested
           trigger: edge
           select: mimic_selector
+
+    SubVelocityTerrain:
+      run: velocity_policy_walk_terrain
+      transitions:
+        - when: DampingRequested
+          to: Damping
+        - when: ReadyPoseRequested
+          to: ReadyPose
+        - when: VelocityRequested
+          to: Velocity
+
+    SubVelocityHangangRun:
+      run: velocity_policy_amp_hangang
+      transitions:
+        - when: DampingRequested
+          to: Damping
+        - when: ReadyPoseRequested
+          to: ReadyPose
+        - when: VelocityRequested
+          to: Velocity
+
     Mimic:
       abstract: true
       transitions:
@@ -119,24 +219,161 @@ state_machine:
           to: ReadyPose
         - when: VelocityRequested
           to: Velocity
-    MimicSquat:
-      parent: Mimic
-      run: mimic_squat
     MimicDance1:
       parent: Mimic
       run: mimic_dance1
     MimicDance2:
       parent: Mimic
       run: mimic_dance2
-    MimicDynamite:
+    # MimicJump:
+    #   parent: Mimic
+    #   run: mimic_jump
+    MimicJumpNewton:
       parent: Mimic
-      run: mimic_dynamite
-    MimicDynamiteYaw:
+      run: mimic_jump_newton
+    # MimicRedred:
+    #   parent: Mimic
+    #   run: mimic_redred
+    MimicRedredNewton:
       parent: Mimic
-      run: mimic_dynamite_yaw
-    MimicDynamiteVelestimator:
+      run: mimic_redred_newton
+    # MimicRedredMjlab:
+    #   parent: Mimic
+    #   run: mimic_mjlab_redred
+    MimicSquat:
       parent: Mimic
-      run: mimic_dynamite_velestimator
+      run: mimic_squat
+    # MimicCoinPick:
+    #   parent: Mimic
+    #   run: mimic_coin_pick
+    MimicCoinPickNewton:
+      parent: Mimic
+      run: mimic_coin_pick_newton
+    # MimicRedredWoojinK1First:
+    #   parent: Mimic
+    #   run: mimic_redred_woojin_k1_first
+    # MimicBoxingK05Motion:
+    #   parent: Mimic
+    #   run: mimic_boxing_k05_motion
+    # MimicBoxingNewUrdf:
+    #   parent: Mimic
+    #   run: mimic_boxing_new_urdf
+    # MimicBoxingLpfW9:
+    #   parent: Mimic
+    #   run: mimic_boxing_lpf_w9
+    MimicBoxingNewton:
+      parent: Mimic
+      run: mimic_boxing_newton
+    MimicBowNavel:
+      parent: Mimic
+      run: mimic_bow_navel
+    MimicKikcJumpFront:
+      parent: Mimic
+      run: mimic_kick_jump_front  
+    MimicKick360:
+      parent: Mimic
+      run: mimic_tkd_kick_360  
+    MimicLemonade:
+      parent: Mimic
+      run: mimic_lemonade
+    MimicTurn:
+      parent: Mimic
+      run: mimic_turn
+    MimicSunja:
+      parent: Mimic
+      run: mimic_sunja
+    WalkAndKick:
+      parent: Mimic
+      run: kozeni_walk_and_kick
+    MimicFlower3:
+      parent: Mimic
+      run: flower3
+    MimicWaveOneHand:
+      parent: Mimic
+      run: mimic_wave_one_hand
+    MimicWaveTwoHand:
+      parent: Mimic
+      run: mimic_wave_two_hand
+    MimicWaveRightHandOnly:
+      parent: Mimic
+      run: mimic_wave_right_hand_only
+    MimicWaveOneHandWaistYaw:
+      parent: Mimic
+      run: mimic_wave_one_hand_waist_yaw
+    MimicWaveRightHandOnlyWaistYaw:
+      parent: Mimic
+      run: mimic_wave_right_hand_only_waist_yaw
+    MimicWaveTwoHandWaistYaw:
+      parent: Mimic
+      run: mimic_wave_two_hand_waist_yaw
+    MimicWaveOneHandWaistYawLarge:
+      parent: Mimic
+      run: mimic_wave_one_hand_waist_yaw_large
+    MimicWaveRightHandOnlyWaistYawLarge:
+      parent: Mimic
+      run: mimic_wave_right_hand_only_waist_yaw_large
+    MimicWaveTwoHandWaistYawLarge:
+      parent: Mimic
+      run: mimic_wave_two_hand_waist_yaw_large
+    MimicMotifectTauntMockBow:
+      parent: Mimic
+      run: mimic_motifect_taunt_mock_bow
+    MimicAny2TrackRedredSpecialist:
+      parent: Mimic
+      run: mimic_any2track_redred_specialist
+
+    MimicDynamite004RhythmV2:
+      parent: Mimic
+      run: mimic_dynamite004_rhythm_v2
+    MimicAPT003RhythmV2:
+      parent: Mimic
+      run: mimic_apt003_rhythm_v2
+    MimicGangnamStyle004Rhythm:
+      parent: Mimic
+      run: mimic_gangnamstyle004_rhythm
+
+    # MimicGlopodanamite:
+    #   parent: Mimic
+    #   run: mimic_glopodanamite
+
+    MimicPostureStandToProneBlenderV3Hip250:
+      run: mimic_posture_stand_to_prone_blender_v3_hip250_ppo
+      # Ends prone: no automatic or switch-driven return to standing Velocity.
+      transitions:
+        - when: DampingRequested
+          to: Damping
+        - when: ReadyPoseRequested
+          to: ReadyPose
+        - when: MimicRequested
+          trigger: edge
+          select: mimic_prone_exit_selector
+    MimicPostureProneToStandBlenderV3Hip250:
+      parent: Mimic
+      run: mimic_posture_prone_to_stand_blender_v3_hip250_ppo
+    MimicPostureStandToProneBlenderVer2:
+      run: mimic_posture_stand_to_prone_blender_ver2_1x_ppo
+      # Ends prone: same exit restrictions as the comparison policy (224).
+      transitions:
+        - when: DampingRequested
+          to: Damping
+        - when: ReadyPoseRequested
+          to: ReadyPose
+        - when: MimicRequested
+          trigger: edge
+          select: mimic_prone_exit_selector
+
+    MimicPostureProneToStandBlenderVer2:
+      parent: Mimic
+      run: mimic_posture_prone_to_stand_blender_ver2_1x_ppo
+
+    MimicUMRStandUp:
+      parent: Mimic
+      run: mimic_umr_stand_up
+    MimicUMRLieDown:
+      parent: Mimic
+      run: mimic_umr_lie_down
+
+
 
 state_behaviors:
   damping:
@@ -199,11 +436,103 @@ state_behaviors:
   velocity_policy:
     kind: policy
     asset: locomotion/velocity/walk_default
+  velocity_policy_woojin_pure_k1:
+    kind: policy
+    asset: locomotion/velocity/walk_woojin_pure_k1
 
-  mimic_squat:
-    kind: mimic
-    asset: mimic/squat
-    motion: squat.csv
+  velocity_policy_amp_hangang:  # (== velocity_policy_jhl_0715_v1)
+    kind: policy
+    asset: locomotion/velocity/walk_amp_hangang
+  velocity_policy_amp_hangang_limited:
+    kind: policy
+    asset: locomotion/velocity/walk_amp_hangang_limited
+
+  #velocity_policy_woojin_amp_newton:
+  #  kind: policy
+  #  asset: locomotion/velocity/woojin_amp_newton
+
+  #velocity_policy_woojin_amp_g1_port_newton:
+  #  kind: policy
+  #  asset: locomotion/velocity/woojin_amp_g1_port_newton
+
+  velocity_policy_woojin_amp_g1_port_newton_rel_obs_3000:
+    kind: policy
+    asset: locomotion/velocity/woojin_amp_g1_port_newton_rel_obs_3000
+
+  velocity_policy_woojin_amp_g1_port_newton_rel_obs_robust_5800:
+    kind: policy
+    asset: locomotion/velocity/woojin_amp_g1_port_newton_rel_obs_robust_5800
+
+  velocity_policy_woojin_amp_mjlab_k1_recovery_46900:
+    kind: policy
+    asset: locomotion/velocity/woojin_amp_mjlab_k1_recovery_46900
+
+  velocity_policy_woojin_amp_mjlab_k1_official_collision_4000:
+    kind: policy
+    asset: locomotion/velocity/woojin_amp_mjlab_k1_official_collision_4000
+
+  velocity_policy_woojin_amp_mjlab_k1_head_collision_12400:
+    kind: policy
+    asset: locomotion/velocity/woojin_amp_mjlab_k1_head_collision_12400
+
+  velocity_policy_woojin_amp_mjlab_k1_head_collision_23600:
+    kind: policy
+    asset: locomotion/velocity/woojin_amp_mjlab_k1_head_collision_23600
+
+  velocity_policy_woojin_amp_mjlab_k1_head_safe_50000:
+    kind: policy
+    asset: locomotion/velocity/woojin_amp_mjlab_k1_head_safe_50000
+
+
+  velocity_policy_insu_amp:
+    kind: policy
+    asset: locomotion/velocity/walk_insu_amp_k1
+  velocity_policy_insu_mjlab:
+    kind: policy
+    asset: locomotion/velocity/walk_insu_mjlab
+
+  # velocity_policy_walk_terrain:
+  #   kind: policy
+  #   asset: locomotion/velocity/walk_terrain
+  
+  velocity_policy_woojin_dreamwaq_amp_phase_free:
+    kind: policy
+    asset: locomotion/velocity/woojin_dreamwaq_amp_phase_free
+
+  velocity_e1_reference_lpf6_29999:
+    kind: policy
+    asset: locomotion/velocity/walk_e1_reference_lpf6_29999
+
+  velocity_e1_motifect_v2_lpf6_11800:
+    kind: policy
+    asset: locomotion/velocity/walk_e1_motifect_v2_lpf6_11800
+
+  velocity_fullbody_mm_run15_lpf6_29600:
+    kind: policy
+    asset: locomotion/velocity/walk_fullbody_mm_run15_lpf6_29600
+
+  # 전신 ALS + 한강 회복 PublicBody v6: 62200에서 이어 학습한 최종 69999.
+  # 2026-09-28_09-53-21-919298: public 몸체·학습용 발 충돌·물리 5ms/solver 10 유지.
+  # 좌우 다리 충돌 패널티: 가중치 -0.5, 접촉력 10 N 초과. 보행·낙상 회복 모두 적용.
+  # 왼다리↔오른다리, 왼발↔오른다리, 오른발↔왼다리, 양발 충돌 포함. 같은 쪽 다리·지면 접촉 제외.
+  # 급상승 패널티: 가중치 -0.5, 회복 중 몸통 수직 상승 속도 0.8 m/s 초과량에 비례한 제곱 비용.
+  # 일반 보행·달리기에는 급상승 패널티 미적용. 속도를 강제로 제한하는 방식은 아님.
+  # 손 24종 형상·크기·접촉 강성 랜덤화, 머리/몸체 지면 충격 및 회복 초기 자세 설정 유지.
+  # 전후진 ±2.5 m/s, 횡이동 ±1.0 m/s, 회전 ±1.8 rad/s. 기존 ALS/한강 회복 모션, phase 없음.
+  # ONNX 내부 history 재정렬 적용, YAML history_ordering 없음, command history 유지.
+  velocity_fullbody_als_hangang_recovery_public_body_lateral1_v6_lpf6_69999:
+    kind: policy
+    asset: locomotion/velocity/walk_fullbody_als_hangang_recovery_public_body_lateral1_v6_lpf6_69999
+
+  # 전신 AMP PublicBody v6: scratch40k 39999에서 20k 추가학습 중 54500 중간 체크포인트. 평지 메인 v6.
+  # ALS 보행 + 한강 낙상 회복, LPF 6 Hz. 커리큘럼·옵티마이저 유지. 지형 랜덤화·Motifect 턴 추가 전 비교 기준.
+  # 좌우 다리·반대쪽 발 충돌 -0.5, 회복 상승속도 0.8 m/s 초과 -0.5, 머리 접촉·몸체/발 충격 패널티.
+  # 손 24종 형상·치수·접촉 랜덤화. 전후진 ±2.5 m/s, 횡이동 ±1.0 m/s, 회전 ±1.8 rad/s.
+  # ONNX 내부 history 변환, 과거 속도 명령 보존. gait phase 없음.
+  velocity_fullbody_als_hangang_recovery_public_body_lateral1_v6_scratch40k_resume20k_lpf6_54500:
+    kind: policy
+    asset: locomotion/velocity/walk_fullbody_als_hangang_recovery_public_body_lateral1_v6_scratch40k_resume20k_lpf6_54500
+
   mimic_dance1:
     kind: mimic
     asset: mimic/dance1
@@ -212,15 +541,206 @@ state_behaviors:
     kind: mimic
     asset: mimic/dance2
     motion: dance2.csv
-  mimic_dynamite:
+  mimic_jump:
     kind: mimic
-    asset: mimic/Dynamite_Specialist
-    motion: dynamite_specialist_reference.csv
-  mimic_dynamite_yaw:
+    asset: mimic/jump
+    motion: jump.csv
+  mimic_jump_newton:
     kind: mimic
-    asset: mimic/Dynamite_Yaw
-    motion: dynamite_specialist_reference_synced.csv
-  mimic_dynamite_velestimator:
+    asset: mimic/jump_newton
+    motion: jump.csv
+  mimic_redred:
     kind: mimic
-    asset: mimic/Dynamite_vel_estimator
-    motion: dynamite_specialist_reference_synced.csv
+    asset: mimic/redred
+    motion: redred_k1.csv
+  mimic_redred_newton:
+    kind: mimic
+    asset: mimic/redred_newton
+    motion: redred.csv
+  mimic_squat:
+    kind: mimic
+    asset: mimic/squat
+    motion: squat.csv
+  mimic_coin_pick:
+    kind: mimic
+    asset: mimic/coin_pick
+    motion: coin_pick.csv
+  mimic_coin_pick_newton:
+    kind: mimic
+    asset: mimic/coin_pick_newton
+    motion: coin_pick.csv
+  mimic_redred_woojin_k1_first:
+    kind: mimic
+    asset: mimic/redred_woojin_k1_first
+    motion: redred_k1_23dof_50hz.csv
+  mimic_boxing_k05_motion:
+    kind: mimic
+    asset: mimic/boxing_k05_motion
+    motion: kimodo_box_k0_5_mimic_converted.csv
+  mimic_boxing_new_urdf:
+    kind: mimic
+    asset: mimic/boxing_new_urdf
+    motion: boxing.csv
+  mimic_boxing_lpf_w9:
+    kind: mimic
+    asset: mimic/boxing_lpf_w9
+    motion: boxing_lpf_w9.csv
+  mimic_boxing_newton:
+    kind: mimic
+    asset: mimic/boxing_newton
+    motion: boxing.csv
+  mimic_mjlab_dance2:
+    kind: mimic
+    asset: mimic/dance2_mjlab
+    motion: dance2.csv
+  mimic_mjlab_redred:
+    kind: mimic
+    asset: mimic/redred_mjlab
+    motion: redred_k1.csv
+  mimic_bow_navel:
+    kind: mimic
+    asset: mimic/bow_navel
+    motion: bow_navel_p3_04.csv
+  mimic_kick_jump_front:
+    kind: mimic
+    asset: mimic/tkd_kick_jump_front_l
+    motion: tkd_kick_jump_front_l.csv
+  mimic_tkd_kick_360:
+    kind: mimic
+    asset: mimic/tkd_kick_360
+    motion: tkd_kick_360.csv
+  mimic_lemonade:
+    kind: mimic
+    asset: mimic/lemonade
+    motion: lemonade_with_ready_transition_kimodo.csv
+  mimic_turn:
+    kind: mimic
+    asset: mimic/turn
+    motion: dance_basic_turn_v1_360_r_loop_fast_003_a325.csv
+  mimic_sunja:
+    kind: mimic
+    asset: mimic/sunja
+    motion: sunja_full_sequence_v2_endpoint_fixed.csv
+  kozeni_walk_and_kick:
+    kind: mimic
+    asset: mimic/kozeni_walkandkick
+    motion: walkandkick.csv
+  flower3:
+    kind: mimic
+    asset: mimic/flower3
+    motion: flower3.csv
+  mimic_wave_one_hand:
+    kind: mimic
+    asset: mimic/wave_one_hand_2
+    motion: wave_single_hand_deploy_no_transition_lpf6hz_edge_safe.csv
+  mimic_wave_two_hand:
+    kind: mimic
+    asset: mimic/wave_two_hand_2
+    motion: wave_both_hands_deploy_no_transition_lpf6hz_edge_safe.csv
+  mimic_wave_right_hand_only:
+    kind: mimic
+    asset: mimic/wave_right_hand_only
+    motion: wave_right_hand_only.csv
+  mimic_wave_one_hand_waist_yaw:
+    kind: mimic
+    asset: mimic/wave_one_hand_waist_yaw
+    motion: wave_single_hand_waist_yaw.csv
+  mimic_wave_right_hand_only_waist_yaw:
+    kind: mimic
+    asset: mimic/wave_right_hand_only_waist_yaw
+    motion: wave_right_hand_only_waist_yaw.csv
+  mimic_wave_two_hand_waist_yaw:
+    kind: mimic
+    asset: mimic/wave_two_hand_waist_yaw
+    motion: wave_both_hands_waist_yaw.csv
+  mimic_wave_one_hand_waist_yaw_large:
+    kind: mimic
+    asset: mimic/wave_one_hand_waist_yaw_large
+    motion: wave_single_hand_waist_yaw_large.csv
+  mimic_wave_right_hand_only_waist_yaw_large:
+    kind: mimic
+    asset: mimic/wave_right_hand_only_waist_yaw_large
+    motion: wave_right_hand_only_waist_yaw_large.csv
+  mimic_wave_two_hand_waist_yaw_large:
+    kind: mimic
+    asset: mimic/wave_two_hand_waist_yaw_large
+    motion: wave_both_hands_waist_yaw_large.csv
+  mimic_motifect_taunt_mock_bow:
+    kind: mimic
+    asset: mimic/motifect_taunt_mock_bow
+    motion: motifect_taunt_mock_bow.csv
+  mimic_any2track_redred_specialist:
+    kind: mimic
+    asset: mimic/RedRed_any2track_specialist
+    motion: redred_support_v5.csv
+
+  mimic_dynamite004_rhythm_v2:
+    kind: mimic
+    asset: mimic/dynamite004_rhythm_v2
+    motion: dynamite004_headwrap_v3.csv
+  mimic_apt003_rhythm_v2:
+    kind: mimic
+    asset: mimic/apt003_rhythm_v2
+    motion: apt003_apartment_dance_shoulder_fixed_v4.csv
+  mimic_gangnamstyle004_rhythm:
+    kind: mimic
+    asset: mimic/gangnamstyle004_rhythm
+    motion: gangnamstyle004_rhythm.csv
+
+
+  mimic_umr_stand_up:
+    kind: mimic
+    asset: mimic/umr_stand_up
+    motion: k1_0008_stand_up_mesh_safe_converted.csv
+    transition_duration: 2.0
+  mimic_umr_lie_down:
+    kind: mimic
+    asset: mimic/umr_lie_down
+    motion: k1_0008_lie_down_slow_arms_converted.csv
+    on_complete: Damping
+
+  # mimic_glopodanamite:
+  #   kind: mimic
+  #   asset: mimic/glopodanamite
+  #   motion: dynamite004_headwrap_v3.csv
+
+  mimic_posture_stand_to_prone_blender_v3_hip250_ppo:
+    kind: mimic
+    asset: mimic/posture_stand_to_prone_blender_v3_hip250_ppo
+    motion: stand_to_prone_blender_v3_complete_50hz_hold3s.csv
+    fps: 50
+    time_start: 0.0
+    time_end: auto
+    on_complete: stay
+  mimic_posture_prone_to_stand_blender_v3_hip250_ppo:
+    kind: mimic
+    asset: mimic/posture_prone_to_stand_blender_v3_hip250_ppo
+    motion: prone_to_stand_blender_v3_complete_50hz_hold3s.csv
+    fps: 50
+    time_start: 0.0
+    time_end: 10.22  # Keep ~0.1 s of the terminal standing hold before Velocity.
+    on_complete: Velocity
+  mimic_posture_stand_to_prone_blender_ver2_1x_ppo:
+    kind: mimic
+    asset: mimic/posture_stand_to_prone_blender_ver2_1x_ppo
+    motion: stand_to_prone_blender_ver2_1x_hold3s_50hz.csv
+    fps: 50
+    time_start: 0.0
+    time_end: auto
+    on_complete: stay
+  mimic_posture_prone_to_stand_blender_ver2_1x_ppo:
+    kind: mimic
+    asset: mimic/posture_prone_to_stand_blender_ver2_1x_ppo
+    motion: prone_to_stand_blender_ver2_1x_hold3s_50hz.csv
+    fps: 50
+    time_start: 0.0
+    time_end: 13.60  # Terminal standing pose starts at 13.50 s; hold for 0.1 s.
+    on_complete: Velocity
+
+# Set false for the legacy single-controller path (including CH8/API).
+group:
+  enabled: true
+  plugin: ai_sapiens_sim2real/RadiomasterPocketTeleopInputPlugin
+  config: teleop/radiomaster_group.yaml
+  timeout: 0.2
+  vel_command_timeout: 0.2
