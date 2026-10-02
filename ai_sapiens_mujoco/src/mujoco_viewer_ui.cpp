@@ -212,7 +212,7 @@ void MujocoViewerUi::render(const mjrContext *) {
         for (size_t i = 0; i < controls_->motions.size(); ++i) {
           const auto & motion = controls_->motions[i];
           const bool running = controls_->mode == motion.name;
-          const bool can_run = controls_->mode == "Velocity" && !controls_->paused;
+          const bool can_run = controls_->can_run_mimic();
           ImGui::PushID(static_cast<int>(i));
           if (running) {
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.18f, 0.42f, 0.24f, 1.0f));
@@ -230,7 +230,7 @@ void MujocoViewerUi::render(const mjrContext *) {
           ImGui::PopID();
         }
         if (controls_->motions.empty()) ImGui::TextDisabled("No mimic motions configured.");
-        ImGui::TextDisabled("Select a motion in Velocity. Stop returns to Velocity.");
+        ImGui::TextWrapped("Run a motion from Walkready, ZeroPose, or Velocity. Stop returns to Velocity.");
       }
       ImGui::EndDisabled();
     } else {

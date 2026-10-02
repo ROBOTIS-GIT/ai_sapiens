@@ -44,7 +44,7 @@ void ViewerTeleop::tick() {
     deferred_ = ViewerUiAction::kNone; state.busy = false;
     state.note = "Start with --sim --gui; waiting for controller";
   } else if (!was_connected) {
-    state.note = "GUI connected. Select Walkready, then Start Velocity.";
+    state.note = "GUI connected. Select Walkready, then run a motion or Start Velocity.";
   }
   if (deferred_ != ViewerUiAction::kNone) {
     if (now - requested_at_ > std::chrono::seconds(3)) {
@@ -102,8 +102,8 @@ void ViewerTeleop::request(ViewerUiAction action) {
       }
       code_ = velocity_; state.note = "Velocity requested"; break;
     case ViewerUiAction::kMimic:
-      if (state.mode != "Velocity" || state.paused) {
-        state.note = "Start Velocity before running a motion"; break;
+      if (!state.can_run_mimic()) {
+        state.note = "Select Walkready and resume simulation before running a motion"; break;
       }
       // An explicit neutral interval re-arms edge-triggered mimic requests.
       neutral_samples_ = 2; pulse_samples_ = 3; code_ = mimic_;

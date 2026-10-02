@@ -63,7 +63,8 @@ public:
     const std::vector<std::string> & controller_joint_names,
     SharedControlData * shared_data,
     MotionPlayback playback,
-    std::string completion_state);
+    std::string completion_state,
+    double transition_duration = 0.0);
 
 protected:
   void on_enter() override;

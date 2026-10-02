@@ -33,6 +33,7 @@ struct MimicBehavior
   float time_start{0.0f};               // absolute motion start time
   std::optional<float> time_end;        // absolute motion end time; nullopt: motion's end
   std::string on_complete{"Velocity"};  // state to hand off to when the window ends
+  double transition_duration{0.0};     // seconds to blend entry targets and PD gains
 };
 
 }  // namespace ai_sapiens_sim2real

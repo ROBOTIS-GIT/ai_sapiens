@@ -173,6 +173,47 @@ void expect_root_config_rejected(const std::string & authority)
 }
 }  // namespace
 
+TEST(RootConfig, ReadsMimicTransitionDefaultOverrideAndRejectsInvalidValues)
+{
+  auto document = YAML::Load(root_config_with_authority(R"(
+authority:
+  api_entry:
+    allowed_from_states: [Damping, Velocity]
+  default_velocity_state: Velocity
+)"));
+  // Resolution only checks asset-file existence; no ONNX is opened in this test.
+  const auto asset = write_temp_config("test asset");
+  for (const auto * behavior : {"velocity_policy", "mimic_run"}) {
+    document["state_behaviors"][behavior]["policy_path"] = asset.string();
+    document["state_behaviors"][behavior]["sim2real_yaml_path"] = asset.string();
+  }
+  document["state_behaviors"]["mimic_run"]["motion_file"] = asset.string();
+  const auto read_duration = [&]() {
+      RootConfig config(write_temp_config(YAML::Dump(document)));
+      for (const auto & behavior : config.policy_behaviors()) {
+        if (behavior.mimic) {return behavior.mimic->transition_duration;}
+      }
+      throw std::runtime_error("Missing mimic behavior");
+    };
+  EXPECT_DOUBLE_EQ(read_duration(), 0.0);
+  document["mimic_defaults"]["transition_duration"] = 1.0;
+  EXPECT_DOUBLE_EQ(read_duration(), 1.0);
+  document["state_behaviors"]["mimic_run"]["transition_duration"] = 0.25;
+  EXPECT_DOUBLE_EQ(read_duration(), 0.25);
+  document["state_behaviors"]["mimic_run"]["transition_duration"] = 0.0;
+  EXPECT_DOUBLE_EQ(read_duration(), 0.0);
+  for (const auto * invalid : {"-1", ".nan", ".inf"}) {
+    document["state_behaviors"]["mimic_run"]["transition_duration"] = YAML::Load(invalid);
+    try {
+      static_cast<void>(read_duration());
+      FAIL() << "Accepted transition_duration=" << invalid;
+    } catch (const std::runtime_error & error) {
+      EXPECT_NE(std::string(error.what()).find("mimic_run.transition_duration"), std::string::npos);
+    }
+  }
+  std::filesystem::remove(asset);
+}
+
 
 TEST(RootConfig, ReadsAuthorityConfig)
 {

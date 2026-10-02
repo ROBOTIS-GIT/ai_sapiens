@@ -33,8 +33,37 @@ TEST(ViewerTeleop, CommandsRearmMimicAndResetWaitsForDamping)
   pump("Damping",500);
   ASSERT_TRUE(bridge.state.connected);
   ASSERT_FALSE(received.empty()); EXPECT_EQ(received.back().input_code,1);
+  received.clear(); bridge.request(ViewerUiAction::kMimic);pump("Damping",350);
+  ASSERT_FALSE(received.empty());
+  for (const auto & msg : received) EXPECT_EQ(msg.input_code,1);
   bridge.request(ViewerUiAction::kReadyPose);pump("ReadyPose",150);
   EXPECT_EQ(received.back().input_code,2);
+  // Posture states must start the selected motion without a Velocity tick.
+  const auto motion_code = bridge.state.motions[bridge.state.selected_motion].code;
+  for (const auto * mode : {"ReadyPose", "ZeroPose"}) {
+    pump(mode,100);
+    ASSERT_TRUE(bridge.state.can_run_mimic());
+    received.clear(); bridge.request(ViewerUiAction::kMimic);pump(mode,450);
+    ASSERT_GE(received.size(),6u);
+    EXPECT_EQ(received.front().input_code,0);
+    bool saw_mimic = false;
+    for (const auto & msg : received) {
+      EXPECT_TRUE(msg.input_code == 0 || msg.input_code == 4);
+      EXPECT_EQ(msg.selector_code,motion_code);
+      EXPECT_FLOAT_EQ(msg.linear_x,0);
+      EXPECT_FLOAT_EQ(msg.linear_y,0);
+      EXPECT_FLOAT_EQ(msg.angular_z,0);
+      if (msg.input_code == 4) saw_mimic = true;
+    }
+    EXPECT_TRUE(saw_mimic);
+    EXPECT_EQ(received.back().input_code,0);
+  }
+  sim->set_paused(true);pump("ReadyPose",100);
+  EXPECT_FALSE(bridge.state.can_run_mimic());
+  received.clear(); bridge.request(ViewerUiAction::kMimic);pump("ReadyPose",350);
+  ASSERT_FALSE(received.empty());
+  for (const auto & msg : received) EXPECT_EQ(msg.input_code,0);
+  sim->set_paused(false);pump("ReadyPose",100);
   bridge.request(ViewerUiAction::kVelocity);pump("Velocity",150);
   bridge.state.velocity[0]=2.0;bridge.state.velocity[1]=-0.4;
   pump("Velocity",100);

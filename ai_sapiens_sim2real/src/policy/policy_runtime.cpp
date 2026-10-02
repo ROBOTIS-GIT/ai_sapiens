@@ -51,7 +51,8 @@ PolicyRuntime::PolicyRuntime(
   const Sim2RealConfig & sim2real_config,
   const std::vector<std::string> & controller_joint_names,
   SharedControlData * shared_data,
-  const MotionReference * reference_motion)
+  const MotionReference * reference_motion,
+  double transition_duration)
 : sensors_(&shared_data->sensors)
   , policy_(&shared_data->policy)
   , requests_(&shared_data->requests)
@@ -63,8 +64,15 @@ PolicyRuntime::PolicyRuntime(
   , state_name_(std::move(state_name))
   , model_path_(std::move(model_path))
   , sim2real_config_path_(sim2real_config.path())
+  , transition_duration_(transition_duration)
 {
+  if (!std::isfinite(transition_duration_) || transition_duration_ < 0.0) {
+    throw std::runtime_error("transition_duration must be finite and non-negative");
+  }
   load_sim2real_config(sim2real_config, controller_joint_names);
+  if (transition_duration_ > 0.0) {
+    entry_joints_.resize(joint_context_.policy_joint_names.size());
+  }
   log_joint_coverage(controller_joint_names);
   log_loading();
   load_onnx_model();
@@ -86,7 +94,16 @@ void PolicyRuntime::reset()
 
 void PolicyRuntime::enter()
 {
+  transition_elapsed_ = 0.0;
+  transition_active_ = transition_duration_ > 0.0;
+  for (size_t i = 0; i < entry_joints_.size(); ++i) {
+    const auto controller = joint_context_.policy_to_controller[i];
+    const float position = sensors_->joint_pos[controller];
+    entry_joints_[i] = {position, output_->stiffness[controller],
+      output_->damping[controller], position};
+  }
   install_joint_properties();
+  apply_entry_transition();
   install_velocity_command_ranges();
   reset_episode_state();
   on_enter();
@@ -166,6 +183,38 @@ void PolicyRuntime::advance_clocks()
 
 void PolicyRuntime::update(const rclcpp::Duration & period)
 {
+  update_policy(period);
+  apply_entry_transition();
+  // Apply alpha=0 on the first tick and alpha=1 before retiring the transition.
+  if (transition_active_) {
+    if (transition_elapsed_ >= transition_duration_) {
+      transition_active_ = false;
+    } else {
+      transition_elapsed_ = std::min(
+        transition_duration_, transition_elapsed_ + std::max(0.0, period.seconds()));
+    }
+  }
+}
+
+void PolicyRuntime::apply_entry_transition()
+{
+  if (!transition_active_) {return;}
+  const double phase = std::clamp(transition_elapsed_ / transition_duration_, 0.0, 1.0);
+  const float alpha = static_cast<float>(0.5 * (1.0 - std::cos(3.141592653589793 * phase)));
+  const auto blend = [alpha](float start, float target) {
+      return start + alpha * (target - start);
+    };
+  for (size_t i = 0; i < entry_joints_.size(); ++i) {
+    const auto controller = joint_context_.policy_to_controller[i];
+    const auto & entry = entry_joints_[i];
+    output_->processed_action[controller] = blend(entry.position, entry.target);
+    output_->stiffness[controller] = blend(entry.kp, joint_properties_.stiffness[i]);
+    output_->damping[controller] = blend(entry.kd, joint_properties_.damping[i]);
+  }
+}
+
+void PolicyRuntime::update_policy(const rclcpp::Duration & period)
+{
   if (!advance_policy_tick(period)) {
     return;
   }
@@ -187,7 +236,16 @@ void PolicyRuntime::update(const rclcpp::Duration & period)
   if (const auto raw_action = run_policy_inference()) {
     const auto processed_action = process_action(*raw_action);
     if (write_processed_action(*raw_action, processed_action) && adapter_) {
-      commit_adapter_history(processed_action);
+      if (transition_active_) {
+        // Adapter history records motor targets actually issued during entry.
+        auto commanded = processed_action;
+        for (size_t i = 0; i < commanded.size(); ++i) {
+          commanded[i] = output_->processed_action[joint_context_.policy_to_controller[i]];
+        }
+        commit_adapter_history(commanded);
+      } else {
+        commit_adapter_history(processed_action);
+      }
     }
   }
 
@@ -431,7 +489,11 @@ bool PolicyRuntime::write_processed_action(
   {
     const size_t controller_index = joint_context_.policy_to_controller[policy_index];
     output_->processed_action[controller_index] = processed_action[policy_index];
+    if (transition_active_) {
+      entry_joints_[policy_index].target = processed_action[policy_index];
+    }
   }
+  apply_entry_transition();
 
   // The buffer is controller-sized; this policy uses the first joint_names.size() slots.
   std::copy(raw_action.begin(), raw_action.end(), policy_->last_action.begin());

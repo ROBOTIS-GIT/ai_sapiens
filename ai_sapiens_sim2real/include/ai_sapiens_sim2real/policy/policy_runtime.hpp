@@ -66,7 +66,8 @@ public:
     const Sim2RealConfig & sim2real_config,
     const std::vector<std::string> & controller_joint_names,
     SharedControlData * shared_data,
-    const MotionReference * reference_motion = nullptr);
+    const MotionReference * reference_motion = nullptr,
+    double transition_duration = 0.0);
   virtual ~PolicyRuntime();
 
   void reset();
@@ -131,6 +132,8 @@ private:
 
   // RT update helpers keep PolicyRuntime::update at one abstraction level.
   bool advance_policy_tick(const rclcpp::Duration & period);
+  void update_policy(const rclcpp::Duration & period);
+  void apply_entry_transition();
   // Applies the active policy's velocity-command range before observation.
   void resolve_active_velocity_command();
   void compute_observation();
@@ -169,6 +172,15 @@ private:
   PolicyJointContext joint_context_;
   JointProperties joint_properties_;
   ActionPipeline action_pipeline_;
+  // Entry snapshots and validated targets, in policy joint order.
+  struct EntryJoint
+  {
+    float position{}, kp{}, kd{}, target{};
+  };
+  std::vector<EntryJoint> entry_joints_;
+  double transition_duration_{0.0};
+  double transition_elapsed_{0.0};
+  bool transition_active_{false};
 
   std::unique_ptr<OnnxInference> inference_;
   std::unique_ptr<ObservationManager> obs_manager_;

@@ -156,6 +156,21 @@ marking the teleop input unavailable. `teleop_input.timeout` triggers the full
 input-loss failsafe. The velocity timeout must not exceed the input timeout; when
 it is omitted, it inherits the input timeout for backward compatibility.
 
+### Mimic entry transition
+
+A mimic behavior may set `transition_duration: 1.0` to blend measured joint
+positions and the previous behavior's PD gains into the policy's targets and
+gains over one second, using a half-cosine curve. The default is `0.0` (immediate
+entry); a behavior overrides `mimic_defaults.transition_duration`. Values must
+be finite and non-negative.
+
+Blending runs at the control rate while inference and reference-motion playback
+continue normally from `time_start`. It applies on every entry into that mimic,
+including re-entry, and only to its controlled joints. The raw policy target
+still passes action-limit validation before blending. Leaving the state or
+entering Damping immediately stops using its transition. This option does not
+change `posture.duration`, and does not delay the start of the motion itself.
+
 ### Policy assets
 
 An `asset` entry is resolved below each `policy_asset_roots` directory:

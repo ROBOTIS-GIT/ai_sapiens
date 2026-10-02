@@ -72,6 +72,11 @@ struct ViewerControlState {
   std::vector<ViewerPolicyOption> motions;
   int selected_motion{0};
   float velocity[3]{0, 0, 0};  // Normalized commands, as with keyboard teleop.
+
+  bool can_run_mimic() const {
+    return connected && !paused && !busy &&
+      (mode == "ReadyPose" || mode == "ZeroPose" || mode == "Velocity");
+  }
 };
 
 /// Dear ImGui shell matching the robotis_mujoco viewer.

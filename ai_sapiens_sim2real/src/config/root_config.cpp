@@ -259,6 +259,12 @@ MimicBehavior RootConfig::build_mimic_behavior(
   mimic.time_start = node["time_start"] ? node["time_start"].as<float>() : 0.0f;
   mimic.time_end = read_mimic_time_end(node);
   mimic.on_complete = read_mimic_on_complete(node);
+  mimic.transition_duration =
+    node["transition_duration"] ? node["transition_duration"].as<double>() : 0.0;
+  if (!std::isfinite(mimic.transition_duration) || mimic.transition_duration < 0.0) {
+    throw std::runtime_error(
+      "state_behaviors." + name + ".transition_duration must be finite and non-negative");
+  }
 
   if (!mimic.on_complete.empty() && mimic.on_complete != "stay") {
     require_known_mimic_completion_state(mimic.on_complete, name);
@@ -321,6 +327,9 @@ YAML::Node RootConfig::behavior_node_with_mimic_defaults(
   }
   if (!node["on_complete"] && defaults["on_complete"]) {
     node["on_complete"] = defaults["on_complete"].as<std::string>();
+  }
+  if (!node["transition_duration"] && defaults["transition_duration"]) {
+    node["transition_duration"] = defaults["transition_duration"].as<double>();
   }
 
   return node;
