@@ -79,6 +79,7 @@ hardware_interface::CallbackReturn MujocoSystem::on_init(
     RCLCPP_FATAL(get_logger(), "Missing required hardware parameter 'scene_file'");
     return hardware_interface::CallbackReturn::ERROR;
   }
+  depth_policy_yaml_ = get_param(hw_params, "depth_policy_yaml", "");
   viewer_enabled_ = parse_bool(get_param(hw_params, "viewer", "false"));
   gantry_enabled_ = parse_bool(get_param(hw_params, "gantry", "true"));
 
@@ -114,6 +115,9 @@ hardware_interface::CallbackReturn MujocoSystem::on_init(
   sim_ = std::make_shared<MujocoSimulation>();
   try {
     sim_->load(scene_file, joint_names_);
+    if (parse_bool(get_param(hw_params, "parkour_physics", "false"))) {
+      sim_->configure_parkour_physics();
+    }
   } catch (const std::exception & e) {
     RCLCPP_FATAL(get_logger(), "Failed to load MuJoCo scene: %s", e.what());
     return hardware_interface::CallbackReturn::ERROR;
@@ -142,10 +146,16 @@ hardware_interface::CallbackReturn MujocoSystem::on_activate(
     viewer_ = std::make_unique<MujocoViewer>(sim_);
     viewer_->start();
   }
-  if (sim_->gantry_present() && rclcpp::ok()) {
-    gantry_node_ = std::make_shared<GantryServiceNode>(sim_);
+  if ((sim_->gantry_present() || !depth_policy_yaml_.empty()) && rclcpp::ok()) {
     gantry_executor_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
-    gantry_executor_->add_node(gantry_node_);
+    if (sim_->gantry_present()) {
+      gantry_node_ = std::make_shared<GantryServiceNode>(sim_);
+      gantry_executor_->add_node(gantry_node_);
+    }
+    if (!depth_policy_yaml_.empty()) {
+      depth_node_ = std::make_shared<DepthCameraNode>(sim_, depth_policy_yaml_);
+      gantry_executor_->add_node(depth_node_);
+    }
     gantry_thread_ = std::thread([executor = gantry_executor_] {executor->spin();});
   }
   return hardware_interface::CallbackReturn::SUCCESS;
@@ -221,6 +231,7 @@ void MujocoSystem::stop_gantry_services()
   }
   gantry_executor_.reset();
   gantry_node_.reset();
+  depth_node_.reset();
 }
 
 }  // namespace mujoco_hardware_interface

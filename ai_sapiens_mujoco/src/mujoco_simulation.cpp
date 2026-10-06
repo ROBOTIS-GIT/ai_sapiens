@@ -166,6 +166,34 @@ void MujocoSimulation::load(
   }
 }
 
+void MujocoSimulation::configure_parkour_physics()
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (!model_ || data_->time != 0) {
+    throw std::logic_error("Configure Parkour physics before stepping");
+  }
+  model_->opt.timestep = 0.0025;
+  for (int g = 0; g < model_->ngeom; ++g) {
+    if (model_->geom_contype[g] == 0 && model_->geom_conaffinity[g] == 0) {continue;}
+    model_->geom_friction[3 * g] = 0.8;
+    model_->geom_friction[3 * g + 1] = 0.02;
+    model_->geom_friction[3 * g + 2] = 0.001;
+    // Preserve model margins: expanding contacts by 5 mm causes foot sliding
+    // when the gantry lowers the robot onto the ground in ReadyPose.
+    model_->geom_solref[mjNREF * g] = 0.005;
+    model_->geom_solref[mjNREF * g + 1] = 1;
+    model_->geom_solimp[mjNIMP * g] = 0.95;
+    model_->geom_solimp[mjNIMP * g + 1] = 0.99;
+    model_->geom_solimp[mjNIMP * g + 2] = 0.001;
+  }
+  for (int j = 0; j < model_->njnt; ++j) {
+    if (model_->jnt_type[j] == mjJNT_HINGE) {
+      model_->dof_armature[model_->jnt_dofadr[j]] = 0.01;
+    }
+  }
+  mj_forward(model_, data_);
+}
+
 void MujocoSimulation::set_hang_height(double pelvis_z)
 {
   std::lock_guard<std::mutex> lock(mutex_);

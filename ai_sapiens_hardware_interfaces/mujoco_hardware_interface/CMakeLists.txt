@@ -13,8 +13,11 @@ find_package(rclcpp_lifecycle REQUIRED)
 find_package(ai_sapiens_mujoco REQUIRED)
 find_package(ai_sapiens_interfaces REQUIRED)
 find_package(std_srvs REQUIRED)
+find_package(ai_sapiens_depth REQUIRED)
+find_package(sensor_msgs REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED
+  src/depth_camera_node.cpp
   src/gantry_service_node.cpp
   src/mujoco_hardware_interface.cpp
 )
@@ -31,6 +34,8 @@ ament_target_dependencies(${PROJECT_NAME}
   ai_sapiens_mujoco
   ai_sapiens_interfaces
   std_srvs
+  ai_sapiens_depth
+  sensor_msgs
 )
 
 pluginlib_export_plugin_description_file(
@@ -65,5 +70,7 @@ ament_export_dependencies(
   ai_sapiens_mujoco
   ai_sapiens_interfaces
   std_srvs
+  ai_sapiens_depth
+  sensor_msgs
 )
 ament_package()

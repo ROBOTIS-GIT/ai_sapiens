@@ -73,6 +73,8 @@ void PolicyController::update(
     return;
   }
 
+  if (!runtime->inputs_ready()) {return;}
+
   // The mode controller bumps mode.transition_count on every committed
   // transition; if one happened since our last enter, the active runtime
   // must start a fresh policy episode before it can update.

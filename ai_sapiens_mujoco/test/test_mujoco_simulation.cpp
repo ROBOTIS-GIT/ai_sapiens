@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <limits>
@@ -380,4 +381,103 @@ int main(int argc, char ** argv)
 {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
+}
+
+TEST(MujocoSimulation, ParkourProfileIsExplicitAndPreservesForceLimits)
+{
+  MujocoSimulation sim;
+  sim.load(scene("scene.xml"), kJoints);
+  const auto * model = sim.model();
+  const std::vector<mjtNum> margins(model->geom_margin, model->geom_margin + model->ngeom);
+  sim.configure_parkour_physics();
+  for (int g = 0; g < model->ngeom; ++g) {
+    EXPECT_DOUBLE_EQ(model->geom_margin[g], margins[g]);
+  }
+  EXPECT_DOUBLE_EQ(model->opt.timestep, 0.0025);
+  for (const auto & name : kJoints) {
+    const int j = mj_name2id(model, mjOBJ_JOINT, name.c_str());
+    EXPECT_DOUBLE_EQ(model->dof_armature[model->jnt_dofadr[j]], 0.01);
+    const int a = mj_name2id(model, mjOBJ_ACTUATOR, (name + "_motor").c_str());
+    EXPECT_EQ(model->actuator_ctrllimited[a], 0);
+    EXPECT_EQ(model->actuator_forcelimited[a], 1);
+  }
+  const int floor = mj_name2id(model, mjOBJ_GEOM, "floor");
+  ASSERT_GE(floor, 0);
+  EXPECT_DOUBLE_EQ(model->geom_friction[3 * floor], 0.8);
+  sim.advance(0.0025);
+  EXPECT_THROW(sim.configure_parkour_physics(), std::logic_error);
+}
+
+TEST(MujocoSimulation, ParkourReadyPoseDoesNotSlideWhenGantryIsLowered)
+{
+  // K1 ReadyPose positions and gains, in kJoints order. Exercise contact with
+  // the floor, not just a suspended robot whose feet never carry load.
+  const std::array<double, 23> position = {
+    -0.18, 0, 0, 0.36, -0.18, 0, -0.18, 0, 0, 0.36, -0.18, 0, 0,
+    0.2, 0.25, 0, 0.95, 0.15, 0.2, -0.25, 0, 0.95, -0.15};
+  const std::array<double, 23> kp = {
+    100, 100, 100, 150, 40, 40, 100, 100, 100, 150, 40, 40, 200,
+    40, 40, 40, 40, 40, 40, 40, 40, 40, 40};
+  const std::array<double, 23> kd = {
+    2, 2, 2, 4, 2, 2, 2, 2, 2, 4, 2, 2, 5,
+    10, 10, 10, 10, 10, 10, 10, 10, 10, 10};
+
+  for (double lowering : {0.14, 0.18, 0.22}) {
+    SCOPED_TRACE(lowering);
+    MujocoSimulation sim;
+    sim.load(scene("scene_gantry.xml"), kJoints);
+    sim.configure_parkour_physics();
+    sim.set_hang_height(0.90);
+    const auto * model = sim.model();
+    auto * data = sim.data();
+    const int floor = mj_name2id(model, mjOBJ_GEOM, "floor");
+    ASSERT_GE(floor, 0);
+    std::vector<mjtNum> jacobian(3 * model->nv);
+    double slip_sum = 0.0;
+    size_t loaded_contacts = 0;
+
+    for (int tick = 0; tick < 14000; ++tick) {
+      const double progress = std::min(1.0, tick * 0.001 / 3.0);
+      for (size_t j = 0; j < kJoints.size(); ++j) {
+        sim.set_command(j, {position[j] * progress, 0.0, kp[j], kd[j]});
+      }
+      if (tick == 4000) {
+        ASSERT_TRUE(sim.gantry_set_target(sim.gantry_height() - lowering, 0.05));
+      }
+      sim.advance(0.001);
+      if (tick < 4500 || tick % 10 != 0) {continue;}
+
+      for (int c = 0; c < data->ncon; ++c) {
+        const auto & contact = data->contact[c];
+        const int other = contact.geom[0] == floor ? contact.geom[1] :
+          (contact.geom[1] == floor ? contact.geom[0] : -1);
+        if (other < 0) {continue;}
+        const char * name = mj_id2name(model, mjOBJ_GEOM, other);
+        if (!name || std::string(name).find("ankle_roll_link_collision") == std::string::npos) {
+          continue;
+        }
+        mjtNum force[6];
+        mj_contactForce(model, data, c, force);
+        if (force[0] < 5.0) {continue;}
+        mj_jac(model, data, jacobian.data(), nullptr, contact.pos, model->geom_bodyid[other]);
+        double normal_velocity = 0.0, squared_velocity = 0.0;
+        for (int axis = 0; axis < 3; ++axis) {
+          double velocity = 0.0;
+          for (int dof = 0; dof < model->nv; ++dof) {
+            velocity += jacobian[axis * model->nv + dof] * data->qvel[dof];
+          }
+          normal_velocity += velocity * contact.frame[axis];
+          squared_velocity += velocity * velocity;
+        }
+        const double slip = std::sqrt(
+          std::max(0.0, squared_velocity - normal_velocity * normal_velocity));
+        ASSERT_TRUE(std::isfinite(slip));
+        slip_sum += slip;
+        ++loaded_contacts;
+      }
+    }
+    ASSERT_GT(loaded_contacts, 100U);
+    // The 5 mm margin regression produces >0.25 m/s mean slip here.
+    EXPECT_LT(slip_sum / loaded_contacts, 0.01);
+  }
 }

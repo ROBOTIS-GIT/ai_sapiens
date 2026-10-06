@@ -14,6 +14,7 @@
   <depend>ai_sapiens_interfaces</depend>
   <depend>ament_index_cpp</depend>
   <depend>rclcpp</depend>
+  <depend>ai_sapiens_depth</depend>
   <depend>realtime_tools</depend>
   <depend>sensor_msgs</depend>
   <depend>geometry_msgs</depend>

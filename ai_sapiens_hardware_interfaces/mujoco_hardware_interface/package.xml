@@ -13,6 +13,8 @@
   <depend>hardware_interface</depend>
   <depend>pluginlib</depend>
   <depend>rclcpp</depend>
+  <depend>ai_sapiens_depth</depend>
+  <depend>sensor_msgs</depend>
   <depend>rclcpp_lifecycle</depend>
   <depend>ai_sapiens_mujoco</depend>
   <depend>ai_sapiens_interfaces</depend>

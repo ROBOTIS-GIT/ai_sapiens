@@ -27,6 +27,10 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     declared_arguments = [
+        DeclareLaunchArgument('depth_policy_yaml', default_value='',
+                              description='Enable virtual depth using this policy YAML.'),
+        DeclareLaunchArgument('parkour_physics', default_value='false',
+                              description='Use 2.5 ms physics and 0.01 joint armature.'),
         DeclareLaunchArgument('start_rviz', default_value='false',
                               description='Whether to execute rviz2'),
         DeclareLaunchArgument('model', default_value='k1_rev1',
@@ -60,6 +64,10 @@ def generate_launch_description():
         'sim_mujoco:=true',
         ' ',
         'mujoco_viewer:=', LaunchConfiguration('mujoco_viewer'),
+        ' ',
+        'depth_policy_yaml:=', LaunchConfiguration('depth_policy_yaml'),
+        ' ',
+        'parkour_physics:=', LaunchConfiguration('parkour_physics'),
         ' ',
         'mujoco_gantry:=', LaunchConfiguration('mujoco_gantry'),
         ' ',

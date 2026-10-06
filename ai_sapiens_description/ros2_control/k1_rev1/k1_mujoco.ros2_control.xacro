@@ -2,7 +2,7 @@
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
   <xacro:macro
     name="k1_mujoco_system"
-    params="viewer:=^|true gantry:=^|true">
+    params="viewer:=^|true gantry:=^|true depth_policy_yaml:='' parkour_physics:=false">
     <ros2_control name="k1_mujoco" type="system">
       <hardware>
         <plugin>mujoco_hardware_interface/MujocoSystem</plugin>
@@ -12,6 +12,8 @@
         <xacro:unless value="${gantry}">
           <param name="scene_file">$(find ai_sapiens_description)/mujoco/k1/scene.xml</param>
         </xacro:unless>
+        <param name="depth_policy_yaml">${depth_policy_yaml}</param>
+        <param name="parkour_physics">${parkour_physics}</param>
         <param name="viewer">${viewer}</param>
         <param name="gantry">${gantry}</param>
         <param name="hang_height">0.90</param>

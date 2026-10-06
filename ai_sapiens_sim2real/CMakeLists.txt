@@ -13,6 +13,7 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(ai_sapiens_depth REQUIRED)
 find_package(realtime_tools REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
@@ -73,6 +74,7 @@ add_executable(ai_sapiens_sim2real_node
   src/policy/policy_runtime.cpp
   src/config/root_config.cpp
   src/sensor_handles/api_heartbeat_handle.cpp
+  src/sensor_handles/depth_sensor_handle.cpp
   src/sensor_handles/imu_sensor_handle.cpp
   src/sensor_handles/joint_states_sensor_handle.cpp
   src/sensor_handles/teleop_input_handle.cpp
@@ -81,6 +83,7 @@ add_executable(ai_sapiens_sim2real_node
 )
 
 ament_target_dependencies(ai_sapiens_sim2real_node
+  ai_sapiens_depth
   rclcpp
   realtime_tools
   sensor_msgs
@@ -263,6 +266,19 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 
   find_package(ament_cmake_gtest REQUIRED)
+
+  ament_add_gtest(test_depth_sensor_handle test/test_depth_sensor_handle.cpp
+    src/sensor_handles/depth_sensor_handle.cpp)
+  ament_target_dependencies(test_depth_sensor_handle rclcpp realtime_tools ai_sapiens_depth)
+  target_link_libraries(test_depth_sensor_handle Eigen3::Eigen yaml-cpp)
+
+  ament_add_gtest(test_parkour_observations test/test_parkour_observations.cpp
+    src/config/sim2real_config.cpp src/config/config_utils.cpp
+    src/observation/observations.cpp src/observation/observation_manager.cpp
+    src/policy/motion_reference.cpp src/policy/onnx_inference.cpp)
+  target_link_libraries(test_parkour_observations yaml-cpp Eigen3::Eigen ${ONNXRUNTIME_LIBRARY})
+  target_compile_definitions(test_parkour_observations PRIVATE
+    PARKOUR_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/k1/locomotion/velocity/parkour")
 
   # RealtimeRequestGate: accept/consume/discard/busy semantics (header-only).
   ament_add_gtest(test_request_gate test/test_request_gate.cpp)

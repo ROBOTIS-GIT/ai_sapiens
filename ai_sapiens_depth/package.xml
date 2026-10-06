@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>ai_sapiens_depth</name><version>0.2.2</version>
+  <description>Shared calibrated depth preprocessing and policy history.</description>
+  <maintainer email="jhkim@robotis.com">Jihun Kim</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>rclcpp</depend><depend>sensor_msgs</depend><depend>yaml-cpp</depend>
+  <depend>ai_sapiens_interfaces</depend>
+  <test_depend>ament_cmake_gtest</test_depend>
+  <export><build_type>ament_cmake</build_type></export>
+</package>

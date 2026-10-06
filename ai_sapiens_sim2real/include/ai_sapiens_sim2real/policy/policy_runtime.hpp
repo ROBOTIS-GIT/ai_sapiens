@@ -44,6 +44,7 @@ namespace ai_sapiens_sim2real
 {
 
 class OnnxInference;
+class DepthSensorHandle;
 
 /**
  * @brief A policy state: observe, run inference, and scatter the resulting
@@ -71,6 +72,7 @@ public:
 
   void reset();
   void enter();
+  bool inputs_ready();
   void update(const rclcpp::Duration & period);
   const std::string & state_name() const;
   size_t observation_size() const
@@ -149,6 +151,7 @@ private:
   JointProperties joint_properties_;
   ActionPipeline action_pipeline_;
 
+  std::unique_ptr<DepthSensorHandle> depth_sensor_;
   std::unique_ptr<OnnxInference> inference_;
   std::unique_ptr<ObservationManager> obs_manager_;
   // Set only when this policy declares a gait_phase observation.

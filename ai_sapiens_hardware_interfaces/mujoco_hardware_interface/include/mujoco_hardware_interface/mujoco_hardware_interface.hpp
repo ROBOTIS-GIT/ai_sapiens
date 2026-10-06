@@ -29,6 +29,7 @@
 #include "ai_sapiens_mujoco/mujoco_simulation.hpp"
 #include "ai_sapiens_mujoco/mujoco_viewer.hpp"
 #include "mujoco_hardware_interface/gantry_service_node.hpp"
+#include "mujoco_hardware_interface/depth_camera_node.hpp"
 
 namespace mujoco_hardware_interface
 {
@@ -74,6 +75,8 @@ private:
   std::vector<std::string> pos_cmd_, ff_cmd_, kp_cmd_, kd_cmd_;
   // Gantry ROS services (spun in a dedicated thread while active).
   std::shared_ptr<GantryServiceNode> gantry_node_;
+  std::string depth_policy_yaml_;
+  std::shared_ptr<DepthCameraNode> depth_node_;
   std::shared_ptr<rclcpp::executors::SingleThreadedExecutor> gantry_executor_;
   std::thread gantry_thread_;
   // Interactive viewer (started in on_activate when viewer_enabled_).

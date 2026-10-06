@@ -6,6 +6,8 @@
   <xacro:arg name="prefix" default="" />
   <xacro:arg name="model" default="k1_rev1" />
   <xacro:arg name="sim_mujoco" default="false" />
+  <xacro:arg name="depth_policy_yaml" default="" />
+  <xacro:arg name="parkour_physics" default="false" />
   <xacro:arg name="mujoco_viewer" default="true" />
   <xacro:arg name="mujoco_gantry" default="true" />
   <xacro:arg name="radiomaster_usb" default="false" />
@@ -21,7 +23,9 @@
   <xacro:if value="$(arg sim_mujoco)">
     <xacro:k1_mujoco_system
       viewer="$(arg mujoco_viewer)"
-      gantry="$(arg mujoco_gantry)"/>
+      gantry="$(arg mujoco_gantry)"
+      depth_policy_yaml="$(arg depth_policy_yaml)"
+      parkour_physics="$(arg parkour_physics)"/>
     <xacro:if value="$(arg radiomaster_usb)">
       <xacro:k1_radiomaster_usb_system
         device="$(arg radiomaster_usb_device)"/>

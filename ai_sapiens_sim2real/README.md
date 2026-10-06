@@ -338,3 +338,109 @@ The `mode_runtime` directory contains focused state-machine, authority runtime,
 and startup helpers.
 `SharedControlData` is the explicit data boundary between callbacks, mode
 selection, policy execution, and command publication.
+
+## Parkour with virtual or physical D436 depth
+
+For local Parkour use, set `state_behaviors.velocity_policy.asset` in
+`config/k1_config.yaml` to `locomotion/velocity/parkour`. Keep this local config
+change out of commits; the shared default remains `walk_default`. `--parkour`
+starts the depth pipeline and enables the simulation physics profile. Both it
+and `k1_parkour.launch.py` use the existing root config without overriding the
+policy selection or creating another config file.
+Policy assets are managed outside Git. Place the deployment bundle in
+`assets/k1/locomotion/velocity/parkour`, with the ONNX and YAML copied from
+`opencode_reference/robotis_mujoco/policy/Velocity/Parkour`; no motion/reference
+files are required. Its ONNX SHA256 is
+`5997032fe838a983069356632e32a10b8ed60a3d448fc13106f36545ca7a2739`.
+This identifies the supplied export, not a claim about the latest training run.
+
+Build the new depth package together with the controller and simulation:
+
+```bash
+cd /root/ros2_ws
+colcon build --packages-up-to ai_sapiens_sim2real mujoco_hardware_interface ai_sapiens_bringup ai_sapiens_description
+source install/setup.bash
+cd src/ai_sapiens
+./run_k1_tmux.sh --sim --parkour --dualsense
+# Or: ./run_k1_tmux.sh --sim --parkour --keyboard
+```
+
+Use ReadyPose first, then Velocity to run Parkour. The existing gantry controls
+still apply. This starts the existing flat scene; it does not port the old
+terrain-editing GUI or certify obstacle traversal. The optional Parkour physics
+profile uses 2.5 ms steps, 0.01 hinge armature and the reference simulation's
+friction and contact-response tuning, preserving model contact margins and
+actuator force limits. A 5 mm margin override caused foot sliding when lowering
+the gantry in ReadyPose and is deliberately not applied. Other launches keep their
+original dynamics. K1 geometry/inertial properties still come from this repo.
+
+For separate terminals, start the shared stack with:
+
+```bash
+ros2 launch ai_sapiens_sim2real k1_parkour.launch.py sim:=true teleop:=keyboard
+# In a second terminal:
+ros2 run ai_sapiens_sim2real keyboard_teleop_node --ros-args \
+  -p root_config_path:="$(ros2 pkg prefix --share ai_sapiens_sim2real)/config/k1_config.yaml"
+```
+
+With `teleop:=dualsense`, run `run_dualsense_teleop.sh` in the second terminal,
+passing the same `--ros-args -p root_config_path:=...`. The launch itself does not
+start an interactive teleop terminal. `viewer:=false` supports headless simulation.
+
+For real deployment, start the existing real K1 bringup and the D436 driver
+separately, then connect their depth stream to the same controller:
+
+```bash
+ros2 launch ai_sapiens_sim2real k1_parkour.launch.py \
+  sim:=false teleop:=dualsense \
+  depth_topic:=/camera/camera/depth/image_rect_raw \
+  camera_info_topic:=/camera/camera/depth/camera_info \
+  depth_frame:=camera_depth_optical_frame \
+  uint16_depth_scale:=0.001 \
+  command_publisher_enabled:=false
+```
+
+The topic/frame names above are examples: use the actual driver values.
+`command_publisher_enabled:=false` permits input/inference inspection without
+joint command publication. Enable commands only for the intended hardware test.
+A physical camera, its driver and calibration are not installed or launched by
+this package. Both source adapters feed the same depth processor and ONNX.
+
+The physical stream must be rectified image-plane depth with matching
+`CameraInfo.P`, dimensions and optical frame. `32FC1` is metres; `16UC1` uses the
+explicit `uint16_depth_scale` (0.001 only when samples are millimetres). Do not use
+RGB-aligned depth as a substitute for the training camera. CameraInfo determines
+sampling rays for the exported 87 x 58 degree field of view; insufficient coverage
+is rejected rather than filled with invented out-of-view depths. Match the
+physical mount to YAML's torso-relative position and rotation. The YAML mount
+uses x-forward/y-left/z-up convention; a ROS optical frame uses
+x-right/y-down/z-forward. This node does not estimate or correct a wrong mount.
+
+The common processor clips/normalizes 0.2--2.5 m, crops 64x36 to 32x18, applies
+a 3x3 Gaussian with replicated borders, and assembles eight oldest-to-newest
+frames spanning nominally 700 ms. Simulation selects every fifth captured frame,
+with a 0--1-frame delay, matching `robotis_mujoco`. This uses frame indices so
+ROS timestamp jitter cannot select an extra-old frame or move the latest image
+backwards. Physical input selects by acquisition timestamp at 100 ms intervals,
+so a different camera rate does not change the requested history time span.
+Initial history repeats the first actual sample; time reversal and gaps over
+100 ms clear history. Simulated
+invalid rays become the far plane; physical holes use nearest-valid inpainting,
+falling back to the far plane if no valid pixels exist. Only simulation adds the
+export's 0--1 tick sampled delay; physical latency is not duplicated.
+
+`/k1/d436/depth_history` uses `ai_sapiens_interfaces/msg/DepthHistory`, containing
+shape, acquisition stamps and 4,608 normalized values. The policy appends this
+once to the 624 proprioceptive/history values: one `obs` input of 5,232 floats and
+23 output actions. Episode entry warm-fills pre-entry depth slots. Invalid shape,
+frame, pixels, timestamps or a stale stream reject Parkour inference and request
+Damping; depth is not a startup requirement for other behaviors. Virtual ray
+casting uses a private model/state snapshot outside the control thread. Sensor
+receive and source ages are checked independently, and replayed stamps cannot
+refresh the watchdog.
+
+Validation includes depth preprocessing/history tests, real-image unit/endianness
+and camera coverage tests, input order and actual ONNX inference, and depth
+watchdog/episode-reset tests. These do not establish physical balance or terrain
+traversal performance. Test real calibration and timing before enabled hardware
+operation.

@@ -18,6 +18,7 @@
 #define AI_SAPIENS_SIM2REAL__SHARED_CONTROL_DATA_HPP_
 
 #include <atomic>
+#include <array>
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
@@ -62,6 +63,8 @@ struct SensorData
   Eigen::Quaternionf orientation{Eigen::Quaternionf::Identity()};
   Eigen::VectorXf joint_pos;
   Eigen::VectorXf joint_vel;
+  std::array<float, 4608> depth_history{};
+  bool depth_valid{false};
 
   // Project world gravity into the body frame using the current orientation.
   void compute_projected_gravity()

@@ -1,0 +1,21 @@
+<mujocoinclude>
+  <!-- Fixed stairs along +X, starting 1 m ahead of the robot.
+       Four 0.18 m rises, a 0.80 m top landing, then four 0.18 m descents.
+       Tread: 0.40 m; width: 1.20 m; maximum height: 0.72 m.
+       World geoms in group 0 participate in both contacts and depth rays. -->
+  <geom name="stairs_step_1" type="box" pos="1.20 0 0.09" size="0.20 0.60 0.09"
+        group="0" contype="1" conaffinity="1" margin="0" rgba="0.55 0.58 0.62 1"/>
+  <geom name="stairs_step_2" type="box" pos="1.60 0 0.18" size="0.20 0.60 0.18"
+        group="0" contype="1" conaffinity="1" margin="0" rgba="0.65 0.68 0.72 1"/>
+  <geom name="stairs_step_3" type="box" pos="2.00 0 0.27" size="0.20 0.60 0.27"
+        group="0" contype="1" conaffinity="1" margin="0" rgba="0.55 0.58 0.62 1"/>
+  <geom name="stairs_step_4" type="box" pos="2.60 0 0.36" size="0.40 0.60 0.36"
+        group="0" contype="1" conaffinity="1" margin="0" rgba="0.65 0.68 0.72 1"/>
+  <!-- Descend along +X from the landing back to the floor at X=4.20 m. -->
+  <geom name="stairs_step_5" type="box" pos="3.20 0 0.27" size="0.20 0.60 0.27"
+        group="0" contype="1" conaffinity="1" margin="0" rgba="0.55 0.58 0.62 1"/>
+  <geom name="stairs_step_6" type="box" pos="3.60 0 0.18" size="0.20 0.60 0.18"
+        group="0" contype="1" conaffinity="1" margin="0" rgba="0.65 0.68 0.72 1"/>
+  <geom name="stairs_step_7" type="box" pos="4.00 0 0.09" size="0.20 0.60 0.09"
+        group="0" contype="1" conaffinity="1" margin="0" rgba="0.55 0.58 0.62 1"/>
+</mujocoinclude>

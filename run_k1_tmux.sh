@@ -5,6 +5,7 @@ set -e
 
 # Runtime choices
 SIM=false
+PARKOUR=false
 TELEOP="default"
 DEVICE="/dev/input/js0"
 DEVICE_SET=false
@@ -24,6 +25,7 @@ set_teleop() {
 
 usage() {
   echo "Usage: $0 [session_name] [options]"
+  echo "  --parkour              Use Parkour with the shared D436 depth pipeline."
   echo "  --sim                  Use MuJoCo."
   echo "  --radiomaster-usb      Use RadioMaster USB (MuJoCo only)."
   echo "  --dualsense            Use DualSense."
@@ -35,6 +37,7 @@ usage() {
 for arg in "$@"; do
   case "$arg" in
     --sim) SIM=true ;;
+    --parkour) PARKOUR=true ;;
     --radiomaster-usb|--dualsense|--keyboard) set_teleop "${arg#--}" ;;
     --device=*) DEVICE="${arg#*=}"; DEVICE_SET=true ;;
     -h|--help) usage; exit 0 ;;
@@ -96,6 +99,23 @@ case "$TELEOP" in
     ;;
 esac
 
+DEPTH_CMD=""
+if [ "$PARKOUR" = true ]; then
+  share="$(ros2 pkg prefix --share ai_sapiens_sim2real)"
+  policy="$share/assets/k1/locomotion/velocity/parkour/params/sim2real.yaml"
+  printf -v policy_quoted '%q' "$policy"
+  printf -v root_quoted '%q' "$share/config/k1_config.yaml"
+  depth_frame="camera_depth_optical_frame"
+  if [ "$SIM" = true ]; then
+    BRINGUP_CMD+=" depth_policy_yaml:=$policy_quoted parkour_physics:=true"
+    depth_frame="camera_link"
+  fi
+  DEPTH_CMD="sleep 3; ros2 run ai_sapiens_depth depth_history_node --ros-args -p policy_yaml:=$policy_quoted -p simulated:=$SIM -p input_frame:=$depth_frame"
+  if [ -n "$TELEOP_CMD" ]; then
+    TELEOP_CMD+=" --ros-args -p root_config_path:=$root_quoted"
+  fi
+fi
+
 # Keep a pane open when its command exits so its logs remain visible.
 hold_cmd() {
   local cmd="$1"
@@ -103,7 +123,9 @@ hold_cmd() {
 }
 
 add_pane() {
-  tmux split-window -t "$SESSION_NAME" -- "$(hold_cmd "$1")"
+  tmux split-window -d -t "$SESSION_NAME" -- "$(hold_cmd "$1")"
+  # Rebalance after every split so the next pane has room to split again.
+  tmux select-layout -t "$SESSION_NAME" tiled >/dev/null
 }
 
 # Start Zenoh first, then add the K1 processes as tiled panes.
@@ -115,6 +137,9 @@ tmux new-session -d -s "$SESSION_NAME" -- \
 
 add_pane "$BRINGUP_CMD"
 add_pane "$SIM2REAL_CMD"
+if [ -n "$DEPTH_CMD" ]; then
+  add_pane "$DEPTH_CMD"
+fi
 if [ -n "$TELEOP_CMD" ]; then
   add_pane "$TELEOP_CMD"
 fi

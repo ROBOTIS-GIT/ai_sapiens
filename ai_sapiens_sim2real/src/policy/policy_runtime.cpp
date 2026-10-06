@@ -17,6 +17,7 @@
 #include "ai_sapiens_sim2real/policy/policy_runtime.hpp"
 
 #include <cmath>
+#include "ai_sapiens_sim2real/sensor_handles/depth_sensor_handle.hpp"
 
 #include "ai_sapiens_sim2real/policy/onnx_inference.hpp"
 
@@ -64,6 +65,13 @@ PolicyRuntime::PolicyRuntime(
   , sim2real_config_path_(sim2real_config.path())
 {
   load_sim2real_config(sim2real_config, controller_joint_names);
+  if (const auto depth = sim2real_config.observations()["depth_image"]) {
+    const auto config = ai_sapiens_depth::DepthConfig::parse(depth);
+    if (std::abs(step_dt_ - config.period) > 1e-9) {
+      throw std::runtime_error("Parkour policy and depth update periods differ");
+    }
+    depth_sensor_ = std::make_unique<DepthSensorHandle>(node_, &shared_data->sensors, config);
+  }
   log_joint_coverage(controller_joint_names);
   log_loading();
   load_onnx_model();
@@ -77,6 +85,17 @@ PolicyRuntime::PolicyRuntime(
 
 PolicyRuntime::~PolicyRuntime() = default;
 
+bool PolicyRuntime::inputs_ready()
+{
+  if (!depth_sensor_) {return true;}
+  depth_sensor_->update(node_->now());
+  if (depth_sensor_->is_ready()) {return true;}
+  RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 2000,
+    "Policy '%s': missing, invalid or stale depth; requesting Damping", state_name_.c_str());
+  requests_->damping = true;
+  return false;
+}
+
 void PolicyRuntime::reset()
 {
   accumulated_period_ = step_dt_;
@@ -87,6 +106,7 @@ void PolicyRuntime::reset()
 
 void PolicyRuntime::enter()
 {
+  if (depth_sensor_) {depth_sensor_->start_episode();}
   install_joint_properties();
   install_velocity_command_ranges();
   reset_episode_state();

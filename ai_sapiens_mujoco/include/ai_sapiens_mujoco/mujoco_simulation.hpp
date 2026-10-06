@@ -68,6 +68,9 @@ public:
   /// Throws std::invalid_argument when pelvis_z is not finite.
   void set_hang_height(double pelvis_z);
 
+  /// Optional Parkour dynamics profile; call before activating threads.
+  void configure_parkour_physics();
+
   void set_command(std::size_t joint_index, const JointCommand & cmd);
   JointState joint_state(std::size_t joint_index) const;
   ImuState imu_state() const;

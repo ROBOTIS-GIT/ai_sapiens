@@ -238,11 +238,19 @@ std::vector<float> obs_motion_anchor_ori_b(
   return {rot(0, 0), rot(0, 1), rot(1, 0), rot(1, 1), rot(2, 0), rot(2, 1)};
 }
 
+std::vector<float> obs_depth_image(
+  const ObservationContext & context, const YAML::Node & /*params*/)
+{
+  const auto & depth = context.shared.sensors.depth_history;
+  return {depth.begin(), depth.end()};
+}
+
 // Static registration
 struct ObservationRegistrar
 {
   ObservationRegistrar()
   {
+    ObservationRegistry::register_observation("depth_image", obs_depth_image);
     ObservationRegistry::register_observation("base_ang_vel", obs_base_ang_vel);
     ObservationRegistry::register_observation("projected_gravity", obs_projected_gravity);
     ObservationRegistry::register_observation("velocity_commands", obs_velocity_commands);
