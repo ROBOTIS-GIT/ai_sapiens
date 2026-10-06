@@ -71,6 +71,12 @@ MotionPlayback MimicPolicyRuntime::load_playback(
 
   playback.time_start = std::clamp(mimic.time_start, 0.0f, duration);
   playback.time_end = std::clamp(requested_end, 0.0f, duration);
+  if (sim2real_config.dance_reference()) {
+    const double frame = playback.time_start * mimic.fps;
+    if (std::abs(frame - std::round(frame)) > 1e-3) {
+      throw std::runtime_error("Dance reference time_start must be on a motion frame");
+    }
+  }
   return playback;
 }
 
@@ -108,6 +114,19 @@ MimicPolicyRuntime::MimicPolicyRuntime(
     throw std::runtime_error(
         "global-position mimic requires commands.reference_trajectory.steering in sim2real.yaml");
   }
+  if (sim2real_config.dance_reference()) {
+    dance_reference_ = std::make_unique<DanceMotionReference>(
+      *sim2real_config.dance_reference(), sim2real_config.policy_joints(),
+      sim2real_config.step_dt(), *playback_.reference);
+    const auto & names = playback_.reference->joint_order();
+    for (const auto & name : sim2real_config.policy_joints()) {
+      const auto found = std::find(names.begin(), names.end(), name);
+      if (found == names.end()) {throw std::runtime_error("Motion CSV is missing joint: " + name);}
+      policy_to_motion_.push_back(static_cast<Eigen::Index>(found - names.begin()));
+    }
+    motion_joint_pos_.resize(names.size());
+    motion_joint_vel_.resize(names.size());
+  }
 }
 
 void MimicPolicyRuntime::on_enter()
@@ -116,6 +135,10 @@ void MimicPolicyRuntime::on_enter()
   playback_.reference->seek(playback_.time_start);
   policy_->uses_motion_steering = steering_.has_value();
   previous_root_ = playback_.reference->root_position().head<2>();
+  if (dance_reference_) {
+    dance_reference_->reset(playback_.reference->frame_index());
+    update_motion_targets();
+  }
   if (requires_localization()) {
     const auto & localization = shared_data_->localization;
     if (localization.align_on_entry) {
@@ -160,7 +183,8 @@ void MimicPolicyRuntime::prepare_command_observation()
     policy_->motion_frame.orientation(shared_data_->localization.orientation);
   // All steering-enabled Mimic policies share the same deployment controls.
   const Eigen::Vector3f requested =
-    steering_release_.filter_command(shared_data_->mode.velocity_commands);
+    steering_release_.filter_command(shared_data_->mode.velocity_commands,
+      steering_->command_deadband);
   // Training reset observes frame zero with zero applied velocity, even for a held command.
   if (policy_->episode_time > 0.0) {
     policy_->motion_steering.step(previous_root_, root, orientation,
@@ -168,10 +192,34 @@ void MimicPolicyRuntime::prepare_command_observation()
   }
   // Use episode-relative coordinates on both sides. Do not reset odometry,
   // the motion frame, playback time, or the original joint reference.
-  steering_release_.apply(policy_->motion_steering, requested,
-    policy_->motion_frame.position(shared_data_->localization.position), orientation,
-    policy_->motion_frame.reference_position(root), playback_.reference->root_quaternion());
+  if (steering_->release_on_zero) {
+    steering_release_.apply(policy_->motion_steering, requested,
+      policy_->motion_frame.position(shared_data_->localization.position), orientation,
+      policy_->motion_frame.reference_position(root), playback_.reference->root_quaternion(),
+      steering_->release_velocity_threshold);
+  }
+  if (dance_reference_ && policy_->episode_time > 0.0) {
+    const auto & velocity = policy_->motion_steering.velocity;
+    const Eigen::Vector2f linear =
+      Eigen::Rotation2Df(PlanarMotionSteering::heading(orientation)) * velocity.head<2>();
+    dance_reference_->step(playback_.reference->frame_index(), policy_->motion_steering,
+      Eigen::Vector3f(linear.x(), linear.y(), 0), !requested.isZero(0.0f));
+  }
+  if (dance_reference_) {update_motion_targets();}
   previous_root_ = root;
+}
+
+void MimicPolicyRuntime::update_motion_targets()
+{
+  const auto & reference = dance_reference_->output();
+  motion_joint_pos_ = playback_.reference->joint_pos();
+  motion_joint_vel_ = playback_.reference->joint_vel();
+  for (size_t i = 0; i < policy_to_motion_.size(); ++i) {
+    motion_joint_pos_[policy_to_motion_[i]] = reference.joint_pos[i];
+    motion_joint_vel_[policy_to_motion_[i]] = reference.joint_vel[i];
+  }
+  playback_.reference->set_joint_targets(
+    motion_joint_pos_, motion_joint_vel_, reference.root_shift);
 }
 
 Eigen::Quaternionf MimicPolicyRuntime::yaw_quaternion(const Eigen::Quaternionf & q)

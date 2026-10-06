@@ -23,6 +23,7 @@ find_package(ai_sapiens_interfaces REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(mujoco_vendor REQUIRED)
 find_package(pluginlib REQUIRED)
 
 # ONNX Runtime (https://github.com/microsoft/onnxruntime/releases).
@@ -67,6 +68,7 @@ add_executable(ai_sapiens_sim2real_node
   src/mode_runtime/startup_gate.cpp
   src/policy/gait_clock.cpp
   src/policy/motion_reference.cpp
+  src/policy/dance_motion_reference.cpp
   src/policy/mimic_policy_runtime.cpp
   src/observation/observation_manager.cpp
   src/observation/observations.cpp
@@ -91,6 +93,7 @@ ament_target_dependencies(ai_sapiens_sim2real_node
   std_msgs
   control_msgs
   ai_sapiens_interfaces
+  ament_index_cpp
   pluginlib
 )
 
@@ -98,6 +101,7 @@ target_link_libraries(ai_sapiens_sim2real_node
   yaml-cpp
   Eigen3::Eigen
   ${ONNXRUNTIME_LIBRARY}
+  mujoco::mujoco
 )
 
 # ============================================================================
@@ -266,6 +270,18 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 
   find_package(ament_cmake_gtest REQUIRED)
+
+  # Offline parity with humanoid_motion; datasets are generated from the user's clip.
+  add_executable(dance_reference_probe
+    test/dance_reference_probe.cpp
+    src/policy/dance_motion_reference.cpp
+    src/policy/motion_reference.cpp
+    src/config/config_utils.cpp
+    src/config/sim2real_config.cpp
+    src/observation/observations.cpp)
+  ament_target_dependencies(dance_reference_probe ament_index_cpp)
+  target_link_libraries(dance_reference_probe
+    yaml-cpp Eigen3::Eigen mujoco::mujoco)
 
   ament_add_gtest(test_onnx_metadata
     test/test_onnx_metadata.cpp src/policy/onnx_inference.cpp)

@@ -24,6 +24,7 @@ Uses a separate localhost ROS domain and publishes commands only to a test topic
 
 import argparse
 import csv
+import hashlib
 import math
 import os
 from pathlib import Path
@@ -35,7 +36,7 @@ import time
 import yaml
 
 
-def verify_steering_path(observations, frames, robot_heading):
+def verify_steering_path(observations, frames, robot_heading, retargeted=False):
     """Independent scalar reconstruction of the training integration and anchor rotation."""
     def multiply(a, b):
         x, y, z, w = a
@@ -54,8 +55,10 @@ def verify_steering_path(observations, frames, robot_heading):
     for obs in observations:
         if len(obs) != 131:
             continue
+        # V2 adapts legs; waist and upper body retain the source clip clock.
+        indices = range(12, 23) if retargeted else range(23)
         index = min(range(len(frames)), key=lambda i: sum(
-            (obs[j] - frames[i][7+j])**2 for j in range(23)))
+            (obs[j] - frames[i][7+j])**2 for j in indices))
         if index == previous_frame:
             continue  # debug publish may repeat a policy frame
         if index != previous_frame + 1:
@@ -74,7 +77,10 @@ def verify_steering_path(observations, frames, robot_heading):
                 math.sin(robot_heading)*vx + math.cos(robot_heading)*vy)
             yaw += delta_yaw
         expected = [frames[index][j] - frames[0][j] + offset[j] for j in range(2)]
-        assert max(abs(a-b) for a, b in zip(obs[126:128], expected)) < 2e-5
+        # This checks integration only. CSV contact can differ from training labels;
+        # dance_reference_probe measures that difference separately.
+        tolerance = .0251 if retargeted else 2e-5
+        assert math.dist(obs[126:128], expected) < tolerance
         # Waist is index 12 in controller/CSV order. Synthetic measured joints stay at row zero.
         real = yaw_quat(robot_heading + frames[0][7+12])
         reference = multiply(multiply(yaw_quat(yaw), frames[index][3:7]),
@@ -99,10 +105,16 @@ def main():
     policy.add_argument(
         '--controller', action='store_true', help='Test selector 204 steering policy')
     policy.add_argument(
-        '--moe', action='store_true', help='Test selector 205 controller MoE policy')
+        '--moe', action='store_true', help='Test the configured controller MoE policy')
     policy.add_argument(
         '--redred', action='store_true', help='Test selector 206 Redred global XY policy')
     parser.add_argument('--teleop', choices=('keyboard', 'dualsense'), default='keyboard')
+    parser.add_argument('--asset-dir', type=Path,
+                        help='Test a local policy asset before installing it')
+    parser.add_argument('--full-config', action='store_true',
+                        help='Load every configured policy from the installed root config')
+    parser.add_argument('--expected-policy-sha256',
+                        help='Reject a deployed ONNX that differs from the intended export')
     args = parser.parse_args()
     has_steering = args.controller or args.moe
     if args.redred:
@@ -129,17 +141,59 @@ def main():
     share = Path(get_package_share_directory('ai_sapiens_sim2real'))
     root = share / 'config/k1_config.yaml'
     config = yaml.safe_load(root.read_text())
+    selectors = config['selectors']['mimic_selector']['table']
+    selector = next(int(code) for code, state in selectors.items() if state == mimic_state)
     behavior = config['state_machine']['states'][mimic_state]['run']
     motion_name = config['state_behaviors'][behavior]['motion']
-    motion = share / f'assets/k1/mimic/{asset}/params' / motion_name
+    bundle = args.asset_dir or share / f'assets/k1/mimic/{asset}'
+    bundle = bundle.resolve()
+    motion = bundle / 'params' / motion_name
+    hashes = {name: hashlib.sha256(path.read_bytes()).hexdigest() for name, path in (
+        ('policy.onnx', bundle/'exported/policy.onnx'),
+        ('sim2real.yaml', bundle/'params/sim2real.yaml'),
+        (motion_name, motion))}
+    if args.expected_policy_sha256 and hashes['policy.onnx'] != args.expected_policy_sha256:
+        raise ValueError('Deployed policy.onnx SHA256 differs from the requested training export: '
+                         f'{hashes["policy.onnx"]} != {args.expected_policy_sha256}')
+    print(f'Tested assets: {bundle}', flush=True)
+    for name, digest in hashes.items():
+        print(f'SHA256 {name}: {digest}', flush=True)
+    policy_config = yaml.safe_load((bundle/'params/sim2real.yaml').read_text())
+    features = policy_config.get('commands', {}).get(
+        'reference_trajectory', {}).get('required_runtime_features', [])
+    retargeted = any(feature in features for feature in (
+        'dance_motion_reference_v2', 'dance_motion_reference_v3'))
     with motion.open() as source:
         frames = [[float(x) for x in row] for _, row in zip(range(500), csv.reader(source))]
     first = frames[0]
+    velocities = []
+    for index in range(len(frames)):
+        left, right = max(index - 1, 0), min(index + 1, len(frames) - 1)
+        velocities.append([(frames[right][7 + j] - frames[left][7 + j]) /
+                           ((right - left) * 0.02) for j in range(23)])
     binary = (Path(get_package_prefix('ai_sapiens_sim2real')) /
               'lib/ai_sapiens_sim2real/ai_sapiens_sim2real_node')
 
     with tempfile.TemporaryDirectory(prefix='gloposition-smoke-') as directory:
         temporary = Path(directory)
+        # Exercise the selected policy and fallback without needing every local asset.
+        config['policy_asset_roots'] = [str(share/'assets/k1')]
+        config['teleop_input']['config'] = str(share/'config'/config['teleop_input']['config'])
+        if not args.full_config:
+            config['state_machine']['states'] = {
+                name: value for name, value in config['state_machine']['states'].items()
+                if name in ('Damping', 'ReadyPose', 'Velocity', 'Mimic', mimic_state)}
+            config['selectors']['mimic_selector']['table'] = {selector: mimic_state}
+            config['state_behaviors'] = {
+                name: value for name, value in config['state_behaviors'].items()
+                if name in ('damping', 'ready_pose', 'velocity_policy', behavior)}
+        if args.asset_dir:
+            config['state_behaviors'][behavior] = {
+                'kind': 'mimic', 'policy_path': str(bundle/'exported/policy.onnx'),
+                'sim2real_yaml_path': str(bundle/'params/sim2real.yaml'),
+                'motion_file': str(motion)}
+        root = temporary/'k1_config.yaml'
+        root.write_text(yaml.safe_dump(config))
         os.environ['ROS_LOG_DIR'] = str(temporary / 'ros_logs')
         keyboard = yaml.safe_load((share / f'config/teleop/{args.teleop}.yaml').read_text())
         if args.teleop == 'dualsense':
@@ -185,11 +239,19 @@ def main():
             state['obs'] = list(msg.data)
             state['obs_count'] += 1
             observations.append(state['obs'])
+
+        def receive_command(msg):
+            for name in ('positions', 'feedforward', 'kp', 'kd'):
+                values = getattr(msg, name)
+                assert len(values) == len(config['robot_joint_order']), name
+                assert all(math.isfinite(value) for value in values), name
+            state['command'] = msg
+
         subscriptions = [
             node.create_subscription(ModeStatus, '/test_gloposition/mode',
                                      lambda m: state.update(mode=m.active_mode), 10),
             node.create_subscription(JointImpedanceCommand, '/test_gloposition/commands',
-                                     lambda m: state.update(command=m), 10),
+                                     receive_command, 10),
             node.create_subscription(
                 Float64MultiArray, '/policy_input/raw_observation', observe, 10),
         ]
@@ -296,17 +358,17 @@ def main():
             assert all(math.isfinite(x) for x in obs)
             assert_zero_entry(before)
             print('PASS: real ONNX enters with robot and reference XY both zero')
+            # Repeated startup poses can have different boundary derivatives.
+            # Match both halves of motion_command to identify a source frame.
             frame_index = min(range(len(frames)), key=lambda i: sum(
-                (obs[j] - frames[i][7 + j]) ** 2 for j in range(23)))
+                (obs[j] - frames[i][7 + j]) ** 2 +
+                (obs[23 + j] - velocities[i][j]) ** 2 for j in range(23)))
             assert max(abs(obs[j] - frames[frame_index][7 + j]) for j in range(23)) < 1e-5
-            left, right = max(frame_index - 1, 0), min(frame_index + 1, len(frames) - 1)
-            expected_velocity = [
-                (frames[right][7 + j] - frames[left][7 + j]) / ((right - left) * 0.02)
-                for j in range(23)]
+            expected_velocity = velocities[frame_index]
             assert max(abs(obs[23 + j] - expected_velocity[j]) for j in range(23)) < 1e-4
             assert max(abs(obs[126 + j] - (frames[frame_index][j] - first[j]))
                        for j in range(2)) < 1e-6
-            print('PASS: omitted motion_format selects MJLab frames and central velocities')
+            print('PASS: zero-command motion positions and velocities match the source CSV')
 
             odom_xy[0] += 0.1
             before = state['obs_count']
@@ -342,7 +404,13 @@ def main():
                     expected = [v + alpha * (t - v) for v, t in zip(previous[128:131], target)]
                     assert max(abs(a - b) for a, b in zip(current[128:131], expected)) < 1e-6, (
                         previous[128:131], current[128:131], expected)
-                verify_steering_path(observations[entry_begin:], frames, ref_yaw)
+                verify_steering_path(observations[entry_begin:], frames, ref_yaw, retargeted)
+                if retargeted:
+                    index = min(range(len(frames)), key=lambda i: sum(
+                        (state['obs'][j] - frames[i][7+j])**2 for j in range(12, 23)))
+                    assert max(abs(state['obs'][j] - frames[index][7+j])
+                               for j in range(12)) > 1e-4
+                    print('PASS: steering supplies adapted leg references to the real MoE ONNX')
                 # Normalized 0.3 maps to 0.09 m/s or rad/s: inside the 0.1 deadband.
                 velocity = [0.3, -0.3, 0.3]
                 drive(0.2)
@@ -350,21 +418,24 @@ def main():
 
                 def assert_reached_xy():
                     obs = state['obs']
-                    assert max(abs(obs[124+j] - obs[126+j]) for j in range(2)) < 1e-5
+                    assert math.dist(obs[124:126], obs[126:128]) < (
+                        .0251 if retargeted else 1e-5)
 
                 assert_reached_xy()
                 odom_xy[0] += 0.03  # The robot still moves during deceleration.
                 drive(0.08)
                 assert_reached_xy()
                 drive(5, lambda: all(v == 0.0 for v in state['obs'][128:131]) and
-                      math.dist(state['obs'][124:126], state['obs'][126:128]) < 1e-5)
+                      math.dist(state['obs'][124:126], state['obs'][126:128]) < (
+                          .0251 if retargeted else 1e-5))
                 assert_reached_xy()
                 settled = state['obs'][:]
                 drive(0.12)
 
                 def frame_index_for(obs):
                     return min(range(len(frames)), key=lambda i: sum(
-                        (obs[j] - frames[i][7+j])**2 for j in range(23)))
+                        (obs[j] - frames[i][7+j])**2
+                        for j in (range(12, 23) if retargeted else range(23))))
 
                 start = frame_index_for(settled)
                 end = frame_index_for(state['obs'])
@@ -381,7 +452,8 @@ def main():
                 dx, dy = [frames[end][j] - frames[start][j] for j in range(2)]
                 expected = [settled[126] + math.cos(yaw_offset)*dx - math.sin(yaw_offset)*dy,
                             settled[127] + math.sin(yaw_offset)*dx + math.cos(yaw_offset)*dy]
-                assert max(abs(state['obs'][126+j] - expected[j]) for j in range(2)) < 2e-5
+                assert math.dist(state['obs'][126:128], expected) < (
+                    .0501 if retargeted else 2e-5)
                 # Settled dancing must no longer follow arbitrary odometry motion.
                 old_robot_xy = state['obs'][124:126]
                 odom_xy[1] += 0.4

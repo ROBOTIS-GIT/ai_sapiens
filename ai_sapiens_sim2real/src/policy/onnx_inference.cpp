@@ -92,6 +92,12 @@ void OnnxInference::allocate_action_buffer()
 void OnnxInference::log_model_summary(const std::string & model_path) const
 {
   std::cout << "[OnnxInference] Model loaded: " << model_path << std::endl;
+  Ort::AllocatorWithDefaultOptions allocator;
+  const auto run = session_->GetModelMetadata().LookupCustomMetadataMapAllocated(
+    "run_path", allocator);
+  if (run && run.get()[0] != '\0') {
+    std::cout << "[OnnxInference] Training run: " << run.get() << std::endl;
+  }
   std::cout << "[OnnxInference] Input count: " << input_names_.size() << std::endl;
   for (size_t i = 0; i < input_names_.size(); ++i) {
     std::cout << "[OnnxInference] Input " << i << ": " << input_names_[i]

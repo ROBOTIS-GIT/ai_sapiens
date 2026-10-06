@@ -1,0 +1,247 @@
+policy_joints:
+- left_hip_pitch_joint
+- left_hip_roll_joint
+- left_hip_yaw_joint
+- left_knee_joint
+- left_ankle_pitch_joint
+- left_ankle_roll_joint
+- right_hip_pitch_joint
+- right_hip_roll_joint
+- right_hip_yaw_joint
+- right_knee_joint
+- right_ankle_pitch_joint
+- right_ankle_roll_joint
+- waist_yaw_joint
+- left_shoulder_pitch_joint
+- left_shoulder_roll_joint
+- left_shoulder_yaw_joint
+- left_elbow_joint
+- left_wrist_roll_joint
+- right_shoulder_pitch_joint
+- right_shoulder_roll_joint
+- right_shoulder_yaw_joint
+- right_elbow_joint
+- right_wrist_roll_joint
+step_dt: 0.02
+joint_properties:
+  left_hip_pitch_joint:
+    default_position: -0.3
+    stiffness: 76.45161
+    damping: 4.867061
+    position_limit: null
+  left_hip_roll_joint:
+    default_position: 0.0
+    stiffness: 76.45161
+    damping: 4.867061
+    position_limit: null
+  left_hip_yaw_joint:
+    default_position: 0.0
+    stiffness: 76.45161
+    damping: 4.867061
+    position_limit: null
+  left_knee_joint:
+    default_position: 0.63
+    stiffness: 76.45161
+    damping: 4.867061
+    position_limit: null
+  left_ankle_pitch_joint:
+    default_position: -0.33
+    stiffness: 76.45161
+    damping: 4.867061
+    position_limit: null
+  left_ankle_roll_joint:
+    default_position: 0.0
+    stiffness: 22.30104
+    damping: 1.419728
+    position_limit: null
+  right_hip_pitch_joint:
+    default_position: -0.3
+    stiffness: 76.45161
+    damping: 4.867061
+    position_limit: null
+  right_hip_roll_joint:
+    default_position: 0.0
+    stiffness: 76.45161
+    damping: 4.867061
+    position_limit: null
+  right_hip_yaw_joint:
+    default_position: 0.0
+    stiffness: 76.45161
+    damping: 4.867061
+    position_limit: null
+  right_knee_joint:
+    default_position: 0.63
+    stiffness: 76.45161
+    damping: 4.867061
+    position_limit: null
+  right_ankle_pitch_joint:
+    default_position: -0.33
+    stiffness: 76.45161
+    damping: 4.867061
+    position_limit: null
+  right_ankle_roll_joint:
+    default_position: 0.0
+    stiffness: 22.30104
+    damping: 1.419728
+    position_limit: null
+  waist_yaw_joint:
+    default_position: 0.0
+    stiffness: 76.45161
+    damping: 4.867061
+    position_limit: null
+  left_shoulder_pitch_joint:
+    default_position: 0.2
+    stiffness: 22.30104
+    damping: 1.419728
+    position_limit: null
+  left_shoulder_roll_joint:
+    default_position: 0.2
+    stiffness: 22.30104
+    damping: 1.419728
+    position_limit: null
+  left_shoulder_yaw_joint:
+    default_position: 0.0
+    stiffness: 22.30104
+    damping: 1.419728
+    position_limit: null
+  left_elbow_joint:
+    default_position: 0.95
+    stiffness: 22.30104
+    damping: 1.419728
+    position_limit: null
+  left_wrist_roll_joint:
+    default_position: 0.0
+    stiffness: 22.30104
+    damping: 1.419728
+    position_limit: null
+  right_shoulder_pitch_joint:
+    default_position: 0.2
+    stiffness: 22.30104
+    damping: 1.419728
+    position_limit: null
+  right_shoulder_roll_joint:
+    default_position: -0.2
+    stiffness: 22.30104
+    damping: 1.419728
+    position_limit: null
+  right_shoulder_yaw_joint:
+    default_position: 0.0
+    stiffness: 22.30104
+    damping: 1.419728
+    position_limit: null
+  right_elbow_joint:
+    default_position: 0.95
+    stiffness: 22.30104
+    damping: 1.419728
+    position_limit: null
+  right_wrist_roll_joint:
+    default_position: 0.0
+    stiffness: 22.30104
+    damping: 1.419728
+    position_limit: null
+commands:
+  reference_trajectory:
+    observation_origin: episode
+    steering:
+      lin_vel_x: [-0.3, 0.3]
+      lin_vel_y: [-0.3, 0.3]
+      yaw_rate: [-0.3, 0.3]
+      smoothing_time_constant: 0.5
+      command_deadband: 0.1
+      release_on_zero: true
+      release_velocity_threshold: 0.01
+    required_runtime_features:
+    - dance_motion_reference_v3
+    dance_steps:
+      min_stance_duration: 0.18
+      support_transfer_duration: 0.06
+      support_reach: 0.12
+      max_step_lift: 0.06
+      weight_shift: 0.025
+      moving_crouch: 0.02
+      max_step_correction: 0.3
+      max_step_yaw: 0.5
+      ik_iterations: 8
+      ik_joint_correction_limit: 2.0
+      ik_max_correction_rate: 8.0
+      ik_position_tolerance: 0.008
+      ik_orientation_tolerance: 0.08
+      phase_labels: dynamite004_rhythm_reference.npz
+      phase_labels_sha256: fb610e5eb76a50249e033283c8d61310c5c199c171c2927e1ac61e83a87e2945
+      gesture_source: reference_trajectory
+      scheduling: reach_and_source_motion
+      release_behavior: finish_active_gesture_no_new_steps
+      step_intent_source: deadbanded_request_before_smoothing
+    motion_command_source: retargeted_joint_position_velocity
+actions:
+  joint_pos:
+    clip: null
+    scale: [0.3167494, 0.3167494, 0.3167494, 0.3167494, 0.3167494, 0.5299864, 0.3167494,
+      0.3167494, 0.3167494, 0.3167494, 0.3167494, 0.5299864, 0.3167494, 0.5299864,
+      0.5299864, 0.5299864, 0.5299864, 0.5299864, 0.5299864, 0.5299864, 0.5299864,
+      0.5299864, 0.5299864]
+    offset: [-0.3, 0.0, 0.0, 0.63, -0.33, 0.0, -0.3, 0.0, 0.0, 0.63, -0.33, 0.0, 0.0,
+      0.2, 0.2, 0.0, 0.95, 0.0, 0.2, -0.2, 0.0, 0.95, 0.0]
+    raw_clip: [[-10.0, 10.0], [-10.0, 10.0], [-10.0, 10.0], [-10.0, 10.0], [-10.0,
+        10.0], [-10.0, 10.0], [-10.0, 10.0], [-10.0, 10.0], [-10.0, 10.0], [-10.0,
+        10.0], [-10.0, 10.0], [-10.0, 10.0], [-10.0, 10.0], [-10.0, 10.0], [-10.0,
+        10.0], [-10.0, 10.0], [-10.0, 10.0], [-10.0, 10.0], [-10.0, 10.0], [-10.0,
+        10.0], [-10.0, 10.0], [-10.0, 10.0], [-10.0, 10.0]]
+observations:
+  motion_command:
+    params:
+      command_name: reference_trajectory
+    clip: null
+    scale: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+      1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+      1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    history_length: 1
+  motion_anchor_ori_b:
+    params:
+      command_name: reference_trajectory
+    clip: null
+    scale: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    history_length: 1
+  base_ang_vel:
+    params:
+      sensor_name: robot/imu_ang_vel
+    clip: null
+    scale: [1.0, 1.0, 1.0]
+    history_length: 1
+  joint_pos_rel:
+    params:
+      biased: true
+    clip: null
+    scale: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+      1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    history_length: 1
+  joint_vel_rel:
+    params: {}
+    clip: null
+    scale: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+      1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    history_length: 1
+  last_action:
+    params: {}
+    clip: null
+    scale: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+      1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    history_length: 1
+  robot_root_position_xy_w:
+    params:
+      command_name: reference_trajectory
+    clip: null
+    scale: [1.0, 1.0]
+    history_length: 1
+  reference_root_position_xy_w:
+    params:
+      command_name: reference_trajectory
+    clip: null
+    scale: [1.0, 1.0]
+    history_length: 1
+  velocity_commands:
+    params:
+      command_name: reference_trajectory
+    clip: null
+    scale: [1.0, 1.0, 1.0]
+    history_length: 1

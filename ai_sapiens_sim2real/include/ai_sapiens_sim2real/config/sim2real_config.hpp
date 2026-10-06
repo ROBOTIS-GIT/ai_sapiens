@@ -27,6 +27,7 @@
 
 #include "ai_sapiens_sim2real/axis_range.hpp"
 #include "ai_sapiens_sim2real/config/config_utils.hpp"
+#include "ai_sapiens_sim2real/config/dance_reference_config.hpp"
 #include "ai_sapiens_sim2real/config/planar_steering_config.hpp"
 
 namespace ai_sapiens_sim2real
@@ -109,6 +110,11 @@ public:
     return observations_;
   }
 
+  const std::optional<DanceReferenceConfig> & dance_reference() const
+  {
+    return dance_reference_;
+  }
+
 private:
   std::filesystem::path path_;
   std::vector<std::string> policy_joints_;
@@ -118,6 +124,7 @@ private:
   std::optional<AxisRanges> velocity_command_ranges_;
   YAML::Node observations_;
   std::optional<PlanarSteeringConfig> steering_;
+  std::optional<DanceReferenceConfig> dance_reference_;
 };
 
 }  // namespace ai_sapiens_sim2real

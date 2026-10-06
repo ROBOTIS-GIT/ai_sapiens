@@ -301,6 +301,15 @@ std::optional<PlanarSteeringConfig> read_planar_steering(const YAML::Node & conf
   result.ranges = {read_range("lin_vel_x"), read_range("lin_vel_y"), read_range("yaw_rate")};
   require_yaml_node(steering["smoothing_time_constant"], path + ".smoothing_time_constant");
   result.smoothing_time_constant = steering["smoothing_time_constant"].as<float>();
+  if (steering["command_deadband"]) {
+    result.command_deadband = steering["command_deadband"].as<float>();
+  }
+  if (steering["release_on_zero"]) {
+    result.release_on_zero = steering["release_on_zero"].as<bool>();
+  }
+  if (steering["release_velocity_threshold"]) {
+    result.release_velocity_threshold = steering["release_velocity_threshold"].as<float>();
+  }
   if (steering["tracking_mode"] && steering["tracking_mode"].as<std::string>() != "trajectory") {
     throw std::runtime_error(path + " requires trajectory steering for global-position Mimic");
   }
@@ -359,6 +368,32 @@ Sim2RealConfig::Sim2RealConfig(const std::filesystem::path & path)
         joint_properties_.default_position);
       observations_ = node["observations"];
       steering_ = read_planar_steering(node);
+      const auto commands = node["commands"];
+      const auto reference = commands ? commands["reference_trajectory"] : YAML::Node{};
+      const auto features = reference ? reference["required_runtime_features"] : YAML::Node{};
+      if (features && !features.IsNull() && !features.IsSequence()) {
+        throw std::runtime_error("required_runtime_features must be a sequence");
+      }
+      if (features && features.size() != 0) {
+        if (features.size() != 1 ||
+        (features[0].as<std::string>() != "dance_motion_reference_v2" &&
+        features[0].as<std::string>() != "dance_motion_reference_v3"))
+        {
+          throw std::runtime_error("Unsupported required_runtime_features for Mimic");
+        }
+        if (!steering_) {
+          throw std::runtime_error("Dance reference requires steering");
+        }
+        for (const auto * key : {"command_deadband", "release_on_zero",
+          "release_velocity_threshold"})
+        {
+          require_yaml_node(reference["steering"][key],
+            std::string("reference_trajectory.steering.") + key);
+        }
+        dance_reference_ = DanceReferenceConfig::read(reference, step_dt_);
+      } else if (reference && (reference["dance_steps"] || reference["motion_command_source"])) {
+        throw std::runtime_error("Dance reference settings require a supported runtime feature");
+      }
     });
   velocity_command_ranges_ = read_velocity_command_ranges(path_, node);
 }

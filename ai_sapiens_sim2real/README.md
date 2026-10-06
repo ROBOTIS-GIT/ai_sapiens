@@ -5,10 +5,6 @@ loads and validates the mode configuration and all policy assets at startup,
 selects control authority and behavior at runtime, performs policy inference in
 a realtime-oriented loop, and publishes joint position/gain commands.
 
-For `Cyclo-Mimic-K1-Rev1-Dynamite-Gloposition` with localization from
-`ai_sapiens_private/feature-localization`, see the
-[Glopodanamite deployment guide](docs/glopodanamite.md).
-
 > [!CAUTION]
 > Joint command publishing is enabled by default. Before running on hardware,
 > verify the controller joint order, policy assets, ROS topics, and that the
@@ -194,6 +190,69 @@ assets/k1/locomotion/velocity/walk_default/params/sim2real.yaml
 
 Use `policy_path` and `sim2real_yaml_path` together when the standard asset
 layout is not suitable.
+
+For controller MoE exports (`dance_motion_reference_v2` and `dance_motion_reference_v3`), deployment uses
+`exported/policy.onnx`, `params/sim2real.yaml` and the configured motion CSV.
+No extra reference files are created or loaded. The runtime derives foot poses
+and sole clearance from the CSV and the installed K1 model, estimates contact
+with a smooth 8–25 mm clearance transition, and extracts dance gestures in memory.
+Live velocity commands drive the foot planner, leg IK and root shift each tick.
+The planner reads the same `MotionReference` already loaded for Mimic playback.
+Its joint targets go through the existing motion observation functions and joint
+mapping; ONNX inference, action processing and command publishing remain shared
+with the other Mimic policies. Seeking a new frame clears the previous targets.
+
+V3 derives movement intent from the request after deadband and before velocity
+smoothing. Releasing all movement axes prevents new supplemental placements
+immediately, while an active gesture finishes at its latched endpoint. Planning
+no longer shortens newly starting natural swings based on residual filtered speed
+after release. Root steering, release rebasing, crouch and velocity observations
+still use the filtered velocity. V2 retains its previous settling behavior.
+The v3 YAML must declare `finish_active_gesture_no_new_steps` and
+`deadbanded_request_before_smoothing`; renaming the version alone is insufficient.
+
+The exported `phase_labels` and `phase_labels_sha256` describe the training input;
+they are not deployment file requirements. CSV-derived contact differs from the
+training labels, so this mode does not guarantee identical policy observations.
+The offline parity probe reports these differences; use the smoke test to check
+policy loading and live keyboard/DualSense command handling.
+
+Select the training run explicitly when updating the model. The import script
+checks ONNX metadata, observation order, steering and dance settings against that
+run's saved configuration. It copies only the ONNX, deployment YAML and motion
+CSV; it does not create extra files under `params`:
+
+```bash
+python3 scripts/import_mimic_moe_assets.py \
+  --run-dir /path/to/k1_mimic_moe/2026-10-05_23-18-14 \
+  --motion-csv /path/to/dynamite004_headwrap_v3.csv --replace-existing
+```
+
+Run this in a Python environment with NumPy, PyYAML and ONNX Runtime, where the
+training run and this repository are accessible. `--verify-only` validates without
+copying. Startup logs include the ONNX `Training run` metadata. For a smoke test,
+pass the SHA256 printed for the intended training export, rather than a hash
+computed from an unverified deployment file:
+
+```bash
+python3 scripts/run_gloposition_smoke_test.py --moe --full-config \
+  --teleop dualsense --expected-policy-sha256 <training-export-sha256>
+```
+
+This test uses synthetic sensors and checks loading, finite commands and mode
+transitions. It does not test physical balance. The reference comparison generator
+also rejects training settings or phase labels that differ from its selected
+`--sim2real-config`; a successful recording alone does not establish parity.
+The built `dance_reference_probe --check-release <sim2real.yaml> <motion.csv>`
+checks v3 release during an active gesture, residual filtered velocity, deadband,
+gesture completion, re-command and reset for X, Y, yaw and combined commands.
+This test needs only the deployment CSV/YAML and the installed K1 model.
+
+This global-position policy also requires fresh `/state_estimator/odom` messages
+with `odom` as the world frame and `pelvis` as the base frame. The existing
+`run_k1_tmux.sh --sim --dualsense` command starts simulation, policy and teleop;
+start the localization stack separately. Mimic entry is rejected while this
+feedback is unavailable.
 
 ## Build
 

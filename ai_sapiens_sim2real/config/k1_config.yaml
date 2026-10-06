@@ -64,10 +64,10 @@ selectors:
       200: MimicSquat
       201: MimicDance1
       202: MimicDance2
-      203: MimicGlopodanamite
-      204: MimicGlopodanamiteController
-      205: MimicGlopodanamiteControllerMoe
-      206: MimicRedredGlopo
+      203: MimicGlopodanamiteControllerMoe
+      # 204: 
+      # 205: 
+      # 206: 
       # 207:
       # 208:
       # 209:
@@ -128,18 +128,10 @@ state_machine:
     MimicDance2:
       parent: Mimic
       run: mimic_dance2
-    MimicGlopodanamite:
-      parent: Mimic
-      run: mimic_glopodanamite
-    MimicGlopodanamiteController:
-      parent: Mimic
-      run: mimic_glopodanamite_controller
+    
     MimicGlopodanamiteControllerMoe:
       parent: Mimic
       run: mimic_glopodanamite_controller_moe
-    MimicRedredGlopo:
-      parent: Mimic
-      run: mimic_redred_glopo
 
 state_behaviors:
   damping:
@@ -215,19 +207,8 @@ state_behaviors:
     kind: mimic
     asset: mimic/dance2
     motion: dance2.csv
-  mimic_glopodanamite:
-    kind: mimic
-    asset: mimic/glopodanamite
-    motion: dynamite004_headwrap_v3.csv
-  mimic_glopodanamite_controller:
-    kind: mimic
-    asset: mimic/glopodanamite_controller
-    motion: dynamite004_headwrap_v3.csv
+  
   mimic_glopodanamite_controller_moe:
     kind: mimic
     asset: mimic/glopodanamite_controller_moe
     motion: dynamite004_headwrap_v3.csv
-  mimic_redred_glopo:
-    kind: mimic
-    asset: mimic/redred_glopo
-    motion: redred_k1_conver.csv

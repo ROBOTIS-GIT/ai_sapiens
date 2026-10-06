@@ -30,9 +30,18 @@ struct PlanarSteeringConfig
 {
   AxisRanges ranges{{-0.3, 0.3}, {-0.3, 0.3}, {-0.3, 0.3}};
   float smoothing_time_constant{0.5f};
+  // Defaults preserve the controls used by older deployment bundles.
+  float command_deadband{0.1f};
+  bool release_on_zero{true};
+  float release_velocity_threshold{0.01f};
 
   void validate() const
   {
+    if (!std::isfinite(command_deadband) || command_deadband < 0 ||
+      !std::isfinite(release_velocity_threshold) || release_velocity_threshold <= 0)
+    {
+      throw std::runtime_error("Invalid mimic steering deadband or release threshold");
+    }
     for (const auto & range : {ranges.linear_x, ranges.linear_y, ranges.angular_z}) {
       if (!std::isfinite(range.min) || !std::isfinite(range.max) ||
         !(range.min <= 0.0 && range.max >= 0.0))

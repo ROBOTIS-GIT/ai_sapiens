@@ -259,9 +259,10 @@ std::vector<float> obs_reference_root_position_xy_w(
   if (!context.reference_motion) {
     return {0.0f, 0.0f};
   }
-  const Eigen::Vector2f position = context.shared.policy.motion_frame.reference_position(
+  Eigen::Vector2f position = context.shared.policy.motion_frame.reference_position(
     context.reference_motion->root_position().head<2>()) +
     context.shared.policy.motion_steering.offset;
+  position += context.reference_motion->root_shift().head<2>();
   return {position.x(), position.y()};
 }
 

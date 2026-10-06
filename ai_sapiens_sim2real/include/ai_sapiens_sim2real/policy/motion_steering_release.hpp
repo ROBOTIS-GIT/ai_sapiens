@@ -17,7 +17,7 @@
 namespace ai_sapiens_sim2real
 {
 
-// Deployment-only override: release translation and turning independently,
+// Release translation and turning independently,
 // discarding missed motion while the applied command ramps down.
 class MotionSteeringRelease
 {
@@ -30,11 +30,12 @@ public:
 
   // Use this SAME command for integration and release detection. The inclusive
   // deadband is in physical command units: m/s for XY, rad/s for yaw.
-  static Eigen::Vector3f filter_command(const Eigen::Vector3f & requested)
+  static Eigen::Vector3f filter_command(
+    const Eigen::Vector3f & requested, float deadband = 0.1f)
   {
     Eigen::Vector3f result = requested;
     for (int i = 0; i < 3; ++i) {
-      if (std::abs(result[i]) <= 0.1f) {
+      if (std::abs(result[i]) <= deadband) {
         result[i] = 0.0f;
       }
     }
@@ -46,7 +47,8 @@ public:
   void apply(
     PlanarMotionSteering & steering, const Eigen::Vector3f & requested,
     const Eigen::Vector2f & robot_xy, const Eigen::Quaternionf & robot_orientation,
-    const Eigen::Vector2f & reference_xy, const Eigen::Quaternionf & reference_orientation)
+    const Eigen::Vector2f & reference_xy, const Eigen::Quaternionf & reference_orientation,
+    float velocity_threshold = 0.01f)
   {
     update_release(!requested.head<2>().isZero(0.0f),
       translation_commanded_, translation_settling_);
@@ -56,7 +58,7 @@ public:
       // The requested behavior deliberately discards target error on release.
       // Slewing this correction would leave a catch-up target after release.
       steering.offset = robot_xy - reference_xy;
-      if (steering.velocity.head<2>().norm() <= 0.01f) {
+      if (steering.velocity.head<2>().norm() <= velocity_threshold) {
         steering.velocity.head<2>().setZero();
         translation_settling_ = false;
       }
@@ -67,7 +69,7 @@ public:
       // overwrite the clip heading or a previously completed steering turn.
       steering.yaw = wrap(PlanarMotionSteering::heading(robot_orientation) -
           PlanarMotionSteering::heading(reference_orientation));
-      if (std::abs(steering.velocity.z()) <= 0.01f) {
+      if (std::abs(steering.velocity.z()) <= velocity_threshold) {
         steering.velocity.z() = 0.0f;
         rotation_settling_ = false;
       }

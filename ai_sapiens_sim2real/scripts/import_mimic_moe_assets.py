@@ -37,8 +37,6 @@ OBSERVATIONS = {
     'velocity_commands': 3,
 }
 
-OBSERVATION_SCHEMA = 'mimic_global_position_v1'
-
 
 def require(condition, message):
     if not condition:
@@ -81,6 +79,33 @@ def validate(run, motion, joint_order):
     require(np.isfinite(tau) and tau >= 0 and
             tau == float(training_reference['steering']['smoothing_time_constant']),
             'Steering smoothing differs from training')
+    for key in ('command_deadband', 'release_velocity_threshold'):
+        require(steering[key] == float(training_reference['steering'][key]),
+                f'Steering setting differs from training: {key}')
+    require(steering['release_on_zero'] ==
+            (training_reference['steering']['release_on_zero'] == 'true'),
+            'Steering release differs from training')
+    features = reference.get('required_runtime_features')
+    require(features in (['dance_motion_reference_v2'], ['dance_motion_reference_v3']),
+            'Expected the MoE dance reference runtime')
+    require(reference.get('motion_command_source') == 'retargeted_joint_position_velocity',
+            'MoE requires retargeted motion observations')
+    steps = reference['dance_steps']
+    if features == ['dance_motion_reference_v3']:
+        require(steps.get('release_behavior') == 'finish_active_gesture_no_new_steps' and
+                steps.get('step_intent_source') == 'deadbanded_request_before_smoothing',
+                'Unsupported v3 dance release behavior or step intent source')
+    else:
+        require('release_behavior' not in steps and 'step_intent_source' not in steps,
+                'Dance release settings require dance_motion_reference_v3')
+    require(steps['gesture_source'] == 'reference_trajectory' and
+            steps['scheduling'] == 'reach_and_source_motion', 'Unsupported dance planner')
+    for key in ('min_stance_duration', 'support_transfer_duration', 'support_reach',
+                'max_step_lift', 'weight_shift', 'moving_crouch', 'max_step_correction',
+                'max_step_yaw', 'ik_iterations', 'ik_joint_correction_limit',
+                'ik_max_correction_rate', 'ik_position_tolerance', 'ik_orientation_tolerance'):
+        require(np.isfinite(steps[key]) and steps[key] == float(training_reference[key]),
+                f'Dance reference setting differs from training: {key}')
     observations = config['observations']
     require(list(observations) == list(OBSERVATIONS), 'Unexpected actor observation order')
     for name, size in OBSERVATIONS.items():
@@ -114,6 +139,9 @@ def validate(run, motion, joint_order):
     require(metadata['joint_names'].split(',') == joint_order, 'ONNX joint order differs')
     require(metadata['observation_names'].split(',') == list(OBSERVATIONS),
             'ONNX observation order differs')
+    result = session.run(None, {inputs[0].name: np.zeros((1, 131), dtype=np.float32)})[0]
+    require(result.shape == (1, 23) and np.isfinite(result).all(),
+            'ONNX inference did not return 23 finite actions')
     return frames.shape[0]
 
 
@@ -125,6 +153,11 @@ def main():
     parser.add_argument('--motion-csv', required=True, type=Path)
     parser.add_argument('--output', type=Path,
                         default=package / 'assets/k1/mimic/glopodanamite_controller_moe')
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--verify-only', action='store_true',
+                      help='Validate the selected export without copying any files')
+    mode.add_argument('--replace-existing', action='store_true',
+                      help='Replace only ONNX, sim2real.yaml and motion CSV in an existing asset')
     args = parser.parse_args()
     run = args.run_dir.resolve()
     motion = args.motion_csv.resolve()
@@ -133,26 +166,25 @@ def main():
     joint_order = root_config['robot_joint_order']
     frame_count = validate(run, motion, joint_order)
     files = {Path('exported/policy.onnx'): run / 'exported/policy.onnx',
+             Path('params/sim2real.yaml'): run / 'params/sim2real.yaml',
              Path('params') / motion.name: motion}
-    for name in ('sim2real.yaml', 'env.yaml', 'agent.yaml'):
-        files[Path('params') / name] = run / 'params' / name
-    # Import into a new directory so existing bundles are never replaced implicitly.
-    require(not destination.exists(), f'Output already exists: {destination}')
     hashes = {str(relative): hashlib.sha256(source.read_bytes()).hexdigest()
               for relative, source in files.items()}
-    manifest = {
-        'task': 'Cyclo-Mimic-K1-Rev1-Dynamite-Gloposition-controller-moe',
-        'observation_schema': OBSERVATION_SCHEMA,
-        'source_run': str(run), 'source_motion': str(motion),
-        'motion_frames': frame_count, 'sha256': hashes,
-    }
-    destination.mkdir(parents=True)
+    print(f'Validated training run: {run} ({frame_count} motion frames)')
+    for relative, digest in hashes.items():
+        print(f'SHA256 {relative}: {digest}')
+    if args.verify_only:
+        return
+    require(args.replace_existing or not destination.exists(),
+            f'Output already exists: {destination}; use --replace-existing to update it')
     for relative, source in files.items():
         target = destination / relative
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, target)
-    (destination / 'source_manifest.yaml').write_text(yaml.safe_dump(manifest, sort_keys=False))
-    print(f'Imported MoE bundle: {destination} '
+        if source.resolve() != target.resolve():
+            shutil.copy2(source, target)
+        require(hashlib.sha256(target.read_bytes()).hexdigest() == hashes[str(relative)],
+                f'Copied file differs from the validated export: {target}')
+    print(f'Imported MoE assets: {destination} '
           f'(131 observations, 23 actions, {frame_count} frames)')
 
 

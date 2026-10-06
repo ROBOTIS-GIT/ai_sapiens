@@ -70,11 +70,41 @@ MotionReference::MotionReference(
     joint_index_by_name_[joint_order_[i]] = static_cast<Eigen::Index>(i);
   }
 
+  target_positions_.resize(joint_order_.size());
+  target_velocities_.resize(joint_order_.size());
   seek(0.0f);
+}
+
+MotionReference::Frame MotionReference::frame(int index) const
+{
+  if (index < 0 || index >= num_frames_) {
+    throw std::out_of_range("Motion frame outside clip");
+  }
+  return {dof_positions_[index], dof_velocities_[index],
+    root_positions_[index], root_quaternions_[index]};
+}
+
+void MotionReference::set_joint_targets(
+  const Eigen::Ref<const Eigen::VectorXf> & positions,
+  const Eigen::Ref<const Eigen::VectorXf> & velocities,
+  const Eigen::Vector3f & root_shift)
+{
+  if (positions.size() != target_positions_.size() ||
+    velocities.size() != target_velocities_.size() ||
+    !positions.allFinite() || !velocities.allFinite() || !root_shift.allFinite())
+  {
+    throw std::runtime_error("Motion targets must be finite and match the CSV joint order");
+  }
+  target_positions_ = positions;
+  target_velocities_ = velocities;
+  root_shift_ = root_shift;
+  has_joint_targets_ = true;
 }
 
 void MotionReference::seek(double time)
 {
+  has_joint_targets_ = false;
+  root_shift_.setZero();
   if (mjlab_format_) {
     if (!std::isfinite(time)) {
       throw std::runtime_error("Motion time must be finite");

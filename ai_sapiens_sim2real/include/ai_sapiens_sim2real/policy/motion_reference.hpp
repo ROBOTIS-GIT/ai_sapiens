@@ -42,7 +42,25 @@ public:
     const std::vector<std::string> & fallback_joint_order,
     bool mjlab_format = false);
 
+  // Read an original CSV frame without moving the playback cursor.
+  struct Frame
+  {
+    const Eigen::VectorXf & joint_pos;
+    const Eigen::VectorXf & joint_vel;
+    const Eigen::VectorXf & root_position;
+    const Eigen::Quaternionf & root_quaternion;
+  };
+  Frame frame(int index) const;
   void seek(double time);
+
+  // Optional runtime targets in motion-file joint order; seek() clears them.
+  void set_joint_targets(
+    const Eigen::Ref<const Eigen::VectorXf> & positions,
+    const Eigen::Ref<const Eigen::VectorXf> & velocities,
+    const Eigen::Vector3f & root_shift);
+  const Eigen::Vector3f & root_shift() const {return root_shift_;}
+  int frame_index() const {return index_0_;}
+  int frame_count() const {return num_frames_;}
 
   Eigen::Vector3f root_position() const
   {
@@ -51,11 +69,13 @@ public:
 
   Eigen::VectorXf joint_pos() const
   {
+    if (has_joint_targets_) {return target_positions_;}
     return dof_positions_[index_0_] * (1.0f - blend_) + dof_positions_[index_1_] * blend_;
   }
 
   Eigen::VectorXf joint_vel() const
   {
+    if (has_joint_targets_) {return target_velocities_;}
     return dof_velocities_[index_0_] * (1.0f - blend_) + dof_velocities_[index_1_] * blend_;
   }
 
@@ -92,6 +112,10 @@ private:
   int index_1_{0};
   float blend_{0.0f};
   bool mjlab_format_{false};
+
+  bool has_joint_targets_{false};
+  Eigen::VectorXf target_positions_, target_velocities_;
+  Eigen::Vector3f root_shift_{Eigen::Vector3f::Zero()};
 
   // Motion data in motion-file joint order.
   std::vector<std::string> joint_order_;

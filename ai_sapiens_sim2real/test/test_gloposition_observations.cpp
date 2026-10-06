@@ -38,13 +38,16 @@ class GlobalPositionTest : public ::testing::Test
 protected:
   void SetUp() override
   {
-    file_ = std::filesystem::temp_directory_path() / "gloposition_test_motion.csv";
+    directory_ = std::filesystem::temp_directory_path() / "gloposition_test";
+    std::filesystem::create_directories(directory_);
+    file_ = directory_ / "motion.csv";
     std::ofstream(file_) <<
       "2,3,0.8,0,0,0,1,0\n"
       "3,4,0.8,0,0,0,1,0.1\n"
       "6,5,0.8,0,0,0,1,0.4\n";
   }
-  void TearDown() override {std::filesystem::remove(file_);}
+  void TearDown() override {std::filesystem::remove_all(directory_);}
+  std::filesystem::path directory_;
   std::filesystem::path file_;
 };
 
@@ -61,6 +64,50 @@ TEST_F(GlobalPositionTest, MjlabUsesCentralVelocityAndExactFrames)
   motion.seek(100.0);
   EXPECT_NEAR(motion.root_position().x(), 6.0, 1e-5);
   EXPECT_THROW(motion.seek(std::numeric_limits<double>::quiet_NaN()), std::runtime_error);
+}
+
+TEST_F(GlobalPositionTest, FrameInspectionPreservesPlaybackAndOriginalData)
+{
+  MotionReference motion(file_.string(), 50, {"waist_yaw_joint"}, true);
+  motion.seek(.02);
+  EXPECT_NEAR(motion.frame(2).joint_pos[0], .4f, 1e-6);
+  EXPECT_EQ(motion.frame_index(), 1);
+  EXPECT_NEAR(motion.joint_pos()[0], .1f, 1e-6);
+  motion.set_joint_targets(Eigen::VectorXf::Constant(1, .6f),
+    Eigen::VectorXf::Constant(1, -.7f), Eigen::Vector3f(.01f, -.02f, 0));
+  EXPECT_NEAR(motion.frame(1).joint_pos[0], .1f, 1e-6);
+  EXPECT_NEAR(motion.joint_pos()[0], .6f, 1e-6);
+  EXPECT_TRUE(motion.root_position().isApprox(Eigen::Vector3f(3, 4, .8f)));
+  EXPECT_THROW(motion.frame(-1), std::out_of_range);
+  EXPECT_THROW(motion.frame(3), std::out_of_range);
+  EXPECT_THROW(motion.set_joint_targets(Eigen::VectorXf::Zero(2),
+      Eigen::VectorXf::Zero(1), Eigen::Vector3f::Zero()), std::runtime_error);
+  EXPECT_THROW(motion.set_joint_targets(Eigen::VectorXf::Constant(1,
+      std::numeric_limits<float>::quiet_NaN()), Eigen::VectorXf::Zero(1),
+      Eigen::Vector3f::Zero()), std::runtime_error);
+  motion.seek(.02);
+  EXPECT_NEAR(motion.joint_pos()[0], .1f, 1e-6);
+  EXPECT_TRUE(motion.root_shift().isZero());
+}
+
+TEST_F(GlobalPositionTest, RetargetedMotionUsesTheExistingPolicyJointMapping)
+{
+  std::ofstream(file_) << "0,0,0.8,0,0,0,1,0.1,0.2\n"
+    "0,0,0.8,0,0,0,1,0.2,0.4\n";
+  MotionReference motion(file_.string(), 50, {"right", "left"}, true);
+  motion.set_joint_targets(Eigen::Vector2f(.6f, .7f),
+    Eigen::Vector2f(-.2f, .3f), Eigen::Vector3f::Zero());
+  SharedControlData shared;
+  PolicyJointContext joints{{"left", "right"}, {1, 0}};
+  ObservationContext context{shared, joints, &motion};
+  const auto & registry = ObservationRegistry::get_registry();
+  EXPECT_EQ(registry.at("motion_command")(context, YAML::Node{}),
+    (std::vector<float>{.7f, .6f, .3f, -.2f}));
+  MotionReference other(file_.string(), 50, {"right", "left"}, true);
+  ObservationContext other_context{shared, joints, &other};
+  const auto command = registry.at("motion_command")(other_context, YAML::Node{});
+  EXPECT_FLOAT_EQ(command[0], .2f);
+  EXPECT_FLOAT_EQ(command[1], .1f);
 }
 
 TEST_F(GlobalPositionTest, LegacyVelocityRemainsForwardDifference)
@@ -185,6 +232,25 @@ commands:
   EXPECT_FLOAT_EQ(parsed.steering()->smoothing_time_constant, 0.8f);
   EXPECT_FALSE(parsed.velocity_command_ranges());
   auto steering = config["commands"]["reference_trajectory"]["steering"];
+  steering["command_deadband"] = 0.04;
+  steering["release_on_zero"] = false;
+  steering["release_velocity_threshold"] = 0.002;
+  EXPECT_FLOAT_EQ(load().steering()->command_deadband, .04f);
+  EXPECT_FALSE(load().steering()->release_on_zero);
+  EXPECT_FLOAT_EQ(load().steering()->release_velocity_threshold, .002f);
+  steering["command_deadband"] = -1;
+  EXPECT_THROW(load(), std::runtime_error);
+  steering["command_deadband"] = 0.04;
+  steering["release_velocity_threshold"] = 0;
+  EXPECT_THROW(load(), std::runtime_error);
+  steering["release_velocity_threshold"] = 0.002;
+  auto reference = config["commands"]["reference_trajectory"];
+  reference["required_runtime_features"] = YAML::Load("[future_reference]");
+  EXPECT_THROW(load(), std::runtime_error);
+  reference.remove("required_runtime_features");
+  reference["motion_command_source"] = "retargeted_joint_position_velocity";
+  EXPECT_THROW(load(), std::runtime_error);
+  reference.remove("motion_command_source");
   steering["tracking_mode"] = "trajectory";
   EXPECT_NO_THROW(load());
   steering["tracking_mode"] = "velocity";
@@ -329,6 +395,143 @@ TEST_F(GlobalPositionTest, SteeringChangesReferenceAndAppliedCommandOnly)
   shared.policy.motion_steering.reset();
   EXPECT_EQ(registry.at("velocity_commands")(context, YAML::Node{}),
     (std::vector<float>{0.1f, -0.2f, 0.3f}));
+}
+
+TEST_F(GlobalPositionTest, DanceReferenceUsesRetargetedJointsAndShiftedTargetOnly)
+{
+  MotionReference motion(file_.string(), 50, {"waist_yaw_joint"}, true);
+  SharedControlData shared;
+  shared.resize(23, 23);
+  motion.set_joint_targets(Eigen::VectorXf::Constant(1, .4f),
+    Eigen::VectorXf::Constant(1, -.7f), Eigen::Vector3f(.01f, -.025f, -.02f));
+  shared.policy.motion_steering.offset = Eigen::Vector2f(.2f, .3f);
+  shared.policy.motion_frame.align(Eigen::Vector2f(10, 20), Eigen::Quaternionf::Identity(),
+    motion.root_position().head<2>(), motion.root_quaternion());
+  shared.localization.position = Eigen::Vector2f(10, 20);
+  PolicyJointContext joints{{"waist_yaw_joint"}, {0}};
+  ObservationContext context{shared, joints, &motion};
+  auto & registry = ObservationRegistry::get_registry();
+  const auto command = registry.at("motion_command")(context, YAML::Node{});
+  ASSERT_EQ(command.size(), 2U);
+  EXPECT_FLOAT_EQ(command[0], .4f);
+  EXPECT_FLOAT_EQ(command[1], -.7f);
+  auto xy = registry.at("reference_root_position_xy_w")(context, YAML::Node{});
+  EXPECT_NEAR(xy[0], .21f, 1e-6);
+  EXPECT_NEAR(xy[1], .275f, 1e-6);
+  EXPECT_EQ(registry.at("robot_root_position_xy_w")(context, YAML::Node{}),
+    (std::vector<float>{0, 0}));
+  // A following CSV policy must get neither adapted joints nor the previous shift.
+  motion.seek(0.0);
+  EXPECT_EQ(registry.at("motion_command")(context, YAML::Node{}).size(), 2U);
+  xy = registry.at("reference_root_position_xy_w")(context, YAML::Node{});
+  EXPECT_NEAR(xy[0], .2f, 1e-6);
+  EXPECT_NEAR(xy[1], .3f, 1e-6);
+}
+
+YAML::Node dance_reference_config()
+{
+  return YAML::Load(
+        R"(
+observation_origin: episode
+motion_command_source: retargeted_joint_position_velocity
+dance_steps:
+  min_stance_duration: 0.18
+  support_transfer_duration: 0.06
+  support_reach: 0.12
+  max_step_lift: 0.06
+  weight_shift: 0.025
+  moving_crouch: 0.02
+  max_step_correction: 0.3
+  max_step_yaw: 0.5
+  ik_iterations: 8
+  ik_joint_correction_limit: 2.0
+  ik_max_correction_rate: 8.0
+  ik_position_tolerance: 0.008
+  ik_orientation_tolerance: 0.08
+  gesture_source: reference_trajectory
+  scheduling: reach_and_source_motion
+  phase_labels_sha256: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  phase_labels: rhythm_reference.npz
+)");
+}
+
+TEST(DanceReferenceConfig, ValidatesPlannerLimitsAndInputSemantics)
+{
+  auto reference = dance_reference_config();
+  EXPECT_NO_THROW(DanceReferenceConfig::read(reference, .02));
+  reference["dance_steps"]["ik_iterations"] = 0;
+  EXPECT_THROW(DanceReferenceConfig::read(reference, .02), std::runtime_error);
+  reference["dance_steps"]["ik_iterations"] = 8;
+  reference["dance_steps"]["ik_max_correction_rate"] = -1;
+  EXPECT_THROW(DanceReferenceConfig::read(reference, .02), std::runtime_error);
+  reference["dance_steps"]["ik_max_correction_rate"] = 8;
+  reference["motion_command_source"] = "csv";
+  EXPECT_THROW(DanceReferenceConfig::read(reference, .02), std::runtime_error);
+}
+
+TEST(DanceReferenceConfig, V3RequiresExplicitReleaseSemantics)
+{
+  auto reference = dance_reference_config();
+  EXPECT_FALSE(DanceReferenceConfig::read(reference, .02).stop_new_steps_on_release);
+  reference["required_runtime_features"] = YAML::Load("[dance_motion_reference_v3]");
+  EXPECT_THROW(DanceReferenceConfig::read(reference, .02), std::runtime_error);
+  auto steps = reference["dance_steps"];
+  steps["release_behavior"] = "finish_active_gesture_no_new_steps";
+  steps["step_intent_source"] = "deadbanded_request_before_smoothing";
+  EXPECT_TRUE(DanceReferenceConfig::read(reference, .02).stop_new_steps_on_release);
+  steps["step_intent_source"] = "smoothed_velocity";
+  EXPECT_THROW(DanceReferenceConfig::read(reference, .02), std::runtime_error);
+  steps["step_intent_source"] = "deadbanded_request_before_smoothing";
+  steps["release_behavior"] = "cancel_active_gesture";
+  EXPECT_THROW(DanceReferenceConfig::read(reference, .02), std::runtime_error);
+  steps["release_behavior"] = "finish_active_gesture_no_new_steps";
+  reference["required_runtime_features"] = YAML::Load("[dance_motion_reference_v2]");
+  EXPECT_THROW(DanceReferenceConfig::read(reference, .02), std::runtime_error);
+}
+
+TEST_F(GlobalPositionTest, TrainingExportDoesNotRequirePhaseLabelFiles)
+{
+  auto config =
+    YAML::Load(
+        R"(
+policy_joints: [waist_yaw_joint]
+step_dt: 0.02
+joint_properties:
+  waist_yaw_joint: {default_position: 0, stiffness: 20, damping: 2}
+actions:
+  joint_pos: {scale: 0.25}
+observations: {}
+)");
+  auto reference = dance_reference_config();
+  reference["required_runtime_features"] = YAML::Load("[dance_motion_reference_v2]");
+  reference["steering"] =
+    YAML::Load(
+        R"(
+lin_vel_x: [-0.3, 0.3]
+lin_vel_y: [-0.3, 0.3]
+yaw_rate: [-0.3, 0.3]
+smoothing_time_constant: 0.5
+command_deadband: 0.1
+release_on_zero: true
+release_velocity_threshold: 0.01
+)");
+  config["commands"]["reference_trajectory"] = reference;
+  const auto config_path = directory_ / "sim2real.yaml";
+  const auto load = [&]() {
+      std::ofstream(config_path) << YAML::Dump(config);
+      return Sim2RealConfig(config_path);
+    };
+  EXPECT_TRUE(load().dance_reference().has_value());
+  reference["dance_steps"].remove("phase_labels");
+  reference["dance_steps"].remove("phase_labels_sha256");
+  EXPECT_TRUE(load().dance_reference().has_value());
+
+  reference["required_runtime_features"] = YAML::Load("[dance_motion_reference_v3]");
+  reference["dance_steps"]["release_behavior"] = "finish_active_gesture_no_new_steps";
+  reference["dance_steps"]["step_intent_source"] = "deadbanded_request_before_smoothing";
+  EXPECT_TRUE(load().dance_reference()->stop_new_steps_on_release);
+  reference["required_runtime_features"] = YAML::Load("[dance_motion_reference_v99]");
+  EXPECT_THROW(load(), std::runtime_error);
 }
 
 TEST(ActionPipeline, ClipsRawBeforeScaleAndKeepsAppliedHistory)
