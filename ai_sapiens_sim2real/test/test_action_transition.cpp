@@ -117,6 +117,53 @@ TEST(CommandTransition, RestartUsesClippedPublishedCommandAndDoesNotTouchOtherJo
   EXPECT_FLOAT_EQ(output.position[1], -0.5f);
 }
 
+TEST(CommandTransition, HoldsPublishedPositionsUntilFirstTargetIsReady)
+{
+  for (const double duration : {0.0, 0.1}) {
+    SCOPED_TRACE(duration);
+    auto output = initial();
+    output.position = {1.2f, -0.5f, -1.2f};
+    auto published = output;
+    published.position = {0.5f, -0.2f, -0.4f};
+    const JointCommand target{{0.6f, -0.1f}, {90.0f, 80.0f}, {9.0f, 8.0f}};
+    auto expected = output;
+    expected.position[0] = published.position[0];
+    expected.position[2] = published.position[2];
+    if (duration == 0.0) {
+      expected.stiffness[0] = 80.0f;
+      expected.stiffness[2] = 90.0f;
+      expected.damping[0] = 8.0f;
+      expected.damping[2] = 9.0f;
+    }
+
+    CommandTransition transition(3);
+    transition.begin(published, target, {2, 0}, duration, output);
+    expect_same(expected, output);
+    for (const auto result : {PolicyUpdateResult::Skipped,
+        PolicyUpdateResult::TargetUnavailable, PolicyUpdateResult::Skipped})
+    {
+      transition.update(0.2, result, target, output);
+      expect_same(expected, output);
+      // Wider limits in the new policy must not expose the old unclipped target.
+      EXPECT_FLOAT_EQ(std::clamp(output.position[0], -2.0f, 2.0f), 0.5f);
+      EXPECT_FLOAT_EQ(std::clamp(output.position[2], -2.0f, 2.0f), -0.4f);
+    }
+
+    transition.update(0.2, PolicyUpdateResult::TargetReady, target, output);
+    if (duration > 0.0) {
+      expect_same(expected, output);
+      transition.update(duration, PolicyUpdateResult::Skipped, target, output);
+    }
+    expected.position[0] = -0.1f;
+    expected.position[2] = 0.6f;
+    expected.stiffness[0] = 80.0f;
+    expected.stiffness[2] = 90.0f;
+    expected.damping[0] = 8.0f;
+    expected.damping[2] = 9.0f;
+    expect_same(expected, output);
+  }
+}
+
 TEST(CommandTransition, ResetDoesNotOverwriteDampingOrPostureCommand)
 {
   auto output = initial();

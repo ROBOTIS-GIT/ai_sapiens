@@ -39,8 +39,8 @@ public:
   }
 
   // Snapshot a complete source command before modifying output. Targets and
-  // joints are in policy order; source/output are in robot order. As before,
-  // entry installs gains immediately, but position waits for valid inference.
+  // joints are in policy order; source/output are in robot order. Entry holds
+  // source positions until valid inference and installs gains at the initial blend.
   void begin(
     const JointCommand & source, const JointCommand & target,
     const std::vector<size_t> & joints, double duration, JointCommand & output)
@@ -64,6 +64,7 @@ public:
     elapsed_ = 0.0;
     target_ready_ = false;
     for (size_t j = 0; j < joints_.size(); ++j) {
+      output.position[joints_[j]] = start_.position[j];
       output.stiffness[joints_[j]] = blend(start_.stiffness[j], target.stiffness[j]);
       output.damping[joints_[j]] = blend(start_.damping[j], target.damping[j]);
     }
