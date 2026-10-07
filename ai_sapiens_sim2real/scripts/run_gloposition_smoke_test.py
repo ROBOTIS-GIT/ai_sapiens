@@ -162,7 +162,7 @@ def main():
     features = policy_config.get('commands', {}).get(
         'reference_trajectory', {}).get('required_runtime_features', [])
     retargeted = any(feature in features for feature in (
-        'dance_motion_reference_v2', 'dance_motion_reference_v3'))
+        'dance_motion_reference_v2', 'dance_motion_reference_v3', 'dance_motion_reference_v4'))
     with motion.open() as source:
         frames = [[float(x) for x in row] for _, row in zip(range(500), csv.reader(source))]
     first = frames[0]

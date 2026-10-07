@@ -86,12 +86,27 @@ def validate(run, motion, joint_order):
             (training_reference['steering']['release_on_zero'] == 'true'),
             'Steering release differs from training')
     features = reference.get('required_runtime_features')
-    require(features in (['dance_motion_reference_v2'], ['dance_motion_reference_v3']),
+    require(features in (['dance_motion_reference_v2'], ['dance_motion_reference_v3'],
+                         ['dance_motion_reference_v4']),
             'Expected the MoE dance reference runtime')
     require(reference.get('motion_command_source') == 'retargeted_joint_position_velocity',
             'MoE requires retargeted motion observations')
     steps = reference['dance_steps']
-    if features == ['dance_motion_reference_v3']:
+    if 'training_reference_file' in steps:
+        filename = steps['training_reference_file']
+        require(Path(filename).name == filename and filename not in ('', '.', '..'),
+                'training_reference_file must be a filename within params')
+        payload = (run/'params'/filename).read_bytes()
+        require(hashlib.sha256(payload).hexdigest() == steps.get('training_reference_sha256'),
+                'Training reference data SHA256 differs from export')
+    if features == ['dance_motion_reference_v4']:
+        require(steps.get('ik_monotonic') is True and steps.get('training_reference_file'),
+                'V4 requires exact training reference data and monotonic IK')
+        require(steps.get('ik_damping') == float(training_reference.get('ik_damping', 0.)),
+                'IK damping differs from training')
+    else:
+        require(not steps.get('ik_monotonic', False), 'Monotonic IK requires v4')
+    if features in (['dance_motion_reference_v3'], ['dance_motion_reference_v4']):
         require(steps.get('release_behavior') == 'finish_active_gesture_no_new_steps' and
                 steps.get('step_intent_source') == 'deadbanded_request_before_smoothing',
                 'Unsupported v3 dance release behavior or step intent source')
@@ -157,7 +172,7 @@ def main():
     mode.add_argument('--verify-only', action='store_true',
                       help='Validate the selected export without copying any files')
     mode.add_argument('--replace-existing', action='store_true',
-                      help='Replace only ONNX, sim2real.yaml and motion CSV in an existing asset')
+                      help='Replace the selected policy export and its declared reference assets')
     args = parser.parse_args()
     run = args.run_dir.resolve()
     motion = args.motion_csv.resolve()
@@ -168,6 +183,11 @@ def main():
     files = {Path('exported/policy.onnx'): run / 'exported/policy.onnx',
              Path('params/sim2real.yaml'): run / 'params/sim2real.yaml',
              Path('params') / motion.name: motion}
+    config = yaml.safe_load((run/'params/sim2real.yaml').read_text())
+    data_file = config['commands']['reference_trajectory']['dance_steps'].get(
+        'training_reference_file')
+    if data_file:
+        files[Path('params')/data_file] = run/'params'/data_file
     hashes = {str(relative): hashlib.sha256(source.read_bytes()).hexdigest()
               for relative, source in files.items()}
     print(f'Validated training run: {run} ({frame_count} motion frames)')

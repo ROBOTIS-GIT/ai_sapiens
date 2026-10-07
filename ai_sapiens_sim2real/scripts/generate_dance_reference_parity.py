@@ -21,12 +21,13 @@ def validate_reference_config(reference, exported):
     """Reject a live training task that no longer describes the selected export."""
     from source.tasks.mimic.rl.moe import MimicMoERunner
     features = exported.get('required_runtime_features')
-    version = {'dance_motion_reference_v2': 4, 'dance_motion_reference_v3': 5}
+    version = {'dance_motion_reference_v2': 4, 'dance_motion_reference_v3': 5,
+               'dance_motion_reference_v4': 6}
     if (not isinstance(features, list) or len(features) != 1 or
             version.get(features[0]) != MimicMoERunner.REFERENCE_VERSION):
         raise ValueError('Training reference version differs from the selected export')
     steps = exported['dance_steps']
-    if features == ['dance_motion_reference_v3']:
+    if features in (['dance_motion_reference_v3'], ['dance_motion_reference_v4']):
         if (steps.get('release_behavior') != 'finish_active_gesture_no_new_steps' or
                 steps.get('step_intent_source') != 'deadbanded_request_before_smoothing'):
             raise ValueError('Unsupported v3 dance release behavior or step intent source')
@@ -38,7 +39,8 @@ def validate_reference_config(reference, exported):
             raise ValueError(f'Training task steering.{key} differs from the selected export')
     for key, value in exported['dance_steps'].items():
         if key in ('gesture_source', 'scheduling', 'phase_labels', 'phase_labels_sha256',
-                   'release_behavior', 'step_intent_source'):
+                   'release_behavior', 'step_intent_source', 'training_reference_file',
+                   'training_reference_sha256'):
             continue
         if getattr(reference, key) != value:
             raise ValueError(f'Training task dance_steps.{key} differs from the selected export')
@@ -89,6 +91,16 @@ def main():
             raise ValueError('Training timestep differs from the selected export')
         args.output.mkdir(parents=True, exist_ok=False)
         shutil.copy2(args.sim2real_config, args.output/'sim2real.yaml')
+        data_file = exported['commands']['reference_trajectory']['dance_steps'].get(
+            'training_reference_file')
+        if data_file:
+            if Path(data_file).name != data_file:
+                raise ValueError('training_reference_file must be a filename within params')
+            source_data = args.sim2real_config.parent/data_file
+            if hashlib.sha256(source_data.read_bytes()).hexdigest() != exported['commands'][
+                    'reference_trajectory']['dance_steps'].get('training_reference_sha256'):
+                raise ValueError('Training reference binary SHA256 differs from export')
+            shutil.copy2(source_data, args.output/data_file)
         shutil.copy2(ref.root_position_csv_file, args.output/'motion.csv')
         print(f'Reference config: {args.sim2real_config.resolve()}', flush=True)
         print('Config SHA256: ' + hashlib.sha256(args.sim2real_config.read_bytes()).hexdigest(),

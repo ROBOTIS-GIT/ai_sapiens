@@ -24,6 +24,7 @@ find_package(ament_index_cpp REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(mujoco_vendor REQUIRED)
+find_package(OpenSSL REQUIRED COMPONENTS Crypto)
 find_package(pluginlib REQUIRED)
 
 # ONNX Runtime (https://github.com/microsoft/onnxruntime/releases).
@@ -102,6 +103,7 @@ target_link_libraries(ai_sapiens_sim2real_node
   Eigen3::Eigen
   ${ONNXRUNTIME_LIBRARY}
   mujoco::mujoco
+  OpenSSL::Crypto
 )
 
 # ============================================================================
@@ -281,7 +283,7 @@ if(BUILD_TESTING)
     src/observation/observations.cpp)
   ament_target_dependencies(dance_reference_probe ament_index_cpp)
   target_link_libraries(dance_reference_probe
-    yaml-cpp Eigen3::Eigen mujoco::mujoco)
+    yaml-cpp Eigen3::Eigen mujoco::mujoco OpenSSL::Crypto)
 
   ament_add_gtest(test_onnx_metadata
     test/test_onnx_metadata.cpp src/policy/onnx_inference.cpp)

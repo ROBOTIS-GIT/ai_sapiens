@@ -16,7 +16,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <limits>
 #include <stdexcept>
 #include <tuple>
@@ -24,6 +27,7 @@
 
 #include <ament_index_cpp/get_package_share_directory.hpp>
 #include <mujoco/mujoco.h>
+#include <openssl/evp.h>
 
 #include "ai_sapiens_sim2real/policy/motion_reference.hpp"
 
@@ -55,12 +59,13 @@ void require(bool ok, const char * message)
 float wrap(float x) {return std::atan2(std::sin(x), std::cos(x));}
 float clamp(float x, float low, float high) {return std::clamp(x, low, high);}
 Q yaw_q(float yaw) {return Q(Eigen::AngleAxisf(yaw, V3::UnitZ()));}
-V3 rotation_vector(Q q)
+template<typename Scalar>
+Eigen::Matrix<Scalar, 3, 1> rotation_vector(Eigen::Quaternion<Scalar> q)
 {
   if (q.w() < 0) {q.coeffs() *= -1;}
-  const float length = q.vec().norm();
-  const float angle = 2 * std::atan2(length, std::max(q.w(), 1e-8f));
-  return q.vec() * (length > 1e-6f ? angle / length : 2.0f);
+  const Scalar length = q.vec().norm();
+  const Scalar angle = 2 * std::atan2(length, std::max(q.w(), Scalar(1e-8)));
+  return q.vec() * (length > Scalar(1e-6) ? angle / length : Scalar(2));
 }
 
 Q nlerp(const Q & low, Q high, float fraction)
@@ -101,26 +106,88 @@ struct Leg
   std::array<float, 6> q0, low, high;
 };
 
-struct Chain
+template<typename Scalar>
+struct ChainT
 {
-  std::array<V3, 6> position, anchor, axis;
-  std::array<Q, 6> quaternion;
+  std::array<Eigen::Matrix<Scalar, 3, 1>, 6> position, anchor, axis;
+  std::array<Eigen::Quaternion<Scalar>, 6> quaternion;
 };
+using Chain = ChainT<float>;
 
-Chain forward(const Leg & leg, const Joints & joints, V3 p, Q q)
+template<typename Scalar>
+ChainT<Scalar> forward(
+  const Leg & leg, const std::array<Scalar, 23> & joints,
+  Eigen::Matrix<Scalar, 3, 1> p, Eigen::Quaternion<Scalar> q)
 {
-  Chain chain;
+  using Quat = Eigen::Quaternion<Scalar>;
+  ChainT<Scalar> chain;
   for (int i = 0; i < 6; ++i) {
-    p += q * leg.positions[i];
-    q = q * leg.quaternions[i];
-    chain.anchor[i] = p + q * leg.anchors[i];
-    chain.axis[i] = q * leg.axes[i];
-    q = q * Q(Eigen::AngleAxisf(joints[leg.indices[i]] - leg.q0[i], leg.axes[i]));
-    p = chain.anchor[i] - q * leg.anchors[i];
+    p += q * leg.positions[i].cast<Scalar>();
+    q = q * leg.quaternions[i].cast<Scalar>();
+    chain.anchor[i] = p + q * leg.anchors[i].cast<Scalar>();
+    chain.axis[i] = q * leg.axes[i].cast<Scalar>();
+    q = q * Quat(Eigen::AngleAxis<Scalar>(joints[leg.indices[i]] - Scalar(leg.q0[i]),
+      leg.axes[i].cast<Scalar>()));
+    p = chain.anchor[i] - q * leg.anchors[i].cast<Scalar>();
     chain.position[i] = p;
     chain.quaternion[i] = q;
   }
   return chain;
+}
+
+bool solve_precise(
+  const Leg & leg, const Joints & nominal, Joints & output,
+  const V3 & root, const Q & root_q, const V3 & goal, const Q & goal_q,
+  const DanceReferenceConfig & cfg)
+{
+  std::array<double, 23> joints;
+  std::copy(output.begin(), output.end(), joints.begin());
+  for (int j = 0; j < 6; ++j) {
+    const int index = leg.indices[j];
+    joints[index] = std::clamp(std::clamp(joints[index], double(leg.low[j]), double(leg.high[j])),
+      double(nominal[index]) - cfg.ik_joint_correction_limit,
+      double(nominal[index]) + cfg.ik_joint_correction_limit);
+  }
+  const Eigen::Vector3d root_d = root.cast<double>(), goal_d = goal.cast<double>();
+  const Eigen::Quaterniond root_qd = root_q.cast<double>(), goal_qd = goal_q.cast<double>();
+  double step_scale = 1;
+  for (int iteration = 0; iteration < cfg.ik_iterations; ++iteration) {
+    const auto chain = forward(leg, joints, root_d, root_qd);
+    Eigen::Matrix<double, 6, 6> jacobian;
+    for (int j = 0; j < 6; ++j) {
+      jacobian.block<3, 1>(0, j) = chain.axis[j].cross(chain.position[5] - chain.anchor[j]);
+      jacobian.block<3, 1>(3, j) = .15 * chain.axis[j];
+    }
+    Eigen::Matrix<double, 6, 1> error;
+    error.head<3>() = goal_d - chain.position[5];
+    error.tail<3>() = .15 * rotation_vector(goal_qd * chain.quaternion[5].conjugate());
+    const Eigen::Matrix<double, 6, 6> normal = jacobian * jacobian.transpose() +
+      double(cfg.ik_damping) * Eigen::Matrix<double, 6, 6>::Identity();
+    const Eigen::Matrix<double, 6,
+      1> update = jacobian.transpose() * normal.partialPivLu().solve(error);
+    if (!update.allFinite()) {return false;}
+    auto candidate = joints;
+    for (int j = 0; j < 6; ++j) {
+      const int index = leg.indices[j];
+      const double value = std::clamp(joints[index] + std::clamp(update[j], -.12, .12) * step_scale,
+        double(nominal[index]) - cfg.ik_joint_correction_limit,
+        double(nominal[index]) + cfg.ik_joint_correction_limit);
+      candidate[index] = std::clamp(value, double(leg.low[j]), double(leg.high[j]));
+    }
+    const auto after = forward(leg, candidate, root_d, root_qd);
+    const double next_error = (goal_d - after.position[5]).squaredNorm() +
+      (.15 * rotation_vector(goal_qd * after.quaternion[5].conjugate())).squaredNorm();
+    if (next_error < error.squaredNorm() * (1 - 1e-4) - 1e-12) {
+      joints = candidate;
+      step_scale = 1;
+    } else {
+      step_scale *= .5;
+    }
+  }
+  for (const int index : leg.indices) {
+    output[index] = static_cast<float>(joints[index]);
+  }
+  return true;
 }
 
 struct FootState
@@ -193,7 +260,95 @@ struct DanceMotionReference::Impl
         frame.ends[side] = i;
       }
     }
+    if (!cfg.training_reference_file.empty()) {load_training_reference();}
     extract_gestures(step_dt);
+  }
+
+  void load_training_reference()
+  {
+    std::ifstream input(cfg.training_reference_file, std::ios::binary);
+    require(static_cast<bool>(input),
+        "cannot open training reference: " + cfg.training_reference_file);
+    // Validate manually copied assets too, using the bytes actually consumed below.
+    std::unique_ptr<EVP_MD_CTX, decltype(& EVP_MD_CTX_free)> digest(
+      EVP_MD_CTX_new(), &EVP_MD_CTX_free);
+    require(digest && EVP_DigestInit_ex(digest.get(), EVP_sha256(), nullptr) == 1,
+      "cannot initialize training reference SHA256");
+    const auto read = [&](void * destination, size_t bytes) {
+        input.read(static_cast<char *>(destination), static_cast<std::streamsize>(bytes));
+        require(static_cast<bool>(input), "truncated training reference");
+        require(EVP_DigestUpdate(digest.get(), destination, bytes) == 1,
+          "cannot update training reference SHA256");
+      };
+    const uint32_t endian = 1;
+    require(*reinterpret_cast<const char *>(&endian) == 1, "reference requires little-endian host");
+    char magic[8];
+    uint32_t count, point_count;
+    float reference_dt;
+    read(magic, sizeof(magic));
+    read(&count, sizeof(count));
+    read(&point_count, sizeof(point_count));
+    read(&reference_dt, sizeof(reference_dt));
+    require(std::memcmp(magic, "K1DREF1\0", 8) == 0, "unsupported training reference format");
+    require(count == frames.size() && point_count > 0 && point_count <= 100000 &&
+      std::isfinite(reference_dt) && std::abs(reference_dt - dt) < 1e-7f,
+      "training reference dimensions/timestep differ from motion");
+    for (auto & frame : frames) {
+      std::array<float, 71> row;
+      read(row.data(), sizeof(row));
+      require(std::all_of(row.begin(), row.end(), [](float x) {return std::isfinite(x);}),
+        "non-finite training reference");
+      const auto vector = [&](int start) {return V3(row[start], row[start + 1], row[start + 2]);};
+      const auto quaternion = [&](int start) {
+          Q q(row[start], row[start + 1], row[start + 2], row[start + 3]);
+          require(std::abs(q.squaredNorm() - 1) < 1e-4f, "invalid reference quaternion");
+          return q;
+        };
+      require((frame.root - vector(0)).norm() < 1e-4f &&
+        rotation_vector(frame.root_q * quaternion(3).conjugate()).norm() < 1e-4f,
+        "training reference root differs from CSV");
+      for (int j = 0; j < 23; ++j) {
+        require(std::abs(frame.joints[j] - row[7 + j]) < 1e-5f &&
+          std::abs(frame.velocity[j] - row[30 + j]) < 1e-3f,
+          "training reference joints differ from CSV");
+        frame.joints[j] = row[7 + j];
+        frame.velocity[j] = row[30 + j];
+      }
+      frame.root = vector(0);
+      frame.root_q = quaternion(3);
+      frame.heading = PlanarMotionSteering::heading(frame.root_q);
+      for (int side = 0; side < 2; ++side) {
+        frame.feet[side] = vector(53 + side * 3);
+        frame.foot_q[side] = quaternion(59 + side * 4);
+        frame.air[side] = row[67 + side];
+        frame.clearance[side] = row[69 + side];
+        require(frame.air[side] >= 0 && frame.air[side] <= 1 && frame.clearance[side] >= 0,
+          "invalid training contact/clearance");
+      }
+    }
+    for (auto & foot : points) {
+      foot.resize(point_count);
+      for (auto & point : foot) {
+        std::array<float, 3> xyz;
+        read(xyz.data(), sizeof(xyz));
+        point = V3(xyz[0], xyz[1], xyz[2]);
+        require(point.allFinite(), "non-finite sole point");
+      }
+    }
+    require(input.peek() == std::char_traits<char>::eof(), "trailing training reference data");
+    std::array<unsigned char, EVP_MAX_MD_SIZE> hash{};
+    unsigned int hash_size = 0;
+    require(EVP_DigestFinal_ex(digest.get(), hash.data(), &hash_size) == 1 && hash_size == 32,
+      "cannot finalize training reference SHA256");
+    constexpr char hex[] = "0123456789abcdef";
+    std::string actual;
+    actual.reserve(64);
+    for (unsigned int i = 0; i < hash_size; ++i) {
+      actual += hex[hash[i] >> 4];
+      actual += hex[hash[i] & 15];
+    }
+    require(actual == cfg.training_reference_sha256,
+      "training reference SHA256 differs from sim2real.yaml: " + cfg.training_reference_file);
   }
 
   void load_kinematics(const std::vector<std::string> & joints)
@@ -619,27 +774,33 @@ struct DanceMotionReference::Impl
       for (int i = 0; i < 23; ++i) {out.joint_pos[i] += correction[i];}
       for (int side = 0; side < 2; ++side) {
         const auto & leg = legs[side];
-        for (int iteration = 0; iteration < cfg.ik_iterations; ++iteration) {
-          const auto chain = forward(leg, out.joint_pos, root, root_q);
-          Eigen::Matrix<float, 6, 6> jacobian;
-          for (int j = 0; j < 6; ++j) {
-            jacobian.block<3, 1>(0, j) = chain.axis[j].cross(chain.position[5] - chain.anchor[j]);
-            jacobian.block<3, 1>(3, j) = .15f * chain.axis[j];
-          }
-          Eigen::Matrix<float, 6, 1> error;
-          error.head<3>() = goal_p[side] - chain.position[5];
-          error.tail<3>() = .15f * rotation_vector(goal_q[side] * chain.quaternion[5].conjugate());
-          const Eigen::Matrix<float, 6, 6> normal = jacobian * jacobian.transpose() +
-            .0004f * Eigen::Matrix<float, 6, 6>::Identity();
-          const Eigen::Matrix<float, 6,
-            1> update = jacobian.transpose() * normal.partialPivLu().solve(error);
-          if (!update.allFinite()) {finite[side] = false; break;}
-          for (int j = 0; j < 6; ++j) {
-            const int index = leg.indices[j];
-            const float value = clamp(out.joint_pos[index] + clamp(update[j], -.12f, .12f),
+        if (cfg.ik_monotonic) {
+          finite[side] = solve_precise(leg, f.joints, out.joint_pos, root, root_q,
+              goal_p[side], goal_q[side], cfg);
+        } else {
+          for (int iteration = 0; iteration < cfg.ik_iterations; ++iteration) {
+            const auto chain = forward(leg, out.joint_pos, root, root_q);
+            Eigen::Matrix<float, 6, 6> jacobian;
+            for (int j = 0; j < 6; ++j) {
+              jacobian.block<3, 1>(0, j) = chain.axis[j].cross(chain.position[5] - chain.anchor[j]);
+              jacobian.block<3, 1>(3, j) = .15f * chain.axis[j];
+            }
+            Eigen::Matrix<float, 6, 1> error;
+            error.head<3>() = goal_p[side] - chain.position[5];
+            error.tail<3>() = .15f *
+              rotation_vector(goal_q[side] * chain.quaternion[5].conjugate());
+            const Eigen::Matrix<float, 6, 6> normal = jacobian * jacobian.transpose() +
+              cfg.ik_damping * Eigen::Matrix<float, 6, 6>::Identity();
+            const Eigen::Matrix<float, 6,
+              1> update = jacobian.transpose() * normal.partialPivLu().solve(error);
+            if (!update.allFinite()) {finite[side] = false; break;}
+            for (int j = 0; j < 6; ++j) {
+              const int index = leg.indices[j];
+              const float value = clamp(out.joint_pos[index] + clamp(update[j], -.12f, .12f),
               f.joints[index] - cfg.ik_joint_correction_limit,
                 f.joints[index] + cfg.ik_joint_correction_limit);
-            out.joint_pos[index] = clamp(value, leg.low[j], leg.high[j]);
+              out.joint_pos[index] = clamp(value, leg.low[j], leg.high[j]);
+            }
           }
         }
         for (int j = 0; j < 6; ++j) {

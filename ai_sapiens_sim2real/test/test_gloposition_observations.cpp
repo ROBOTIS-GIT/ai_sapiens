@@ -469,6 +469,27 @@ TEST(DanceReferenceConfig, ValidatesPlannerLimitsAndInputSemantics)
   EXPECT_THROW(DanceReferenceConfig::read(reference, .02), std::runtime_error);
 }
 
+TEST(DanceReferenceConfig, V4RequiresExactDataAndMonotonicSolver)
+{
+  auto reference = dance_reference_config();
+  reference["required_runtime_features"] = YAML::Load("[dance_motion_reference_v4]");
+  auto steps = reference["dance_steps"];
+  steps["release_behavior"] = "finish_active_gesture_no_new_steps";
+  steps["step_intent_source"] = "deadbanded_request_before_smoothing";
+  EXPECT_THROW(DanceReferenceConfig::read(reference, .02), std::runtime_error);
+  steps["training_reference_file"] = "dance_reference_v1.bin";
+  steps["training_reference_sha256"] = std::string(64, 'a');
+  EXPECT_THROW(DanceReferenceConfig::read(reference, .02), std::runtime_error);
+  steps["ik_monotonic"] = true;
+  EXPECT_THROW(DanceReferenceConfig::read(reference, .02), std::runtime_error);
+  steps["ik_damping"] = .0025;
+  const auto config = DanceReferenceConfig::read(reference, .02);
+  EXPECT_TRUE(config.ik_monotonic);
+  EXPECT_TRUE(config.stop_new_steps_on_release);
+  reference["required_runtime_features"] = YAML::Load("[dance_motion_reference_v3]");
+  EXPECT_THROW(DanceReferenceConfig::read(reference, .02), std::runtime_error);
+}
+
 TEST(DanceReferenceConfig, V3RequiresExplicitReleaseSemantics)
 {
   auto reference = dance_reference_config();
@@ -486,6 +507,27 @@ TEST(DanceReferenceConfig, V3RequiresExplicitReleaseSemantics)
   EXPECT_THROW(DanceReferenceConfig::read(reference, .02), std::runtime_error);
   steps["release_behavior"] = "finish_active_gesture_no_new_steps";
   reference["required_runtime_features"] = YAML::Load("[dance_motion_reference_v2]");
+  EXPECT_THROW(DanceReferenceConfig::read(reference, .02), std::runtime_error);
+}
+
+TEST(DanceReferenceConfig, DeclaredTrainingReferenceCannotSilentlyUseCsvFallback)
+{
+  auto reference = dance_reference_config();
+  reference["dance_steps"]["training_reference_file"] = "";
+  EXPECT_THROW(DanceReferenceConfig::read(reference, .02), std::runtime_error);
+  reference["dance_steps"]["training_reference_file"] = "dance_reference_v1.bin";
+  EXPECT_THROW(DanceReferenceConfig::read(reference, .02), std::runtime_error);
+  reference["dance_steps"]["training_reference_sha256"] = std::string(64, 'a');
+  EXPECT_EQ(DanceReferenceConfig::read(reference, .02).training_reference_file,
+    "dance_reference_v1.bin");
+  EXPECT_EQ(DanceReferenceConfig::read(reference, .02).training_reference_sha256,
+    std::string(64, 'a'));
+  for (const auto & invalid : {std::string(63, 'a'), std::string(64, 'g')}) {
+    reference["dance_steps"]["training_reference_sha256"] = invalid;
+    EXPECT_THROW(DanceReferenceConfig::read(reference, .02), std::runtime_error);
+  }
+  reference["dance_steps"]["training_reference_sha256"] = std::string(64, 'a');
+  reference["dance_steps"].remove("training_reference_file");
   EXPECT_THROW(DanceReferenceConfig::read(reference, .02), std::runtime_error);
 }
 
@@ -530,6 +572,12 @@ release_velocity_threshold: 0.01
   reference["dance_steps"]["release_behavior"] = "finish_active_gesture_no_new_steps";
   reference["dance_steps"]["step_intent_source"] = "deadbanded_request_before_smoothing";
   EXPECT_TRUE(load().dance_reference()->stop_new_steps_on_release);
+  reference["dance_steps"]["training_reference_file"] = "dance_reference_v1.bin";
+  reference["dance_steps"]["training_reference_sha256"] = std::string(64, 'a');
+  EXPECT_EQ(load().dance_reference()->training_reference_file,
+    (directory_ / "dance_reference_v1.bin").string());
+  reference["dance_steps"]["training_reference_file"] = "/tmp/explicit_dance_reference.bin";
+  EXPECT_EQ(load().dance_reference()->training_reference_file, "/tmp/explicit_dance_reference.bin");
   reference["required_runtime_features"] = YAML::Load("[dance_motion_reference_v99]");
   EXPECT_THROW(load(), std::runtime_error);
 }

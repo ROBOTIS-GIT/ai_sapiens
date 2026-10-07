@@ -377,7 +377,8 @@ Sim2RealConfig::Sim2RealConfig(const std::filesystem::path & path)
       if (features && features.size() != 0) {
         if (features.size() != 1 ||
         (features[0].as<std::string>() != "dance_motion_reference_v2" &&
-        features[0].as<std::string>() != "dance_motion_reference_v3"))
+        features[0].as<std::string>() != "dance_motion_reference_v3" &&
+        features[0].as<std::string>() != "dance_motion_reference_v4"))
         {
           throw std::runtime_error("Unsupported required_runtime_features for Mimic");
         }
@@ -391,6 +392,11 @@ Sim2RealConfig::Sim2RealConfig(const std::filesystem::path & path)
             std::string("reference_trajectory.steering.") + key);
         }
         dance_reference_ = DanceReferenceConfig::read(reference, step_dt_);
+        if (!dance_reference_->training_reference_file.empty()) {
+          const std::filesystem::path data(dance_reference_->training_reference_file);
+          dance_reference_->training_reference_file =
+          (data.is_absolute() ? data : path_.parent_path() / data).lexically_normal().string();
+        }
       } else if (reference && (reference["dance_steps"] || reference["motion_command_source"])) {
         throw std::runtime_error("Dance reference settings require a supported runtime feature");
       }

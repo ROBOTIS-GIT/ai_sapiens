@@ -25,6 +25,7 @@
   <build_depend>yaml-cpp</build_depend>
   <build_depend>eigen</build_depend>
   <depend>mujoco_vendor</depend>
+  <depend>openssl</depend>
   <exec_depend>ai_sapiens_description</exec_depend>
 
   <exec_depend>yaml-cpp</exec_depend>
