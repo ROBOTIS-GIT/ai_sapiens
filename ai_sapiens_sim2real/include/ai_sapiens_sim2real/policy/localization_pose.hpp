@@ -20,6 +20,8 @@
 #include <cmath>
 #include <Eigen/Geometry>
 
+#include "ai_sapiens_sim2real/config/motion_observation_origin.hpp"
+
 namespace ai_sapiens_sim2real
 {
 
@@ -32,31 +34,40 @@ struct LocalizationData
   bool align_on_entry{true};
 };
 
-// Robot and reference displacements from their respective episode start positions,
-// expressed in the motion's world axes. Capture both origins and yaw once per entry.
+// Align odometry to the motion's world axes once per entry. Episode coordinates
+// start at zero; motion coordinates retain the reference's original XY values.
 class MotionFrameAlignment
 {
 public:
   void reset()
   {
     rotation_ = Eigen::Quaternionf::Identity();
+    imu_rotation_ = Eigen::Quaternionf::Identity();
+    use_imu_orientation_ = false;
     odom_origin_.setZero();
     reference_origin_.setZero();
+    robot_offset_.setZero();
   }
 
   void align(
     const Eigen::Vector2f & robot_xy, const Eigen::Quaternionf & robot_root,
-    const Eigen::Vector2f & reference_xy, const Eigen::Quaternionf & reference_root)
+    const Eigen::Vector2f & reference_xy, const Eigen::Quaternionf & reference_root,
+    MotionObservationOrigin origin = MotionObservationOrigin::Episode)
   {
     rotation_ = Eigen::AngleAxisf(yaw(reference_root) - yaw(robot_root),
       Eigen::Vector3f::UnitZ());
     odom_origin_ = robot_xy;
     reference_origin_ = reference_xy;
+    robot_offset_.setZero();
+    if (origin == MotionObservationOrigin::Motion) {
+      reference_origin_.setZero();
+      robot_offset_ = reference_xy;
+    }
   }
 
   Eigen::Vector2f position(const Eigen::Vector2f & odom_xy) const
   {
-    return rotate(odom_xy - odom_origin_);
+    return rotate(odom_xy - odom_origin_) + robot_offset_;
   }
 
   Eigen::Vector2f reference_position(const Eigen::Vector2f & reference_xy) const
@@ -67,6 +78,27 @@ public:
   Eigen::Quaternionf orientation(const Eigen::Quaternionf & odom_root) const
   {
     return rotation_ * odom_root;
+  }
+
+  // IMU and odometry may have different world headings. Align each source
+  // independently; using the odom rotation on IMU attitude mixes two frames.
+  // Only yaw is aligned, preserving the robot's measured roll and pitch.
+  void use_imu_orientation(
+    const Eigen::Quaternionf & imu_root, const Eigen::Quaternionf & reference_root,
+    bool align_on_entry)
+  {
+    use_imu_orientation_ = true;
+    imu_rotation_ = Eigen::Quaternionf::Identity();
+    if (align_on_entry) {
+      imu_rotation_ = Eigen::AngleAxisf(
+        yaw(reference_root) - yaw(imu_root.normalized()), Eigen::Vector3f::UnitZ());
+    }
+  }
+
+  Eigen::Quaternionf orientation(
+    const Eigen::Quaternionf & odom_root, const Eigen::Quaternionf & imu_root) const
+  {
+    return use_imu_orientation_ ? imu_rotation_ * imu_root.normalized() : orientation(odom_root);
   }
 
 private:
@@ -82,8 +114,11 @@ private:
   }
 
   Eigen::Quaternionf rotation_{Eigen::Quaternionf::Identity()};
+  Eigen::Quaternionf imu_rotation_{Eigen::Quaternionf::Identity()};
+  bool use_imu_orientation_{false};
   Eigen::Vector2f odom_origin_{Eigen::Vector2f::Zero()};
   Eigen::Vector2f reference_origin_{Eigen::Vector2f::Zero()};
+  Eigen::Vector2f robot_offset_{Eigen::Vector2f::Zero()};
 };
 
 }  // namespace ai_sapiens_sim2real

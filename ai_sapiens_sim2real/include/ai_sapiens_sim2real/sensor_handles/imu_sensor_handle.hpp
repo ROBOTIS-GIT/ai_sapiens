@@ -39,6 +39,7 @@ struct ImuData
 {
   Eigen::Vector3f angular_velocity{Eigen::Vector3f::Zero()};
   Eigen::Quaternionf orientation{Eigen::Quaternionf::Identity()};
+  bool orientation_valid{false};
   std::chrono::steady_clock::time_point received_at{};
 };
 

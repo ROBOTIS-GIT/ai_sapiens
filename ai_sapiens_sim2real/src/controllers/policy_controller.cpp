@@ -78,7 +78,8 @@ void PolicyController::update(
   if (!runtime->check_inputs()) {
     requests_->state_name = localization_loss_state_;
     RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 1000,
-      "Policy '%s' requires fresh localization; stopping mimic and requesting %s",
+      "Policy '%s' requires valid localization and configured attitude input; "
+      "stopping mimic and requesting %s",
       decision.active_state_name.c_str(), localization_loss_state_.c_str());
     return;
   }

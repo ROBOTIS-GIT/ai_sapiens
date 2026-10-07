@@ -228,8 +228,8 @@ std::vector<float> obs_motion_anchor_ori_b(
   if (context.shared.policy.uses_global_position) {
     const auto & localization = context.shared.localization;
     const auto root_in_motion = context.shared.policy.motion_frame.orientation(
-      localization.orientation);
-    // Preserve the measured waist transform, but use the estimator's root attitude.
+      localization.orientation, context.shared.sensors.orientation);
+    // Preserve the measured waist transform; the policy selects the root attitude source.
     real_torso_quat_w = torso_orientation_in_world(
       context.shared.sensors, context.joints, root_in_motion);
   }

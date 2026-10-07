@@ -160,6 +160,132 @@ TEST(MotionFrameAlignment, ReentryAfterWalkingCapturesNewPositionAndYaw)
   EXPECT_TRUE(frame.orientation(quarter_turn).isApprox(Eigen::Quaternionf::Identity(), 1e-5));
 }
 
+TEST(MotionFrameAlignment, MotionOriginPreservesCoordinatesAcrossReentryAndPolicyChanges)
+{
+  MotionFrameAlignment frame;
+  const Eigen::Quaternionf quarter_turn(
+    Eigen::AngleAxisf(1.57079632679f, Eigen::Vector3f::UnitZ()));
+  frame.align(Eigen::Vector2f(10, 20), quarter_turn,
+    Eigen::Vector2f(2, 3), Eigen::Quaternionf::Identity(), MotionObservationOrigin::Motion);
+  EXPECT_TRUE(frame.position(Eigen::Vector2f(10, 20)).isApprox(Eigen::Vector2f(2, 3)));
+  EXPECT_TRUE(frame.position(Eigen::Vector2f(10, 21)).isApprox(Eigen::Vector2f(3, 3)));
+  EXPECT_TRUE(frame.reference_position(Eigen::Vector2f(3, 4)).isApprox(Eigen::Vector2f(3, 4)));
+  EXPECT_TRUE(frame.orientation(quarter_turn).isApprox(Eigen::Quaternionf::Identity(), 1e-5));
+
+  // Walking before re-entry or starting at another motion frame must not zero
+  // that frame's original coordinates or reuse the previous odometry origin.
+  frame.align(Eigen::Vector2f(12, 21), Eigen::Quaternionf::Identity(),
+    Eigen::Vector2f(6, -4), quarter_turn, MotionObservationOrigin::Motion);
+  EXPECT_TRUE(frame.position(Eigen::Vector2f(12, 21)).isApprox(Eigen::Vector2f(6, -4)));
+  EXPECT_TRUE(frame.position(Eigen::Vector2f(13, 21)).isApprox(Eigen::Vector2f(6, -3)));
+  EXPECT_TRUE(frame.reference_position(Eigen::Vector2f(7, -4)).isApprox(Eigen::Vector2f(7, -4)));
+
+  // Switching back to an unspecified/episode policy clears the motion offset.
+  frame.align(Eigen::Vector2f(12, 21), quarter_turn,
+    Eigen::Vector2f(6, -4), Eigen::Quaternionf::Identity());
+  EXPECT_TRUE(frame.position(Eigen::Vector2f(12, 21)).isZero(1e-5));
+  EXPECT_TRUE(frame.reference_position(Eigen::Vector2f(6, -4)).isZero(1e-5));
+  frame.align(Eigen::Vector2f(12, 21), quarter_turn,
+    Eigen::Vector2f(6, -4), Eigen::Quaternionf::Identity(), MotionObservationOrigin::Motion);
+  frame.reset();
+  EXPECT_TRUE(frame.position(Eigen::Vector2f(1, 2)).isApprox(Eigen::Vector2f(1, 2)));
+  EXPECT_TRUE(frame.reference_position(Eigen::Vector2f(3, 4)).isApprox(Eigen::Vector2f(3, 4)));
+}
+
+TEST_F(GlobalPositionTest, ObservationOriginIsPerPolicyAndDoesNotRequireSteering)
+{
+  auto config = YAML::Load(R"(
+policy_joints: [waist_yaw_joint]
+step_dt: 0.02
+joint_properties:
+  waist_yaw_joint: {default_position: 0, stiffness: 20, damping: 2}
+actions:
+  joint_pos: {scale: 0.25}
+observations: {}
+commands: {}
+)");
+  const auto load = [&]() {
+      std::ofstream(file_) << YAML::Dump(config);
+      return Sim2RealConfig(file_);
+    };
+  EXPECT_EQ(load().observation_origin(), MotionObservationOrigin::Episode);
+  auto reference = config["commands"]["reference_trajectory"];
+  EXPECT_FALSE(load().use_imu_orientation());
+  reference["orientation_source"] = "imu";
+  const auto imu_config = load();
+  EXPECT_TRUE(imu_config.use_imu_orientation());
+  reference["orientation_source"] = "localization";
+  EXPECT_FALSE(load().use_imu_orientation());
+  EXPECT_TRUE(imu_config.use_imu_orientation());
+  reference["orientation_source"] = "unknown";
+  EXPECT_THROW(load(), std::runtime_error);
+  reference.remove("orientation_source");
+  reference["observation_origin"] = "motion";
+  const auto motion_config = load();
+  EXPECT_EQ(motion_config.observation_origin(), MotionObservationOrigin::Motion);
+  EXPECT_FALSE(motion_config.steering());
+  EXPECT_FALSE(motion_config.dance_reference());
+  reference["observation_origin"] = "episode";
+  EXPECT_EQ(load().observation_origin(), MotionObservationOrigin::Episode);
+  EXPECT_EQ(motion_config.observation_origin(), MotionObservationOrigin::Motion);
+  reference["observation_origin"] = "invalid";
+  EXPECT_THROW(load(), std::runtime_error);
+  reference["observation_origin"] = YAML::Load("[motion]");
+  EXPECT_THROW(load(), std::runtime_error);
+  reference.remove("observation_origin");
+  EXPECT_EQ(load().observation_origin(), MotionObservationOrigin::Episode);
+  config.remove("commands");
+  EXPECT_EQ(load().observation_origin(), MotionObservationOrigin::Episode);
+}
+
+TEST_F(GlobalPositionTest, ImuAttitudeIgnoresEstimatorTiltAcrossRepeatedEntries)
+{
+  MotionReference motion(file_.string(), 50, {"waist_yaw_joint"}, true);
+  SharedControlData shared;
+  shared.resize(1, 1);
+  shared.policy.uses_global_position = true;
+  PolicyJointContext joints{{"waist_yaw_joint"}, {0}};
+  ObservationContext context{shared, joints, &motion};
+  const auto & registry = ObservationRegistry::get_registry();
+  const auto imu_tilt = Eigen::Quaternionf(Eigen::AngleAxisf(.12f, Eigen::Vector3f::UnitX()));
+  std::vector<float> first;
+  for (int entry = 0; entry < 5; ++entry) {
+    shared.policy.motion_frame.reset();
+    shared.localization.position = Eigen::Vector2f(10 + entry, -2 * entry);
+    shared.localization.orientation = Eigen::AngleAxisf(.3f * entry, Eigen::Vector3f::UnitZ()) *
+      Eigen::AngleAxisf(.2f * entry, Eigen::Vector3f::UnitY());
+    shared.sensors.orientation = Eigen::AngleAxisf(-.4f * entry, Eigen::Vector3f::UnitZ()) * imu_tilt;
+    shared.policy.motion_frame.align(shared.localization.position, shared.localization.orientation,
+      motion.root_position().head<2>(), motion.root_quaternion(), MotionObservationOrigin::Motion);
+    shared.policy.motion_frame.use_imu_orientation(shared.sensors.orientation,
+      motion.root_quaternion(), true);
+    auto obs = registry.at("motion_anchor_ori_b")(context, YAML::Node{});
+    if (entry == 0) {first = obs;}
+    for (size_t i = 0; i < obs.size(); ++i) {EXPECT_NEAR(obs[i], first[i], 1e-6);}
+    EXPECT_TRUE(shared.policy.motion_frame.orientation(shared.localization.orientation,
+        shared.sensors.orientation).isApprox(imu_tilt, 1e-6));
+    EXPECT_TRUE(shared.policy.motion_frame.position(shared.localization.position).isApprox(
+        motion.root_position().head<2>(), 1e-6));
+  }
+  // Switching back to a policy without the option preserves its estimator attitude.
+  shared.policy.motion_frame.reset();
+  EXPECT_TRUE(shared.policy.motion_frame.orientation(shared.localization.orientation,
+      shared.sensors.orientation).isApprox(shared.localization.orientation, 1e-6));
+}
+
+TEST(MotionFrameAlignment, ImuAttitudeTracksActualTiltAndHonorsDisabledAlignment)
+{
+  MotionFrameAlignment frame;
+  const Eigen::Quaternionf imu(Eigen::AngleAxisf(.4f, Eigen::Vector3f::UnitZ()));
+  const Eigen::Quaternionf ref(Eigen::AngleAxisf(1.2f, Eigen::Vector3f::UnitZ()));
+  frame.use_imu_orientation(imu, ref, true);
+  const Eigen::Quaternionf moved = imu * Eigen::AngleAxisf(.25f, Eigen::Vector3f::UnitY());
+  EXPECT_TRUE(frame.orientation(Eigen::Quaternionf::Identity(), moved).isApprox(
+      ref * Eigen::AngleAxisf(.25f, Eigen::Vector3f::UnitY()), 1e-6));
+  frame.use_imu_orientation(imu, ref, false);
+  EXPECT_TRUE(frame.orientation(ref, moved).isApprox(moved, 1e-6));
+}
+
 TEST_F(GlobalPositionTest, RegistryUsesMotionCoordinatesAndEstimatorOrientation)
 {
   MotionReference motion(file_.string(), 50, {"waist_yaw_joint"}, true);
@@ -198,6 +324,20 @@ TEST_F(GlobalPositionTest, RegistryUsesMotionCoordinatesAndEstimatorOrientation)
     (std::vector<float>{0.0f, 0.0f}));
   EXPECT_EQ(registry.at("reference_root_position_xy_w")(context, YAML::Node{}),
       (std::vector<float>{0.0f, 0.0f}));
+
+  // Motion-origin policies preserve absolute clip coordinates in both terms.
+  shared.policy.motion_frame.align(shared.localization.position, shared.localization.orientation,
+    motion.root_position().head<2>(), motion.root_quaternion(), MotionObservationOrigin::Motion);
+  EXPECT_EQ(registry.at("robot_root_position_xy_w")(context, YAML::Node{}),
+    (std::vector<float>{3.0f, 4.0f}));
+  EXPECT_EQ(registry.at("reference_root_position_xy_w")(context, YAML::Node{}),
+    (std::vector<float>{3.0f, 4.0f}));
+  shared.localization.position.x() += .25f;
+  motion.seek(.04);
+  EXPECT_EQ(registry.at("robot_root_position_xy_w")(context, YAML::Node{}),
+    (std::vector<float>{3.25f, 4.0f}));
+  EXPECT_EQ(registry.at("reference_root_position_xy_w")(context, YAML::Node{}),
+    (std::vector<float>{6.0f, 5.0f}));
 }
 
 TEST_F(GlobalPositionTest, ReadsSteeringFromPolicyAssetAndValidatesValues)

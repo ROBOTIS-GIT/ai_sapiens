@@ -28,6 +28,7 @@
 #include "ai_sapiens_sim2real/axis_range.hpp"
 #include "ai_sapiens_sim2real/config/config_utils.hpp"
 #include "ai_sapiens_sim2real/config/dance_reference_config.hpp"
+#include "ai_sapiens_sim2real/config/motion_observation_origin.hpp"
 #include "ai_sapiens_sim2real/config/planar_steering_config.hpp"
 
 namespace ai_sapiens_sim2real
@@ -115,6 +116,13 @@ public:
     return dance_reference_;
   }
 
+  MotionObservationOrigin observation_origin() const
+  {
+    return observation_origin_;
+  }
+
+  bool use_imu_orientation() const {return use_imu_orientation_;}
+
 private:
   std::filesystem::path path_;
   std::vector<std::string> policy_joints_;
@@ -125,6 +133,8 @@ private:
   YAML::Node observations_;
   std::optional<PlanarSteeringConfig> steering_;
   std::optional<DanceReferenceConfig> dance_reference_;
+  MotionObservationOrigin observation_origin_{MotionObservationOrigin::Episode};
+  bool use_imu_orientation_{false};
 };
 
 }  // namespace ai_sapiens_sim2real

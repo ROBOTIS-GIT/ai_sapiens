@@ -17,6 +17,7 @@
 #include "ai_sapiens_sim2real/sensor_handles/imu_sensor_handle.hpp"
 
 #include <stdexcept>
+#include <cmath>
 
 namespace ai_sapiens_sim2real
 {
@@ -59,6 +60,7 @@ void ImuSensorHandle::update(const rclcpp::Time & /*time*/)
   // Copy to the shared sensor block.
   sensors_->angular_velocity = data->angular_velocity;
   sensors_->orientation = data->orientation;
+  sensors_->orientation_valid = data->orientation_valid;
 
   // Compute projected gravity from orientation
   sensors_->compute_projected_gravity();
@@ -95,7 +97,12 @@ void ImuSensorHandle::callback(const sensor_msgs::msg::Imu::SharedPtr msg)
           static_cast<float>(msg->orientation.z)
   );
 
-  // Handle zero quaternion (not initialized)
+  const float norm = data.orientation.norm();
+  data.orientation_valid = msg->orientation_covariance[0] != -1.0 &&
+    data.orientation.coeffs().allFinite() && std::isfinite(norm) && norm > 1.0e-6f;
+
+  // Handle zero quaternion (not initialized) for legacy consumers. Policies
+  // selecting IMU attitude explicitly must also check orientation_valid.
   if (data.orientation.coeffs().isZero()) {
     data.orientation = Eigen::Quaternionf::Identity();
   }

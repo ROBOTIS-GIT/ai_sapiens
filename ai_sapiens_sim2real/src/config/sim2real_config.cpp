@@ -265,6 +265,9 @@ std::optional<AxisRanges> read_velocity_command_ranges(
   const YAML::Node & sim2real_config)
 {
   const auto commands = sim2real_config["commands"];
+  if (yaml_node_is_missing(commands)) {
+    return std::nullopt;
+  }
   const auto base_velocity = commands["base_velocity"];
   const bool has_velocity_ranges = base_velocity && base_velocity["ranges"];
   if (!has_velocity_ranges) {
@@ -370,6 +373,23 @@ Sim2RealConfig::Sim2RealConfig(const std::filesystem::path & path)
       steering_ = read_planar_steering(node);
       const auto commands = node["commands"];
       const auto reference = commands ? commands["reference_trajectory"] : YAML::Node{};
+      if (reference && reference["orientation_source"]) {
+        const auto source = reference["orientation_source"].as<std::string>();
+        if (source != "imu" && source != "localization") {
+          throw std::runtime_error(
+                  "reference_trajectory.orientation_source must be 'imu' or 'localization'");
+        }
+        use_imu_orientation_ = source == "imu";
+      }
+      if (reference && reference["observation_origin"]) {
+        const auto origin = reference["observation_origin"].as<std::string>();
+        if (origin == "motion") {
+          observation_origin_ = MotionObservationOrigin::Motion;
+        } else if (origin != "episode") {
+          throw std::runtime_error(
+                  "reference_trajectory.observation_origin must be 'episode' or 'motion'");
+        }
+      }
       const auto features = reference ? reference["required_runtime_features"] : YAML::Node{};
       if (features && !features.IsNull() && !features.IsSequence()) {
         throw std::runtime_error("required_runtime_features must be a sequence");

@@ -75,6 +75,10 @@ PolicyRuntime::PolicyRuntime(
         "root velocity observations belong to an incompatible training schema");
   }
   requires_localization_ = has_robot_xy;
+  requires_imu_orientation_ = sim2real_config.use_imu_orientation();
+  if (requires_imu_orientation_ && !requires_localization_) {
+    throw std::runtime_error("reference_trajectory.orientation_source=imu requires global-position Mimic");
+  }
   if (has_robot_xy != has_reference_xy || (requires_localization_ && reference_motion == nullptr)) {
     throw std::runtime_error(
         "Global-position Mimic requires both robot/reference_root_position_xy_w and a motion reference");
@@ -97,7 +101,8 @@ PolicyRuntime::~PolicyRuntime() = default;
 
 bool PolicyRuntime::check_inputs()
 {
-  return !requires_localization_ || shared_data_->localization.valid;
+  return (!requires_localization_ || shared_data_->localization.valid) &&
+         (!requires_imu_orientation_ || sensors_->orientation_valid);
 }
 
 void PolicyRuntime::reset()
@@ -119,6 +124,22 @@ void PolicyRuntime::enter()
   reset_episode_state();
   on_enter();
   obs_manager_->reset();  // after on_enter(): seeds history from the state it sets
+  if (requires_localization_) {
+    RCLCPP_INFO(node_->get_logger(),
+      "[PolicyEntry] %s: reset time/action/steering/frame; orientation_source=%s",
+      state_name_.c_str(), requires_imu_orientation_ ? "imu" : "localization");
+    if (sensors_->orientation_valid) {
+      // Gravity in the body frame compares tilt without confusing independent
+      // IMU/odom world yaw origins. This is a diagnostic, not a pose correction.
+      const auto imu_up = sensors_->orientation.normalized().conjugate() * Eigen::Vector3f::UnitZ();
+      const auto odom_up = shared_data_->localization.orientation.normalized().conjugate() *
+        Eigen::Vector3f::UnitZ();
+      const float tilt_degrees = std::acos(std::clamp(imu_up.dot(odom_up), -1.0f, 1.0f)) *
+        180.0f / 3.14159265359f;
+      RCLCPP_INFO(node_->get_logger(), "[PolicyEntry] %s: IMU/odom tilt difference %.2f deg",
+        state_name_.c_str(), tilt_degrees);
+    }
+  }
 }
 
 void PolicyRuntime::install_joint_properties() const

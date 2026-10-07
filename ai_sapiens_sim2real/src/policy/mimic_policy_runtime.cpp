@@ -99,6 +99,8 @@ MimicPolicyRuntime::MimicPolicyRuntime(
     playback.reference.get())
   , playback_(std::move(playback))
   , completion_state_(std::move(completion_state))
+  , observation_origin_(sim2real_config.observation_origin())
+  , use_imu_orientation_(sim2real_config.use_imu_orientation())
   , steering_(sim2real_config.steering())
   , steering_dt_(static_cast<float>(sim2real_config.step_dt()))
 {
@@ -143,11 +145,17 @@ void MimicPolicyRuntime::on_enter()
     const auto & localization = shared_data_->localization;
     if (localization.align_on_entry) {
       // Snapshot again on every entry, including Velocity -> Mimic after walking.
-      // The estimator keeps its continuous odom; only policy coordinates restart.
+      // The estimator keeps continuous odom. Each policy chooses whether its
+      // aligned coordinates start at zero or at the original reference XY.
       policy_->motion_frame.align(localization.position, localization.orientation,
-        playback_.reference->root_position().head<2>(), playback_.reference->root_quaternion());
+        playback_.reference->root_position().head<2>(), playback_.reference->root_quaternion(),
+        observation_origin_);
     }
-    // Global-position observations and anchor orientation share the same motion frame.
+    if (use_imu_orientation_) {
+      policy_->motion_frame.use_imu_orientation(sensors_->orientation,
+        playback_.reference->root_quaternion(), localization.align_on_entry);
+    }
+    // Both sources now express observations in the reference motion's axes.
     policy_->motion_init_quat = Eigen::Quaternionf::Identity();
     return;
   }
@@ -180,7 +188,7 @@ void MimicPolicyRuntime::prepare_command_observation()
   }
   const Eigen::Vector2f root = playback_.reference->root_position().head<2>();
   const auto orientation =
-    policy_->motion_frame.orientation(shared_data_->localization.orientation);
+    policy_->motion_frame.orientation(shared_data_->localization.orientation, sensors_->orientation);
   // All steering-enabled Mimic policies share the same deployment controls.
   const Eigen::Vector3f requested =
     steering_release_.filter_command(shared_data_->mode.velocity_commands,
