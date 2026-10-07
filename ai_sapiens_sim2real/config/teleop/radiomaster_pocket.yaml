@@ -9,8 +9,9 @@ velocity_command:
     angular_z: {channel: CH1, invert: true}
 
 api_mode:
+  # CH8 (SD) triggers carry bow. Reserve CH9 for API authority instead.
   when:
-    CH8: 2000
+    CH9: 2000
 
 input_code:
   channels:

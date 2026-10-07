@@ -67,7 +67,7 @@ selectors:
       # 203:
       # 204:
       # 205:
-      # 206:
+      206: CarryStage2V62
       # 207:
       # 208:
       # 209:
@@ -128,6 +128,10 @@ state_machine:
     MimicDance2:
       parent: Mimic
       run: mimic_dance2
+
+    CarryStage2V62:
+      parent: Mimic
+      run: carry_stage2_v62
 
 state_behaviors:
   damping:
@@ -203,3 +207,7 @@ state_behaviors:
     kind: mimic
     asset: mimic/dance2
     motion: dance2.csv
+
+  carry_stage2_v62:
+    kind: policy
+    asset: locomotion/carry/stage2_v62_model_109000

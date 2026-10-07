@@ -70,6 +70,37 @@ PolicyRuntime::PolicyRuntime(
   const size_t observation_size =
     create_observation_manager(sim2real_config, shared_data, reference_motion);
   gait_clock_ = make_gait_clock(sim2real_config.observations(), step_dt_);
+  // 2026-09-30 carry port (from carry_ws sim2sim runtime): only policies whose sim2real.yaml
+  // declares a mode_command observation get a carry mode machine; every other policy is unchanged.
+  const auto carry_term = sim2real_config.observations()["mode_command"];
+  if (carry_term && !carry_term.IsNull()) {
+    if (joint_context_.policy_joint_names.size() != 23 || std::abs(step_dt_ - 0.02) > 1e-9) {
+      throw std::runtime_error("Carry requires the 23-joint 50Hz hangang contract");
+    }
+    const auto cfg = carry_term["params"];
+    if (!cfg || !cfg["sa_on_min_us"] || cfg["sa_on_min_us"].IsNull() ||
+      !cfg["sa_on_max_us"] || cfg["sa_on_max_us"].IsNull()) {
+      throw std::runtime_error("Carry SA CH5 ON PWM bounds must be verified and configured");
+    }
+    carry_sa_min_ = cfg["sa_on_min_us"].as<int>();
+    carry_sa_max_ = cfg["sa_on_max_us"].as<int>();
+    if (carry_sa_min_ < 500 || carry_sa_max_ > 2500 || carry_sa_min_ > carry_sa_max_) {
+      throw std::runtime_error("Invalid carry SA PWM bounds");
+    }
+    if (cfg["se_channel"] && !cfg["se_channel"].IsNull()) {
+      carry_se_channel_ = cfg["se_channel"].as<int>();
+      if (carry_se_channel_ < 1 || carry_se_channel_ > 16 ||
+        carry_se_channel_ == 5) {
+        throw std::runtime_error("Invalid SE channel; CH5 is SA. CH8 (SD) is allowed for the bow trigger");
+      }
+      carry_se_min_ = cfg["se_on_min_us"].as<int>();
+      carry_se_max_ = cfg["se_on_max_us"].as<int>();
+      if (carry_se_min_ < 500 || carry_se_max_ > 2500 || carry_se_min_ > carry_se_max_) {
+        throw std::runtime_error("Invalid SE PWM bounds");
+      }
+    }
+    carry_machine_.emplace();
+  }
   validate_observation_size(observation_size);
   obs_buffer_[onnx_input_name_].resize(observation_size);
   log_ready(observation_size);
@@ -131,6 +162,8 @@ void PolicyRuntime::install_velocity_command_ranges() const
 void PolicyRuntime::reset_episode_state()
 {
   policy_->episode_time = 0.0f;
+  if (carry_machine_) carry_machine_->reset();
+  policy_->carry_mode.fill(0.0f);
   action_limit_logged_ = false;
   if (policy_->last_action.size() < joint_context_.policy_joint_names.size()) {
     throw std::runtime_error("Policy state '" + state_name_ + "' last_action buffer too small");
@@ -173,6 +206,7 @@ void PolicyRuntime::update(const rclcpp::Duration & period)
   }
 
   resolve_active_velocity_command();
+  update_carry_mode();
   compute_observation();
 
   if (const auto raw_action = run_policy_inference()) {
@@ -218,6 +252,37 @@ void PolicyRuntime::resolve_active_velocity_command()
         break;
       }
   }
+}
+
+// 2026-09-30 carry port (from carry_ws sim2sim runtime):
+// no-op unless carry_machine_ was created in the constructor.
+void PolicyRuntime::update_carry_mode()
+{
+  if (!carry_machine_) return;
+  const auto & teleop = shared_data_->teleop;
+  if (teleop.unavailable || !teleop.carry_rc_valid[5]) {
+    // Preserve the existing damping path on unavailable operator input.
+    requests_->damping = true;
+    mode_->velocity_commands.setZero();
+    return;
+  }
+  const auto active = [&](int ch, int lo, int hi) {
+      return ch > 0 && teleop.carry_rc_valid[ch] &&
+             teleop.carry_rc_us[ch] >= lo && teleop.carry_rc_us[ch] <= hi;
+    };
+  const bool sa = active(5, carry_sa_min_, carry_sa_max_);
+  const bool se = active(carry_se_channel_, carry_se_min_, carry_se_max_);
+  float leg_sum = 0.0f;
+  for (size_t j = 0; j < 12; ++j) {
+    const float v = sensors_->joint_vel[static_cast<Eigen::Index>(joint_context_.policy_to_controller[j])];
+    leg_sum += v * v;
+  }
+  const auto requested = mode_->velocity_commands;
+  const bool quiet = requested.cwiseAbs().maxCoeff() < 0.1f &&
+    std::sqrt(leg_sum / 12.0f) < 0.35f && sensors_->angular_velocity.norm() < 0.35f;
+  policy_->carry_mode = carry_machine_->step(sa, se, quiet,
+    {requested.x(), requested.y(), requested.z()});
+  for (int j = 0; j < 3; ++j) mode_->velocity_commands[j] = carry_machine_->command[j];
 }
 
 void PolicyRuntime::compute_observation()

@@ -238,11 +238,19 @@ std::vector<float> obs_motion_anchor_ori_b(
   return {rot(0, 0), rot(0, 1), rot(1, 0), rot(1, 1), rot(2, 0), rot(2, 1)};
 }
 
+// 2026-09-30 carry port (from carry_ws sim2sim runtime): carry mode_command [w,h,bow,sin,cos,0].
+std::vector<float> obs_carry_mode(const ObservationContext & context, const YAML::Node &)
+{
+  const auto & mode = context.shared.policy.carry_mode;
+  return {mode.begin(), mode.end()};
+}
+
 // Static registration
 struct ObservationRegistrar
 {
   ObservationRegistrar()
   {
+    ObservationRegistry::register_observation("mode_command", obs_carry_mode);
     ObservationRegistry::register_observation("base_ang_vel", obs_base_ang_vel);
     ObservationRegistry::register_observation("projected_gravity", obs_projected_gravity);
     ObservationRegistry::register_observation("velocity_commands", obs_velocity_commands);

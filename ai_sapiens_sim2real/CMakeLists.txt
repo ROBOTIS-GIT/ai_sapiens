@@ -264,6 +264,8 @@ if(BUILD_TESTING)
 
   find_package(ament_cmake_gtest REQUIRED)
 
+  ament_add_gtest(test_carry_mode test/test_carry_mode.cpp)
+
   # RealtimeRequestGate: accept/consume/discard/busy semantics (header-only).
   ament_add_gtest(test_request_gate test/test_request_gate.cpp)
   ament_target_dependencies(test_request_gate realtime_tools)

@@ -142,6 +142,8 @@ void TeleopInputHandle::copy_command_state(
   teleop_->input_code = command.input_code;
   teleop_->selector_code = command.selector_code;
   teleop_->update_time = command.received_at;
+  teleop_->carry_rc_us = command.carry_rc_us;  // 2026-09-30 carry port
+  teleop_->carry_rc_valid = command.carry_rc_valid;
 }
 
 void TeleopInputHandle::apply_unavailable_teleop_input()

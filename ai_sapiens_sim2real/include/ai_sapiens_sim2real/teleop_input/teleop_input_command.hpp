@@ -17,6 +17,7 @@
 #ifndef AI_SAPIENS_SIM2REAL__TELEOP_INPUT__TELEOP_INPUT_COMMAND_HPP_
 #define AI_SAPIENS_SIM2REAL__TELEOP_INPUT__TELEOP_INPUT_COMMAND_HPP_
 
+#include <array>
 #include <chrono>
 #include <cstdint>
 
@@ -32,6 +33,9 @@ struct TeleopInputCommand
   uint16_t input_code{0};
   uint16_t selector_code{0};
   Eigen::Vector3f velocity{Eigen::Vector3f::Zero()};
+  // 2026-09-30 carry port (from carry_ws sim2sim runtime): raw RC pulse widths (index = channel).
+  std::array<uint16_t, 17> carry_rc_us{};
+  std::array<bool, 17> carry_rc_valid{};
   std::chrono::steady_clock::time_point received_at{};
 };
 

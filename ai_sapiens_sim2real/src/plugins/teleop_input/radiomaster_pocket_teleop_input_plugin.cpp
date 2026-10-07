@@ -153,6 +153,13 @@ TeleopInputCommand RadiomasterPocketTeleopInputPlugin::make_command_from_message
   command.api_mode = is_api_mode_requested(channels);
   command.input_code = select_input_code(channels);
   command.selector_code = select_selector_code(channels);
+  // 2026-09-30 carry port (from carry_ws sim2sim runtime): expose raw channels (SA CH5, SD CH8).
+  for (size_t channel = 1; channel < channels.size(); ++channel) {
+    if (channels[channel] && channels[channel]->valid) {
+      command.carry_rc_us[channel] = channels[channel]->rc_us;
+      command.carry_rc_valid[channel] = true;
+    }
+  }
 
   command.velocity.x() = axis_value(channels, linear_x_);
   command.velocity.y() = axis_value(channels, linear_y_);

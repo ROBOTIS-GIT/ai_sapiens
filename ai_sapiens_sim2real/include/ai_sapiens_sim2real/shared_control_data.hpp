@@ -17,6 +17,7 @@
 #ifndef AI_SAPIENS_SIM2REAL__SHARED_CONTROL_DATA_HPP_
 #define AI_SAPIENS_SIM2REAL__SHARED_CONTROL_DATA_HPP_
 
+#include <array>
 #include <atomic>
 #include <algorithm>
 #include <chrono>
@@ -84,6 +85,9 @@ struct TeleopInput
   uint16_t input_code{0};
   uint16_t selector_code{0};
   std::chrono::steady_clock::time_point update_time{};
+  // 2026-09-30 carry port (from carry_ws sim2sim runtime): raw RC pulse widths (index = channel).
+  std::array<uint16_t, 17> carry_rc_us{};
+  std::array<bool, 17> carry_rc_valid{};
 };
 
 // API command stream. Written by the twist and heartbeat handles; commands
@@ -165,6 +169,8 @@ struct PolicyState
 {
   std::vector<float> last_action;
   std::vector<float> input;  // scaled/clipped observation vector fed to ONNX
+  // 2026-09-30 carry port (from carry_ws sim2sim runtime): mode_command observation [w,h,bow,sin,cos,0].
+  std::array<float, 6> carry_mode{};
   Eigen::Quaternionf motion_init_quat{Eigen::Quaternionf::Identity()};
   float episode_time{0.0f};
   // Gait-phase clock in [0, 1). Advanced by GaitClock once per policy step and

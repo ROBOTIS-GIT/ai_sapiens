@@ -53,6 +53,16 @@ public:
     command.velocity = velocity;
     accept_valid_command(command);
   }
+
+  void inject_carry_channels()
+  {
+    TeleopInputCommand command;
+    command.carry_rc_us[5] = 2000;
+    command.carry_rc_valid[5] = true;
+    command.carry_rc_us[8] = 1000;
+    command.carry_rc_valid[8] = true;
+    accept_valid_command(command);
+  }
 };
 
 class TeleopInputHandleTest : public ::testing::Test
@@ -100,6 +110,24 @@ TEST_F(TeleopInputHandleTest, ZerosStaleVelocityBeforeInputFailsafe)
   EXPECT_FALSE(teleop_.unavailable.load());
   EXPECT_FALSE(requests_.damping);
   EXPECT_TRUE(teleop_.velocity_commands.isZero());
+}
+
+TEST_F(TeleopInputHandleTest, PreservesCarryChannelsAndDampsOnInputLoss)
+{
+  TeleopInputHandle handle(
+    node_, &teleop_, &requests_, &active_ranges_, plugin_, 0.02, 0.02);
+  plugin_->inject_carry_channels();
+  handle.update(node_->now());
+  ASSERT_FALSE(teleop_.unavailable.load());
+  EXPECT_TRUE(teleop_.carry_rc_valid[5]);
+  EXPECT_TRUE(teleop_.carry_rc_valid[8]);
+  EXPECT_EQ(teleop_.carry_rc_us[5], 2000);
+  EXPECT_EQ(teleop_.carry_rc_us[8], 1000);
+  EXPECT_FALSE(teleop_.carry_rc_valid[6]);
+  std::this_thread::sleep_for(40ms);
+  handle.update(node_->now());
+  EXPECT_TRUE(teleop_.unavailable.load());
+  EXPECT_TRUE(requests_.damping);
 }
 
 TEST_F(TeleopInputHandleTest, RejectsVelocityTimeoutLongerThanInputTimeout)
