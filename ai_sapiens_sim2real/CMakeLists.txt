@@ -265,6 +265,8 @@ if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
 
   ament_add_gtest(test_carry_mode test/test_carry_mode.cpp)
+  ament_add_gtest(test_arm_mode test/test_arm_mode.cpp src/policy/action_pipeline.cpp)
+  target_link_libraries(test_arm_mode yaml-cpp)
 
   # RealtimeRequestGate: accept/consume/discard/busy semantics (header-only).
   ament_add_gtest(test_request_gate test/test_request_gate.cpp)

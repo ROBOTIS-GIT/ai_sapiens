@@ -68,7 +68,7 @@ selectors:
       # 204:
       # 205:
       206: CarryStage2V62
-      # 207:
+      207: ArmModeV3Yaw
       # 208:
       # 209:
 
@@ -132,6 +132,10 @@ state_machine:
     CarryStage2V62:
       parent: Mimic
       run: carry_stage2_v62
+
+    ArmModeV3Yaw:
+      parent: Mimic
+      run: arm_mode_v3_yaw
 
 state_behaviors:
   damping:
@@ -211,3 +215,7 @@ state_behaviors:
   carry_stage2_v62:
     kind: policy
     asset: locomotion/carry/stage2_v62_model_109000
+
+  arm_mode_v3_yaw:
+    kind: policy
+    asset: locomotion/arm_mode/v3_yaw_ft_24999

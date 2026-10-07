@@ -34,6 +34,7 @@
 #include <yaml-cpp/yaml.h>  // NOLINT(build/include_order)
 
 #include "ai_sapiens_sim2real/policy/action_pipeline.hpp"
+#include "ai_sapiens_sim2real/policy/arm_mode.hpp"
 #include "ai_sapiens_sim2real/policy/carry_mode.hpp"
 #include "ai_sapiens_sim2real/policy/gait_clock.hpp"
 #include "ai_sapiens_sim2real/policy/motion_reference.hpp"
@@ -132,6 +133,8 @@ private:
   void compute_observation();
   // 2026-09-30 carry port (from carry_ws sim2sim runtime): mode_command obs + SA/SD FSM.
   void update_carry_mode();
+  bool update_arm_mode();
+  std::optional<ArmMode> arm_mode_;
   std::optional<k1_carry::ModeMachine> carry_machine_;
   int carry_se_channel_{0};
   int carry_sa_min_{0}, carry_sa_max_{0};

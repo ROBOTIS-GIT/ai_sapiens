@@ -70,6 +70,15 @@ PolicyRuntime::PolicyRuntime(
   const size_t observation_size =
     create_observation_manager(sim2real_config, shared_data, reference_motion);
   gait_clock_ = make_gait_clock(sim2real_config.observations(), step_dt_);
+  if (sim2real_config.observations()["arm_mode"]) {
+    if (sim2real_config.observations()["mode_command"] ||
+      joint_context_.policy_joint_names.size() != 23 || std::abs(step_dt_ - 0.02) > 1e-9)
+    {
+      throw std::runtime_error("Arm mode requires a separate 23-joint 50Hz policy");
+    }
+    arm_mode_.emplace(YAML::LoadFile(sim2real_config.path().string()),
+      joint_context_.policy_joint_names, action_pipeline_.properties().offset, step_dt_);
+  }
   // 2026-09-30 carry port (from carry_ws sim2sim runtime): only policies whose sim2real.yaml
   // declares a mode_command observation get a carry mode machine; every other policy is unchanged.
   const auto carry_term = sim2real_config.observations()["mode_command"];
@@ -164,6 +173,13 @@ void PolicyRuntime::reset_episode_state()
   policy_->episode_time = 0.0f;
   if (carry_machine_) carry_machine_->reset();
   policy_->carry_mode.fill(0.0f);
+  policy_->arm_mode = 0.0F;
+  if (arm_mode_) {
+    const auto & rc = shared_data_->teleop;
+    const int ch = arm_mode_->channel;
+    arm_mode_->reset(rc.carry_rc_valid[ch] && rc.carry_rc_us[ch] >= arm_mode_->on_min &&
+      rc.carry_rc_us[ch] <= arm_mode_->on_max);
+  }
   action_limit_logged_ = false;
   if (policy_->last_action.size() < joint_context_.policy_joint_names.size()) {
     throw std::runtime_error("Policy state '" + state_name_ + "' last_action buffer too small");
@@ -205,12 +221,14 @@ void PolicyRuntime::update(const rclcpp::Duration & period)
     return;
   }
 
+  if (!update_arm_mode()) return;
   resolve_active_velocity_command();
   update_carry_mode();
   compute_observation();
 
   if (const auto raw_action = run_policy_inference()) {
-    const auto & processed_action = action_pipeline_.process(*raw_action);
+    const auto & processed_action = action_pipeline_.process(
+      *raw_action, arm_mode_ ? &arm_mode_->offsets() : nullptr);
     write_processed_action(*raw_action, processed_action);
   }
 
@@ -227,6 +245,30 @@ bool PolicyRuntime::advance_policy_tick(const rclcpp::Duration & period)
 
   // Drop whole elapsed steps without looping on large time jumps.
   accumulated_period_ = std::fmod(accumulated_period_, step_dt_);
+  return true;
+}
+
+bool PolicyRuntime::update_arm_mode()
+{
+  if (!arm_mode_) return true;
+  const auto & rc = shared_data_->teleop;
+  const int ch = arm_mode_->channel;
+  if (rc.unavailable || !rc.carry_rc_valid[ch]) {
+    requests_->damping = true;
+    mode_->velocity_commands.setZero();
+    return false;
+  }
+  const bool previous = arm_mode_->target();
+  arm_mode_->step(rc.carry_rc_us[ch] >= arm_mode_->on_min &&
+    rc.carry_rc_us[ch] <= arm_mode_->on_max);
+  policy_->arm_mode = arm_mode_->ratio();
+  *active_velocity_command_ranges_ = arm_mode_->ranges();
+  for (size_t j = 0; j < joint_context_.policy_to_controller.size(); ++j) {
+    output_->action_offset[joint_context_.policy_to_controller[j]] = arm_mode_->offsets()[j];
+  }
+  if (previous != arm_mode_->target()) {
+    RCLCPP_INFO(node_->get_logger(), "[ArmMode] target=%s", arm_mode_->target() ? "hold" : "walk");
+  }
   return true;
 }
 

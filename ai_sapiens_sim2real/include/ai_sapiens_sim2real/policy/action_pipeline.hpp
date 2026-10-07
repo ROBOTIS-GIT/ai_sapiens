@@ -34,7 +34,9 @@ public:
   ActionPipeline() = default;
   explicit ActionPipeline(ActionProperties properties);
 
-  const std::vector<float> & process(const std::vector<float> & raw_action);
+  const std::vector<float> & process(
+    const std::vector<float> & raw_action,
+    const std::vector<float> * offset_override = nullptr);
   size_t size() const
   {
     return properties_.scale.size();

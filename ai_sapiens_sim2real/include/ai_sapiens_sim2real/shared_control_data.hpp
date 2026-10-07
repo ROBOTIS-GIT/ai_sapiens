@@ -171,6 +171,7 @@ struct PolicyState
   std::vector<float> input;  // scaled/clipped observation vector fed to ONNX
   // 2026-09-30 carry port (from carry_ws sim2sim runtime): mode_command observation [w,h,bow,sin,cos,0].
   std::array<float, 6> carry_mode{};
+  float arm_mode{0.0F};
   Eigen::Quaternionf motion_init_quat{Eigen::Quaternionf::Identity()};
   float episode_time{0.0f};
   // Gait-phase clock in [0, 1). Advanced by GaitClock once per policy step and

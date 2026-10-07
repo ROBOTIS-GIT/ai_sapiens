@@ -38,7 +38,8 @@ ActionPipeline::ActionPipeline(ActionProperties properties)
   processed_action_.resize(action_size, 0.0f);
 }
 
-const std::vector<float> & ActionPipeline::process(const std::vector<float> & raw_action)
+const std::vector<float> & ActionPipeline::process(
+  const std::vector<float> & raw_action, const std::vector<float> * offset_override)
 {
   if (raw_action.size() != properties_.scale.size()) {
     throw std::runtime_error(
@@ -46,8 +47,12 @@ const std::vector<float> & ActionPipeline::process(const std::vector<float> & ra
       " does not match action pipeline size " + std::to_string(properties_.scale.size()));
   }
 
+  const auto & offset = offset_override ? *offset_override : properties_.offset;
+  if (offset.size() != raw_action.size()) {
+    throw std::runtime_error("Action offset override size mismatch");
+  }
   for (size_t i = 0; i < raw_action.size(); ++i) {
-    float value = raw_action[i] * properties_.scale[i] + properties_.offset[i];
+    float value = raw_action[i] * properties_.scale[i] + offset[i];
     if (properties_.clip[i]) {
       value = std::clamp(value, properties_.clip[i]->first, properties_.clip[i]->second);
     }

@@ -245,12 +245,18 @@ std::vector<float> obs_carry_mode(const ObservationContext & context, const YAML
   return {mode.begin(), mode.end()};
 }
 
+std::vector<float> obs_arm_mode(const ObservationContext & context, const YAML::Node &)
+{
+  return {context.shared.policy.arm_mode};
+}
+
 // Static registration
 struct ObservationRegistrar
 {
   ObservationRegistrar()
   {
     ObservationRegistry::register_observation("mode_command", obs_carry_mode);
+    ObservationRegistry::register_observation("arm_mode", obs_arm_mode);
     ObservationRegistry::register_observation("base_ang_vel", obs_base_ang_vel);
     ObservationRegistry::register_observation("projected_gravity", obs_projected_gravity);
     ObservationRegistry::register_observation("velocity_commands", obs_velocity_commands);
