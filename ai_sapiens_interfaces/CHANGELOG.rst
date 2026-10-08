@@ -2,6 +2,10 @@
 Changelog for package ai_sapiens_interfaces
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.3.0 (2026-10-07)
+------------------
+* None
+
 0.2.3 (2026-09-29)
 ------------------
 * Clarified that ``RcStatus.hardware_ok`` is diagnostic and does not gate
