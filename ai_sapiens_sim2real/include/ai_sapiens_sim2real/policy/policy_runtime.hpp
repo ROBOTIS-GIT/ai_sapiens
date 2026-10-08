@@ -46,8 +46,8 @@ namespace ai_sapiens_sim2real
 class OnnxInference;
 
 /**
- * @brief A policy state: observe, run inference, and scatter the resulting
- *        action into the joints this policy controls.
+ * @brief A policy state: observe, run inference, and produce a validated target
+ *        command in policy joint order. The controller owns command delivery.
  *
  * This base is the whole behavior for a plain `kind: policy` state. The
  * per-tick flow lives here once (enter/update are template methods);
@@ -73,7 +73,12 @@ public:
   bool check_inputs();
   bool requires_localization() const {return requires_localization_;}
   void enter();
-  void update(const rclcpp::Duration & period);
+  PolicyUpdateResult update(const rclcpp::Duration & period);
+  const JointCommand & target_command() const {return target_command_;}
+  const std::vector<size_t> & controlled_joints() const
+  {
+    return joint_context_.policy_to_controller;
+  }
   const std::string & state_name() const;
   size_t observation_size() const
   {
@@ -102,7 +107,7 @@ protected:
   }
 
   // State the hooks read; writes still go only through the owned output block,
-  // which stays private so derived kinds cannot bypass the action scatter.
+  // which stays private so derived kinds cannot bypass target validation.
   const SensorData * sensors_;
   PolicyState * policy_;
   ModeRequests * requests_;
@@ -139,7 +144,7 @@ private:
   void resolve_active_velocity_command();
   void compute_observation();
   std::optional<std::vector<float>> run_policy_inference();
-  void write_processed_action(
+  PolicyUpdateResult accept_action(
     const std::vector<float> & raw_action,
     const std::vector<float> & processed_action);
   void log_action_limit_once(size_t policy_index, float raw_value, float processed_value);
@@ -157,6 +162,7 @@ private:
   PolicyJointContext joint_context_;
   JointProperties joint_properties_;
   ActionPipeline action_pipeline_;
+  JointCommand target_command_;
 
   std::unique_ptr<OnnxInference> inference_;
   std::unique_ptr<ObservationManager> obs_manager_;

@@ -94,6 +94,9 @@ PolicyRuntime::PolicyRuntime(
   gait_clock_ = make_gait_clock(sim2real_config.observations(), step_dt_);
   validate_observation_size(observation_size);
   obs_buffer_[onnx_input_name_].resize(observation_size);
+  target_command_.resize(joint_context_.policy_joint_names.size());
+  target_command_.stiffness = joint_properties_.stiffness;
+  target_command_.damping = joint_properties_.damping;
   log_ready(observation_size);
 }
 
@@ -162,8 +165,6 @@ void PolicyRuntime::install_joint_properties() const
     output_->default_joint_pos[static_cast<Eigen::Index>(controller_index)] =
       joint_properties_.default_position[policy_index];
     output_->feedforward[controller_index] = 0.0f;
-    output_->stiffness[controller_index] = joint_properties_.stiffness[policy_index];
-    output_->damping[controller_index] = joint_properties_.damping[policy_index];
     output_->action_scale[controller_index] = action_properties.scale[policy_index];
     output_->action_offset[controller_index] = action_properties.offset[policy_index];
     output_->position_limits[controller_index] =
@@ -210,26 +211,24 @@ void PolicyRuntime::advance_clocks()
   policy_->episode_time += step_dt_;
 }
 
-void PolicyRuntime::update(const rclcpp::Duration & period)
+PolicyUpdateResult PolicyRuntime::update(const rclcpp::Duration & period)
 {
   if (!advance_policy_tick(period)) {
-    return;
+    return PolicyUpdateResult::Skipped;
   }
-
   if (!prepare_observation()) {
-    return;
+    return PolicyUpdateResult::TargetUnavailable;
   }
 
   resolve_active_velocity_command();
   prepare_command_observation();
   compute_observation();
-
+  PolicyUpdateResult result = PolicyUpdateResult::TargetUnavailable;
   if (const auto raw_action = run_policy_inference()) {
-    const auto & processed_action = action_pipeline_.process(*raw_action);
-    write_processed_action(*raw_action, processed_action);
+    result = accept_action(*raw_action, action_pipeline_.process(*raw_action));
   }
-
   advance_clocks();
+  return result;
 }
 
 bool PolicyRuntime::advance_policy_tick(const rclcpp::Duration & period)
@@ -315,7 +314,7 @@ void PolicyRuntime::handle_inference_failure(const char * reason)
   }
 }
 
-void PolicyRuntime::write_processed_action(
+PolicyUpdateResult PolicyRuntime::accept_action(
   const std::vector<float> & raw_action,
   const std::vector<float> & processed_action)
 {
@@ -338,24 +337,19 @@ void PolicyRuntime::write_processed_action(
     if (!std::isfinite(value) || std::abs(value) > kAbsActionLimitRad) {
       requests_->action_limit_exceeded = true;
       log_action_limit_once(policy_index, raw_action[policy_index], value);
-      return;
+      return PolicyUpdateResult::TargetUnavailable;
     }
   }
 
   action_limit_logged_ = false;
 
-  // Scatter only after the whole action is known to be safe. Slots for joints
-  // this policy does not control keep the previous behavior's command.
-  for (size_t policy_index = 0; policy_index < policy_joint_count;
-    ++policy_index)
-  {
-    const size_t controller_index = joint_context_.policy_to_controller[policy_index];
-    output_->processed_action[controller_index] = processed_action[policy_index];
-  }
+  // Only expose fully validated targets to the command output stage.
+  std::copy(processed_action.begin(), processed_action.end(), target_command_.position.begin());
 
   // The buffer is controller-sized; this policy uses the first joint_names.size() slots.
   const auto & applied_raw = action_pipeline_.applied_raw_action();
   std::copy(applied_raw.begin(), applied_raw.end(), policy_->last_action.begin());
+  return PolicyUpdateResult::TargetReady;
 }
 
 void PolicyRuntime::log_action_limit_once(

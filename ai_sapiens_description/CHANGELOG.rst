@@ -2,6 +2,20 @@
 Changelog for package ai_sapiens_description
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.3.0 (2026-10-07)
+------------------
+* None
+
+0.2.3 (2026-09-29)
+------------------
+* Removed the BMS remaining energy from the HAT sensor
+* Contributors: Wonho Yun
+
+0.2.2 (2026-09-14)
+------------------
+* Update K1 model with revised inertial properties and mesh files
+* Contributors: Wonho Yun
+
 0.2.1 (2026-09-01)
 ------------------
 * None

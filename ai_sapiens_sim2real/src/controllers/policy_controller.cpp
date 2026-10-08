@@ -31,7 +31,10 @@ PolicyController::PolicyController(
   teleop_(&shared_data->teleop),
   policy_(&shared_data->policy),
   requests_(&shared_data->requests),
-  localization_loss_state_(root_config.authority_config().default_velocity_state)
+  localization_loss_state_(root_config.authority_config().default_velocity_state),
+  output_(&shared_data->output),
+  transition_config_(root_config.policy_action_transition()),
+  command_transition_(shared_data->joint_map.controller_joint_names.size())
 {
   if (shared_data->joint_map.controller_joint_names.empty()) {
     throw std::runtime_error("PolicyController requires initialized controller joint order");
@@ -54,6 +57,9 @@ void PolicyController::update(
   const rclcpp::Duration & period)
 {
   if (decision.active_behavior_kind != BehaviorKind::Policy) {
+    // Posture states (including ReadyPose) publish position targets and gains
+    // that can seed policy entry. Damping remains an immediate safety mode.
+    can_blend_from_previous_ = decision.active_behavior_kind == BehaviorKind::Posture;
     return;
   }
 
@@ -88,11 +94,29 @@ void PolicyController::update(
   // transition; if one happened since our last enter, the active runtime
   // must start a fresh policy episode before it can update.
   if (entered_transition_count_ != decision.transition_count) {
-    runtime->enter();
+    enter_policy(*runtime);
     entered_transition_count_ = decision.transition_count;
   }
 
-  runtime->update(period);
+  update_policy(*runtime, period);
+}
+
+void PolicyController::enter_policy(PolicyRuntime & runtime)
+{
+  const double duration = can_blend_from_previous_ && transition_config_.enabled ?
+    transition_config_.duration : 0.0;
+  const auto & source = output_->has_published_command ?
+    output_->last_published : output_->command;
+  command_transition_.begin(
+    source, runtime.target_command(), runtime.controlled_joints(), duration, output_->command);
+  runtime.enter();
+  can_blend_from_previous_ = true;
+}
+
+void PolicyController::update_policy(PolicyRuntime & runtime, const rclcpp::Duration & period)
+{
+  const auto result = runtime.update(period);
+  command_transition_.update(period.seconds(), result, runtime.target_command(), output_->command);
 }
 
 void PolicyController::reset()
@@ -101,7 +125,9 @@ void PolicyController::reset()
     runtime->reset();
   }
 
+  command_transition_.reset();
   entered_transition_count_ = 0;
+  can_blend_from_previous_ = false;
   std::fill(policy_->last_action.begin(), policy_->last_action.end(), 0.0f);
 }
 

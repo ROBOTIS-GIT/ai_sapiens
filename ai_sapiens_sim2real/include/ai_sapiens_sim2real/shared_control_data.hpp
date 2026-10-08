@@ -27,6 +27,7 @@
 #include <Eigen/Dense>  // NOLINT(build/include_order)
 
 #include "ai_sapiens_sim2real/authority.hpp"
+#include "ai_sapiens_sim2real/joint_command.hpp"
 #include "ai_sapiens_sim2real/config/sim2real_config.hpp"
 #include "ai_sapiens_sim2real/policy/localization_pose.hpp"
 #include "ai_sapiens_sim2real/policy/planar_motion_steering.hpp"
@@ -144,7 +145,8 @@ struct ModeRequests
 // Joint command of the active behavior: action buffers plus the joint
 // properties (gains, limits, defaults) that behavior installed. Written by
 // ModeController (damping/posture) or PolicyRuntime (policy); the command
-// publisher writes back the clipped published_action.
+// publisher records the limited command in last_published. PolicyController
+// converts policy targets into command through the command transition stage.
 //
 // All buffers are in robot joint order and persist across ticks and mode
 // transitions. A behavior that controls only a subset of joints (e.g. a
@@ -152,11 +154,10 @@ struct ModeRequests
 // the previous behavior left here. This is what makes partial policies work.
 struct BehaviorOutput
 {
-  std::vector<float> processed_action;
-  std::vector<float> published_action;
+  JointCommand command;
+  JointCommand last_published;
+  bool has_published_command{false};
   std::vector<float> feedforward;
-  std::vector<float> stiffness;
-  std::vector<float> damping;
   std::vector<float> action_scale;
   std::vector<float> action_offset;
   std::vector<PositionLimit> position_limits;
@@ -214,11 +215,12 @@ struct SharedControlData
     sensors.joint_pos.resize(num_joints);
     sensors.joint_vel.resize(num_joints);
     output.default_joint_pos.resize(num_joints);
-    output.processed_action.resize(action_size);
-    output.published_action.resize(action_size);
+    output.command.resize(action_size);
+    output.last_published.resize(action_size);
+    output.last_published.stiffness.assign(action_size, 0.0f);
+    output.last_published.damping.assign(action_size, 0.0f);
+    output.has_published_command = false;
     output.feedforward.resize(action_size);
-    output.stiffness.resize(action_size);
-    output.damping.resize(action_size);
     output.action_scale.resize(action_size);
     output.action_offset.resize(action_size);
     output.position_limits.assign(action_size, std::nullopt);
@@ -228,11 +230,11 @@ struct SharedControlData
     sensors.joint_pos.setZero();
     sensors.joint_vel.setZero();
     output.default_joint_pos.setZero();
-    std::fill(output.processed_action.begin(), output.processed_action.end(), 0.0f);
-    std::fill(output.published_action.begin(), output.published_action.end(), 0.0f);
+    std::fill(output.command.position.begin(), output.command.position.end(), 0.0f);
+    std::fill(output.last_published.position.begin(), output.last_published.position.end(), 0.0f);
     std::fill(output.feedforward.begin(), output.feedforward.end(), 0.0f);
-    std::fill(output.stiffness.begin(), output.stiffness.end(), 0.0f);
-    std::fill(output.damping.begin(), output.damping.end(), 0.0f);
+    std::fill(output.command.stiffness.begin(), output.command.stiffness.end(), 0.0f);
+    std::fill(output.command.damping.begin(), output.command.damping.end(), 0.0f);
     std::fill(output.action_scale.begin(), output.action_scale.end(), 0.0f);
     std::fill(output.action_offset.begin(), output.action_offset.end(), 0.0f);
     std::fill(policy.last_action.begin(), policy.last_action.end(), 0.0f);

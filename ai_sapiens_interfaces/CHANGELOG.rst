@@ -2,6 +2,20 @@
 Changelog for package ai_sapiens_interfaces
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.3.0 (2026-10-07)
+------------------
+* None
+
+0.2.3 (2026-09-29)
+------------------
+* Clarified that ``RcStatus.hardware_ok`` is diagnostic and does not gate
+  ``is_control_input_safe``; message fields are unchanged.
+* Contributors: Kiwoong Park
+
+0.2.2 (2026-09-14)
+------------------
+* None
+
 0.2.1 (2026-09-01)
 ------------------
 * None

@@ -389,9 +389,9 @@ Recommended reading order:
 3. [`src/controllers/mode_controller.cpp`](src/controllers/mode_controller.cpp):
    safety, authority, velocity, and state decision priority.
 4. [`src/controllers/policy_controller.cpp`](src/controllers/policy_controller.cpp):
-   policy loading, entry, and per-tick execution.
+   policy loading, entry, per-tick execution, and command transition management.
 5. [`src/policy/policy_runtime.cpp`](src/policy/policy_runtime.cpp): observation,
-   ONNX inference, and action processing.
+   ONNX inference, and validated target command generation.
 6. [`src/config/root_config.cpp`](src/config/root_config.cpp): root schema and
    asset resolution.
 7. [`src/config/sim2real_config.cpp`](src/config/sim2real_config.cpp): per-policy
