@@ -24,13 +24,24 @@ namespace ai_sapiens_sim2real
 MotionReference::MotionReference(
   const std::string & motion_file,
   float fps,
-  const std::vector<std::string> & fallback_joint_order)
+  const std::vector<std::string> & fallback_joint_order, bool adapter)
+: adapter_(adapter)
 {
   if (!std::isfinite(fps) || fps <= 0.0f) {
     throw std::runtime_error("MotionReference fps must be finite and positive");
   }
 
   dt_ = 1.0f / fps;
+  if (adapter_) {
+    load_adapter_csv(motion_file, fallback_joint_order);
+    num_frames_ = static_cast<int>(dof_positions_.size());
+    duration_ = num_frames_ * dt_;
+    for (size_t i = 0; i < joint_order_.size(); ++i) {
+      joint_index_by_name_[joint_order_[i]] = i;
+    }
+    seek(0.0f);
+    return;
+  }
   auto data = load_motion_csv(motion_file, fallback_joint_order);
   num_frames_ = static_cast<int>(data.size());
   if (num_frames_ <= 0) {
@@ -57,8 +68,89 @@ MotionReference::MotionReference(
   seek(0.0f);
 }
 
+void MotionReference::load_adapter_csv(
+  const std::string & path, const std::vector<std::string> & joints)
+{
+  joint_order_ = joints;
+  validate_joint_order();
+  if (joints.empty()) {throw std::runtime_error("Adapter motion requires joint names");}
+  std::ifstream file(path);
+  std::string line;
+  if (!file || !std::getline(file, line)) {
+    throw std::runtime_error("Cannot read Adapter CSV: " + path);
+  }
+  const auto header = split_csv_line(line);
+  std::unordered_map<std::string, size_t> columns;
+  for (size_t i = 0; i < header.size(); ++i) {
+    if (header[i].empty() || !columns.emplace(header[i], i).second) {
+      throw std::runtime_error("Empty or duplicate Adapter CSV header");
+    }
+  }
+  std::vector<std::string> keys = {
+    "root_x", "root_y", "root_z", "root_qw", "root_qx", "root_qy", "root_qz"};
+  keys.insert(keys.end(), joints.begin(), joints.end());
+  for (const auto * key : {"root_vx", "root_vy", "root_vz", "root_wx", "root_wy", "root_wz"}) {
+    keys.emplace_back(key);
+  }
+  for (const auto & joint : joints) {
+    keys.push_back("velocity:" + joint);
+  }
+  for (const auto * key : {"height:left_foot", "height:right_foot", "height:left_foot_top",
+      "height:right_foot_top", "ref_root_height"})
+  {
+    keys.emplace_back(key);
+  }
+  for (const auto & key : keys) {
+    if (!columns.count(key)) {throw std::runtime_error("Adapter CSV missing column: " + key);}
+  }
+  if (columns.size() != keys.size() || trim(line).back() == ',') {
+    throw std::runtime_error("Unexpected Adapter CSV columns");
+  }
+  size_t line_number = 1;
+  while (std::getline(file, line)) {
+    ++line_number;
+    line = trim(line);
+    if (line.empty()) {continue;}
+    std::vector<float> row;
+    if (line.back() == ',' || !parse_numeric_row(split_csv_line(line), row) ||
+      row.size() != columns.size() ||
+      !std::all_of(row.begin(), row.end(), [](float x) {return std::isfinite(x);}))
+    {
+      throw std::runtime_error("Invalid Adapter CSV row " + std::to_string(line_number));
+    }
+    auto value = [&](const std::string & key) {return row[columns.at(key)];};
+    Eigen::Quaternionf q(value("root_qw"), value("root_qx"), value("root_qy"), value("root_qz"));
+    if (std::abs(q.squaredNorm() - 1.0f) > 1e-3f) {
+      throw std::runtime_error("Adapter CSV quaternion must have unit norm");
+    }
+    root_positions_.emplace_back(Eigen::Vector3f(value("root_x"), value("root_y"),
+        value("root_z")));
+    root_quaternions_.push_back(q);
+    Eigen::VectorXf positions(joints.size()), velocities(joints.size());
+    for (size_t i = 0; i < joints.size(); ++i) {
+      positions[i] = value(joints[i]);
+      velocities[i] = value("velocity:" + joints[i]);
+    }
+    dof_positions_.push_back(positions);
+    dof_velocities_.push_back(velocities);
+    feet_heights_.emplace_back(value("height:left_foot"), value("height:right_foot"),
+      value("height:left_foot_top"), value("height:right_foot_top"));
+    root_heights_.push_back(value("ref_root_height"));
+  }
+  if (!file.eof() || dof_positions_.empty()) {throw std::runtime_error("Incomplete Adapter CSV");}
+}
+
 void MotionReference::seek(float time)
 {
+  if (!std::isfinite(time)) {throw std::runtime_error("Motion time must be finite");}
+  if (adapter_) {
+    // Tolerance covers float episode-time conversion at exact 50 Hz boundaries.
+    const double frame = std::floor(std::clamp(time, 0.0f, duration_) / dt_ + 1e-4);
+    index_0_ = std::clamp(static_cast<int>(frame), 0, num_frames_ - 1);
+    index_1_ = index_0_;
+    blend_ = 0.0f;
+    return;
+  }
   const float phase = std::clamp(time / duration_, 0.0f, 1.0f);
   // TODO(kiwoong): Consider switching to floor(frame) + alpha interpolation after
   // validating motion timing against the already-tested ai_sapiens_rl_inference path.

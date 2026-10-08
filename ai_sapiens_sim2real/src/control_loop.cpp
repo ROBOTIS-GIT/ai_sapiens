@@ -378,10 +378,14 @@ void ControlLoop::act(
 
 void ControlLoop::command(const rclcpp::Time & current_time)
 {
+  const auto previous_count = shared_data_.output.published_command_count;
   for (auto & publisher : command_publishers_) {
     if (publisher->is_enabled()) {
       publisher->publish(current_time);
     }
+  }
+  if (shared_data_.output.published_command_count != previous_count) {
+    policy_controller_->command_published();
   }
 }
 

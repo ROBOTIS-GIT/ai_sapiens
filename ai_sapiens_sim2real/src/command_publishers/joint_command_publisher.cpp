@@ -122,6 +122,7 @@ void JointCommandPublisher::publish(const rclcpp::Time & time)
 
   publisher_->publish(msg_);
   output_->has_published_command = true;
+  ++output_->published_command_count;
 }
 
 std::string JointCommandPublisher::get_name() const

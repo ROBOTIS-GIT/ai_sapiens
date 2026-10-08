@@ -68,12 +68,14 @@ public:
 protected:
   void on_enter() override;
   bool prepare_observation() override;
+  std::vector<float> process_action(const std::vector<float> & raw_action) override;
 
 private:
   // Loads the reference motion and clamps the playback window to its duration.
   static MotionPlayback load_playback(
     const MimicBehavior & mimic,
-    const std::vector<std::string> & controller_joint_names);
+    const std::vector<std::string> & controller_joint_names,
+    const Sim2RealConfig & config);
   static Eigen::Quaternionf yaw_quaternion(const Eigen::Quaternionf & q);
 
   // Outlives the runtime, so the reference-motion pointer the base handed to

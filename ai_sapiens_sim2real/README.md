@@ -338,3 +338,9 @@ The `mode_runtime` directory contains focused state-machine, authority runtime,
 and startup helpers.
 `SharedControlData` is the explicit data boundary between callbacks, mode
 selection, policy execution, and command publication.
+
+## Any2Track Adapter and Specialist
+
+See [Any2Track deployment with smooth transitions](docs/any2track_sim2real.md)
+for the model contracts, command-history ordering, selectors 203/204,
+and simulation-to-hardware deployment steps.

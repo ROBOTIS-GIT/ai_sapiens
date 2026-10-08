@@ -55,6 +55,7 @@ public:
     const ModeDecision & decision,
     const rclcpp::Time & /*time*/,
     const rclcpp::Duration & period);
+  void command_published();
   void reset() override;
   std::string get_name() const override;
 
@@ -86,6 +87,7 @@ private:
   std::unordered_map<std::string, std::unique_ptr<PolicyRuntime>> runtimes_;
   // SharedControlData::mode.transition_count value at our last runtime enter.
   uint64_t entered_transition_count_{0};
+  PolicyRuntime * publishing_runtime_{nullptr};
   // True after a posture or policy command; false at startup/reset or in damping.
   bool can_blend_from_previous_{false};
 };

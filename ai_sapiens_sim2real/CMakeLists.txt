@@ -320,6 +320,25 @@ if(BUILD_TESTING)
     src/policy/motion_reference.cpp)
   target_link_libraries(test_motion_playback Eigen3::Eigen)
 
+  # Deterministic tiny ONNX fixtures exercise deployment contracts without assets.
+  ament_add_gtest(test_opentrack_runtime
+    test/test_opentrack_runtime.cpp
+    src/policy/policy_runtime.cpp
+    src/policy/mimic_policy_runtime.cpp
+    src/policy/motion_reference.cpp
+    src/policy/onnx_inference.cpp
+    src/policy/action_pipeline.cpp
+    src/policy/gait_clock.cpp
+    src/config/sim2real_config.cpp
+    src/config/config_utils.cpp
+    src/observation/observation_manager.cpp
+    src/observation/observations.cpp
+    src/command_publishers/joint_command_publisher.cpp)
+  ament_target_dependencies(test_opentrack_runtime rclcpp realtime_tools ai_sapiens_interfaces)
+  target_link_libraries(test_opentrack_runtime yaml-cpp Eigen3::Eigen ${ONNXRUNTIME_LIBRARY})
+  target_compile_definitions(test_opentrack_runtime PRIVATE
+    OPENTRACK_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/test/fixtures/opentrack")
+
   # AxisRange: zero-preserving normalize/scale/clamp helpers (header-only).
   ament_add_gtest(test_axis_range test/test_axis_range.cpp)
 

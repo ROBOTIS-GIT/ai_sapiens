@@ -54,6 +54,7 @@ void PolicyController::update(
   const rclcpp::Time & /*time*/,
   const rclcpp::Duration & period)
 {
+  publishing_runtime_ = nullptr;
   if (decision.active_behavior_kind != BehaviorKind::Policy) {
     // Posture states (including ReadyPose) publish position targets and gains
     // that can seed policy entry. Damping remains an immediate safety mode.
@@ -87,6 +88,7 @@ void PolicyController::update(
     entered_transition_count_ = decision.transition_count;
   }
 
+  publishing_runtime_ = runtime;
   update_policy(*runtime, period);
 }
 
@@ -108,8 +110,16 @@ void PolicyController::update_policy(PolicyRuntime & runtime, const rclcpp::Dura
   command_transition_.update(period.seconds(), result, runtime.target_command(), output_->command);
 }
 
+void PolicyController::command_published()
+{
+  if (publishing_runtime_) {
+    publishing_runtime_->command_published(output_->last_published);
+  }
+}
+
 void PolicyController::reset()
 {
+  publishing_runtime_ = nullptr;
   for (auto & [_, runtime] : runtimes_) {
     runtime->reset();
   }

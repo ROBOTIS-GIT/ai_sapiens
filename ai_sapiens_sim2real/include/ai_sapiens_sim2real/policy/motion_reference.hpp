@@ -39,9 +39,12 @@ public:
   MotionReference(
     const std::string & motion_file,
     float fps,
-    const std::vector<std::string> & fallback_joint_order);
+    const std::vector<std::string> & fallback_joint_order, bool adapter = false);
 
   void seek(float time);
+  bool is_adapter() const {return adapter_;}
+  const Eigen::Vector4f & feet_height() const {return feet_heights_.at(index_0_);}
+  float root_height() const {return root_heights_.at(index_0_);}
 
   Eigen::VectorXf joint_pos() const
   {
@@ -66,6 +69,10 @@ public:
   }
 
 private:
+  void load_adapter_csv(const std::string & path, const std::vector<std::string> & joints);
+  bool adapter_{false};
+  std::vector<Eigen::Vector4f> feet_heights_;
+  std::vector<float> root_heights_;
   // CSV parsing helpers accept both named and fallback joint-order files.
   static std::string trim(const std::string & value);
   static std::vector<std::string> split_csv_line(const std::string & line);

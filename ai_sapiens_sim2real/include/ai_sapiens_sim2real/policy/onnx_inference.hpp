@@ -75,6 +75,10 @@ public:
    * @return Vector of input sizes
    */
   const std::vector<int64_t> & get_input_sizes() const;
+  const std::vector<std::vector<int64_t>> & get_input_shapes() const
+  {
+    return normalized_input_shapes_;
+  }
 
   /**
    * @brief Get output size for this model.

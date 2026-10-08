@@ -97,6 +97,10 @@ public:
     return velocity_command_ranges_;
   }
 
+  bool is_adapter() const {return is_adapter_;}
+  int history_length() const {return history_length_;}
+  float joint_vel_scale() const {return joint_vel_scale_;}
+
   const YAML::Node & observations() const
   {
     return observations_;
@@ -110,6 +114,9 @@ private:
   ActionProperties action_properties_;
   std::optional<AxisRanges> velocity_command_ranges_;
   YAML::Node observations_;
+  bool is_adapter_{false};
+  int history_length_{0};
+  float joint_vel_scale_{0.05f};
 };
 
 }  // namespace ai_sapiens_sim2real

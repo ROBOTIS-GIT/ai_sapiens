@@ -68,9 +68,9 @@ selectors:
       200: MimicSquat
       201: MimicDance1
       202: MimicDance2
-      # 203:
-      # 204:
-      # 205:
+      203: MimicRedRedSpecialist
+      204: MimicRedRedAdapter
+      205: MimicRedRedGPTAdapter
       # 206:
       # 207:
       # 208:
@@ -132,6 +132,16 @@ state_machine:
     MimicDance2:
       parent: Mimic
       run: mimic_dance2
+
+    MimicRedRedSpecialist:
+      parent: Mimic
+      run: mimic_redred_specialist
+    MimicRedRedAdapter:
+      parent: Mimic
+      run: mimic_redred_adapter
+    MimicRedRedGPTAdapter:
+      parent: Mimic
+      run: mimic_redred_gpt_adpater
 
 state_behaviors:
   damping:
@@ -207,3 +217,16 @@ state_behaviors:
     kind: mimic
     asset: mimic/dance2
     motion: dance2.csv
+
+  mimic_redred_specialist:
+    kind: mimic
+    asset: mimic/RedRed_any2track_specialist/1007
+    motion: redred_support_v4.csv
+  mimic_redred_adapter:
+    kind: mimic
+    asset: mimic/RedRed_any2track_adpater/1007
+    motion: redred_support_v5.csv
+  mimic_redred_gpt_adpater:
+    kind: mimic
+    asset: mimic/RedRed_GPT
+    motion: redred_final.csv

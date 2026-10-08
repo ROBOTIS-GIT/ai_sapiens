@@ -18,6 +18,7 @@
 #define AI_SAPIENS_SIM2REAL__POLICY__POLICY_RUNTIME_HPP_
 
 #include <cmath>
+#include <deque>
 
 #include <algorithm>
 #include <filesystem>
@@ -52,9 +53,8 @@ class OnnxInference;
  * This base is the whole behavior for a plain `kind: policy` state. The
  * per-tick flow lives here once (enter/update are template methods);
  * MimicPolicyRuntime extends it through the on_enter()/prepare_observation() hooks to play
- * a reference motion. The base knows nothing about motion beyond handing the
- * observation manager an optional reference motion, since some observation
- * terms read one.
+ * a reference motion. Adapter policies use that reference for their explicit
+ * observation/history contract; legacy policies retain ObservationManager.
  */
 class PolicyRuntime
 {
@@ -71,6 +71,8 @@ public:
 
   void reset();
   void enter();
+  // Called only after publishing a final (blended and clipped) joint command.
+  void command_published(const JointCommand & command);
   PolicyUpdateResult update(const rclcpp::Duration & period);
   const JointCommand & target_command() const {return target_command_;}
   const std::vector<size_t> & controlled_joints() const
@@ -80,6 +82,9 @@ public:
   const std::string & state_name() const;
   size_t observation_size() const
   {
+    if (adapter_) {
+      return 5 * joint_context_.policy_joint_names.size() + 11 + (orientation_tracking_ ? 6 : 0);
+    }
     if (!obs_manager_) {
       return 0U;
     }
@@ -96,6 +101,10 @@ protected:
   virtual void on_enter();
   virtual bool prepare_observation();
   virtual void advance_clocks();
+  virtual std::vector<float> process_action(const std::vector<float> & raw_action);
+  bool is_adapter() const {return adapter_;}
+  double step_dt() const {return step_dt_;}
+  bool tracks_pelvis_orientation() const {return orientation_tracking_;}
 
   // State the hooks read; writes still go only through the owned output block,
   // which stays private so derived kinds cannot bypass target validation.
@@ -140,6 +149,23 @@ private:
     const std::vector<float> & processed_action);
   void log_action_limit_once(size_t policy_index, float raw_value, float processed_value);
   void handle_inference_failure(const char * reason);
+
+  void reset_adapter_history();
+  std::vector<float> adapter_state_frame() const;
+  void compute_adapter_observation();
+  void commit_adapter_history(const std::vector<float> & targets);
+  bool adapter_{false};
+  bool orientation_tracking_{false};
+  int history_length_{0};
+  int velocity_history_length_{0};
+  bool velocity_history_ready_{false};
+  bool history_pending_{false};
+  float joint_vel_scale_{0.05f};
+  const MotionReference * adapter_reference_{nullptr};
+  std::deque<std::vector<float>> adapter_history_;
+  std::vector<float> last_motor_targets_;
+  std::vector<float> adapter_current_frame_;
+  size_t adapter_steps_{0};
 
   rclcpp::Node::SharedPtr node_;
   BehaviorOutput * output_;

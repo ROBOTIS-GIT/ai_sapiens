@@ -154,6 +154,7 @@ struct BehaviorOutput
   JointCommand command;
   JointCommand last_published;
   bool has_published_command{false};
+  uint64_t published_command_count{0};
   std::vector<float> feedforward;
   std::vector<float> action_scale;
   std::vector<float> action_offset;
@@ -212,6 +213,7 @@ struct SharedControlData
     output.last_published.stiffness.assign(action_size, 0.0f);
     output.last_published.damping.assign(action_size, 0.0f);
     output.has_published_command = false;
+    output.published_command_count = 0;
     output.feedforward.resize(action_size);
     output.action_scale.resize(action_size);
     output.action_offset.resize(action_size);
