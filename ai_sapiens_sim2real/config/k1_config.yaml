@@ -23,6 +23,10 @@ robot_joint_order:  # Corresponds to ai_sapiens_bringup/config/k1_rev1/k1_rev1_c
 - right_elbow_joint
 - right_wrist_roll_joint
 
+policy_action_transition:
+  enabled: true
+  duration: 0.3
+
 policy_asset_roots:
   - ../assets/k1
 
@@ -69,8 +73,10 @@ selectors:
       # 205:
       206: CarryStage2V62
       207: ArmModeV3Yaw
-      # 208:
-      # 209:
+      208: MimicUMRLieDown
+      209: MimicUMRStandUp
+      210: MimicUMRLieDownBack
+      211: MimicUMRStandUpBack
 
 state_machine:
   initial: Damping
@@ -136,6 +142,19 @@ state_machine:
     ArmModeV3Yaw:
       parent: Mimic
       run: arm_mode_v3_yaw
+
+    MimicUMRLieDown:
+      parent: Mimic
+      run: mimic_umr_lie_down
+    MimicUMRStandUp:
+      parent: Mimic
+      run: mimic_umr_stand_up
+    MimicUMRLieDownBack:
+      parent: Mimic
+      run: mimic_umr_lie_down_back
+    MimicUMRStandUpBack:
+      parent: Mimic
+      run: mimic_umr_stand_up_back
 
 state_behaviors:
   damping:
@@ -219,3 +238,22 @@ state_behaviors:
   arm_mode_v3_yaw:
     kind: policy
     asset: locomotion/arm_mode/v3_yaw_ft_24999
+
+  mimic_umr_lie_down:
+    kind: mimic
+    asset: mimic/umr_lie_down_v2
+    motion: k1_0008_lie_down_locomotion_start_footlock_converted.csv
+    on_complete: Damping
+  mimic_umr_stand_up:
+    kind: mimic
+    asset: mimic/umr_stand_up_v2
+    motion: k1_0008_stand_up_soft_landing_converted.csv
+  mimic_umr_lie_down_back:
+    kind: mimic
+    asset: mimic/umr_lie_down_back_v2
+    motion: k1_lie_down_back_soft_contact_converted.csv
+    on_complete: Damping
+  mimic_umr_stand_up_back:
+    kind: mimic
+    asset: mimic/umr_stand_up_back_v2
+    motion: k1_stand_up_back_v2_converted.csv

@@ -48,8 +48,8 @@ namespace ai_sapiens_sim2real
 class OnnxInference;
 
 /**
- * @brief A policy state: observe, run inference, and scatter the resulting
- *        action into the joints this policy controls.
+ * @brief A policy state: observe, run inference, and produce a validated target
+ *        command in policy joint order. The controller owns command delivery.
  *
  * This base is the whole behavior for a plain `kind: policy` state. The
  * per-tick flow lives here once (enter/update are template methods);
@@ -73,7 +73,12 @@ public:
 
   void reset();
   void enter();
-  void update(const rclcpp::Duration & period);
+  PolicyUpdateResult update(const rclcpp::Duration & period);
+  const JointCommand & target_command() const {return target_command_;}
+  const std::vector<size_t> & controlled_joints() const
+  {
+    return joint_context_.policy_to_controller;
+  }
   const std::string & state_name() const;
   size_t observation_size() const
   {
@@ -95,7 +100,7 @@ protected:
   virtual void advance_clocks();
 
   // State the hooks read; writes still go only through the owned output block,
-  // which stays private so derived kinds cannot bypass the action scatter.
+  // which stays private so derived kinds cannot bypass target validation.
   const SensorData * sensors_;
   PolicyState * policy_;
   ModeRequests * requests_;
@@ -140,7 +145,7 @@ private:
   int carry_sa_min_{0}, carry_sa_max_{0};
   int carry_se_min_{0}, carry_se_max_{0};
   std::optional<std::vector<float>> run_policy_inference();
-  void write_processed_action(
+  PolicyUpdateResult accept_action(
     const std::vector<float> & raw_action,
     const std::vector<float> & processed_action);
   void log_action_limit_once(size_t policy_index, float raw_value, float processed_value);
@@ -158,6 +163,7 @@ private:
   PolicyJointContext joint_context_;
   JointProperties joint_properties_;
   ActionPipeline action_pipeline_;
+  JointCommand target_command_;
 
   std::unique_ptr<OnnxInference> inference_;
   std::unique_ptr<ObservationManager> obs_manager_;
