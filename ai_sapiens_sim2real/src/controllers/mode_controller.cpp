@@ -659,8 +659,8 @@ void ModeController::copy_controller_positions_to_output(
   const std::vector<float> & controller_values)
 {
   for (size_t i = 0; i < controller_joint_count_; ++i) {
-    output_->processed_action[i] = controller_values[i];
-    output_->published_action[i] = controller_values[i];
+    output_->command.position[i] = controller_values[i];
+    output_->last_published.position[i] = controller_values[i];
   }
 }
 
@@ -1019,13 +1019,13 @@ void ModeController::enter_requested_mode(const StateRequest & request)
 }
 
 // Keeps the active behavior's damping gains: every behavior fills
-// output_->damping, so zeroing stiffness/feedforward and mirroring measured
+// output_->command.damping, so zeroing stiffness/feedforward and mirroring measured
 // positions turns the last published command into a viscous brake.
 void ModeController::apply_emergency_damping()
 {
   output_->position_limits.assign(controller_joint_count_, std::nullopt);
   std::fill(output_->feedforward.begin(), output_->feedforward.end(), 0.0f);
-  std::fill(output_->stiffness.begin(), output_->stiffness.end(), 0.0f);
+  std::fill(output_->command.stiffness.begin(), output_->command.stiffness.end(), 0.0f);
   run_damping();
 }
 
@@ -1039,8 +1039,8 @@ void ModeController::enter_damping_state(const StateRequest & request)
 
   output_->position_limits.assign(controller_joint_count_, std::nullopt);
   std::fill(output_->feedforward.begin(), output_->feedforward.end(), 0.0f);
-  std::fill(output_->stiffness.begin(), output_->stiffness.end(), 0.0f);
-  output_->damping = behavior.damping;
+  std::fill(output_->command.stiffness.begin(), output_->command.stiffness.end(), 0.0f);
+  output_->command.damping = behavior.damping;
 
   run_damping();
 }
@@ -1053,8 +1053,8 @@ void ModeController::enter_posture_state(const StateRequest & request)
 
   output_->position_limits.assign(controller_joint_count_, std::nullopt);
   std::fill(output_->feedforward.begin(), output_->feedforward.end(), 0.0f);
-  output_->stiffness = behavior.stiffness;
-  output_->damping = behavior.damping;
+  output_->command.stiffness = behavior.stiffness;
+  output_->command.damping = behavior.damping;
 
   active_posture_duration_ = behavior.duration;
   active_posture_target_ = behavior.target_position;
@@ -1087,8 +1087,8 @@ void ModeController::mark_transition_log_pending()
 void ModeController::run_damping()
 {
   for (Eigen::Index i = 0; i < state_->sensors.joint_pos.size(); ++i) {
-    output_->processed_action[static_cast<size_t>(i)] = state_->sensors.joint_pos[i];
-    output_->published_action[static_cast<size_t>(i)] = state_->sensors.joint_pos[i];
+    output_->command.position[static_cast<size_t>(i)] = state_->sensors.joint_pos[i];
+    output_->last_published.position[static_cast<size_t>(i)] = state_->sensors.joint_pos[i];
   }
 }
 

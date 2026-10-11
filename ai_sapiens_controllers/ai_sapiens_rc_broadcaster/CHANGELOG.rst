@@ -2,6 +2,10 @@
 Changelog for package ai_sapiens_rc_broadcaster
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.3.0 (2026-10-07)
+------------------
+* None
+
 0.2.3 (2026-09-29)
 ------------------
 * Removed hardware error codes from the RC control-input safety decision while

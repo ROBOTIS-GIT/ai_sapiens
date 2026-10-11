@@ -313,6 +313,8 @@ if(BUILD_TESTING)
   target_link_libraries(test_mode_controller yaml-cpp Eigen3::Eigen)
 
   # MotionPlayback: absolute-motion-time seek/completion window.
+  ament_add_gtest(test_action_transition test/test_action_transition.cpp)
+
   ament_add_gtest(test_motion_playback
     test/test_motion_playback.cpp
     src/policy/motion_reference.cpp)

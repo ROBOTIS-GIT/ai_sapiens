@@ -25,6 +25,7 @@
 #include <yaml-cpp/yaml.h>  // NOLINT(build/include_order)
 
 #include "ai_sapiens_sim2real/config/authority_config.hpp"
+#include "ai_sapiens_sim2real/config/action_transition_config.hpp"
 #include "ai_sapiens_sim2real/config/mimic_behavior.hpp"
 #include "ai_sapiens_sim2real/config/root_sections/selectors_config.hpp"
 #include "ai_sapiens_sim2real/config/root_sections/state_behaviors_config.hpp"
@@ -63,6 +64,11 @@ public:
 
   // robot_joint_order: the joint set every controller and policy maps onto.
   std::vector<std::string> controller_joints() const;
+
+  const ActionTransitionConfig & policy_action_transition() const
+  {
+    return policy_action_transition_;
+  }
 
   // Operator command inputs: teleop plugin plus API heartbeat/cmd_vel topics.
   OperatorCommandInputOptions operator_command_input_options() const;
@@ -104,6 +110,7 @@ private:
   std::filesystem::path config_dir_;
   YAML::Node document_;
   std::vector<std::string> controller_joints_;
+  ActionTransitionConfig policy_action_transition_;
   AuthorityConfig authority_config_;
   StateMachineConfig state_machine_config_;
   StateBehaviorsConfig state_behaviors_config_;

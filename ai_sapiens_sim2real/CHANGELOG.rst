@@ -2,6 +2,17 @@
 Changelog for package ai_sapiens_sim2real
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.3.0 (2026-10-07)
+------------------
+* Added configurable smoothstep interpolation of joint targets and PD gains
+  for policy-to-policy and posture-to-policy transitions to reduce abrupt robot
+  motion caused by sudden command changes.
+* Separated validated policy targets from controller-owned command transitions,
+  using the last published command as the interpolation starting point.
+* Added validation for transition settings and tests for interpolation timing,
+  unavailable targets, partial joint mappings, reset, and disabled transitions.
+* Contributors: Kiwoong Park
+
 0.2.3 (2026-09-29)
 ------------------
 * Added RadioMaster hardware error warnings with decimal and hexadecimal codes,
