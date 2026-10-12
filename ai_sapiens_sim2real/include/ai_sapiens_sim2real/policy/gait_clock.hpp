@@ -43,24 +43,31 @@ using GaitPhaseUpdate = std::function<float(float phase, const SharedControlData
  * @brief Bounded gait-phase clock.
  *
  * The phase value lives in shared policy state so the gait_phase observation
- * stays a pure read; this owns only the update rule. The state the rule reads is
- * passed in per step rather than held, so the dependency is explicit and the
- * clock is not a state owner. Phase stays in [0, 1).
+ * stays a pure read. This owns the update rule and whether the episode's first
+ * update must be held for training-time ordering. Robot state is passed in per
+ * step rather than held, so the dependency stays explicit. Phase stays in
+ * [0, 1).
  */
 class GaitClock
 {
 public:
-  explicit GaitClock(GaitPhaseUpdate update)
-  : update_(std::move(update)) {}
+  explicit GaitClock(GaitPhaseUpdate update, bool hold_first_step = false)
+  : update_(std::move(update)), hold_first_step_(hold_first_step) {}
 
   /// Reset @p phase to its episode-start value.
-  void reset(float & phase) const {phase = 0.0f;}
+  void reset(float & phase)
+  {
+    phase = 0.0f;
+    first_step_ = true;
+  }
 
   /// Advance @p phase by one policy step, given the current robot state.
-  void advance(float & phase, const SharedControlData & shared) const;
+  void advance(float & phase, const SharedControlData & shared);
 
 private:
   GaitPhaseUpdate update_;
+  bool hold_first_step_{false};
+  bool first_step_{true};
 };
 
 /**

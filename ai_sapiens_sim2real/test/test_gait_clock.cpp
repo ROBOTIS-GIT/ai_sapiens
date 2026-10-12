@@ -31,6 +31,14 @@ YAML::Node observations_with_period(double period)
   observations["gait_phase"]["params"]["period"] = period;
   return observations;
 }
+
+YAML::Node dwaq_observations()
+{
+  auto observations = observations_with_period(0.8);
+  observations["gait_phase"]["params"]["command_threshold"] = 0.1;
+  observations["gait_phase"]["params"]["offset"] = 0.5;
+  return observations;
+}
 }  // namespace
 
 TEST(GaitClock, NoGaitPhaseObservationYieldsNullopt)
@@ -84,4 +92,41 @@ TEST(GaitClock, PhaseWrapsPastOne)
   EXPECT_NEAR(phase, 0.2f, 1e-5f);
   EXPECT_LT(phase, 1.0f);
   EXPECT_GE(phase, 0.0f);
+}
+
+TEST(GaitClock, RejectsInvalidDwaqParameters)
+{
+  auto negative_threshold = dwaq_observations();
+  negative_threshold["gait_phase"]["params"]["command_threshold"] = -0.1;
+  EXPECT_THROW(make_gait_clock(negative_threshold, 0.02), std::runtime_error);
+
+  auto invalid_offset = dwaq_observations();
+  invalid_offset["gait_phase"]["params"]["offset"] = 1.0;
+  EXPECT_THROW(make_gait_clock(invalid_offset, 0.02), std::runtime_error);
+}
+
+TEST(GaitClock, DwaqStartsAtZeroResetsWhenStoppedAndAdvancesWhenMoving)
+{
+  auto clock = make_gait_clock(dwaq_observations(), 0.02);
+  ASSERT_TRUE(clock.has_value());
+  SharedControlData shared;
+  shared.mode.velocity_commands = Eigen::Vector3f(0.2f, 0.0f, 0.0f);
+  float phase = 0.0f;
+
+  clock->advance(phase, shared);  // first DWAQ inference observes phase zero
+  EXPECT_FLOAT_EQ(phase, 0.0f);
+  clock->advance(phase, shared);
+  EXPECT_NEAR(phase, 0.025f, 1e-6f);
+
+  shared.mode.velocity_commands.setZero();
+  clock->advance(phase, shared);
+  EXPECT_FLOAT_EQ(phase, 0.0f);
+
+  shared.mode.velocity_commands.x() = 0.2f;
+  clock->advance(phase, shared);
+  EXPECT_NEAR(phase, 0.025f, 1e-6f);
+
+  clock->reset(phase);
+  clock->advance(phase, shared);
+  EXPECT_FLOAT_EQ(phase, 0.0f);
 }

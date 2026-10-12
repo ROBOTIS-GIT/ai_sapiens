@@ -169,14 +169,37 @@ std::vector<float> obs_last_action(
 }
 
 // gait_phase: Periodic locomotion clock produced by GaitClock (policy-side).
-// Pure read of the phase in shared state; returns [sin(2*pi*phi), cos(2*pi*phi)].
+// Legacy policies receive [sin(phi), cos(phi)]. When params.offset is present,
+// DWAQ receives [sin(left), sin(right), cos(left), cos(right)].
+// Jihun terrain phase
 std::vector<float> obs_gait_phase(
   const ObservationContext & context,
-  const YAML::Node & /*params*/)
+  const YAML::Node & params)
 {
   constexpr float kTwoPi = 2.0f * 3.14159265f;
-  const float phase = context.shared.policy.gait_phase;
-  return std::vector<float>{std::sin(kTwoPi * phase), std::cos(kTwoPi * phase)};
+  constexpr float kLegacyStandThreshold = 0.1f;
+  const float command_norm = context.shared.mode.velocity_commands.norm();
+  const auto threshold_node = params["command_threshold"];
+  const bool command_gated = threshold_node && !threshold_node.IsNull();
+  if (!command_gated && command_norm < kLegacyStandThreshold) {
+    return std::vector<float>{0.0f, 0.0f};
+  }
+
+  const float threshold = command_gated ? threshold_node.as<float>() : 0.0f;
+  const bool active = !command_gated || command_norm > threshold;
+  const float left_phase = active ? context.shared.policy.gait_phase : 0.0f;
+
+  const auto offset_node = params["offset"];
+  if (!offset_node || offset_node.IsNull()) {
+    return std::vector<float>{
+      std::sin(kTwoPi * left_phase), std::cos(kTwoPi * left_phase)};
+  }
+
+  const float right_phase = active ?
+    std::fmod(left_phase + offset_node.as<float>(), 1.0f) : 0.0f;
+  return std::vector<float>{
+    std::sin(kTwoPi * left_phase), std::sin(kTwoPi * right_phase),
+    std::cos(kTwoPi * left_phase), std::cos(kTwoPi * right_phase)};
 }
 
 std::vector<float> obs_motion_joint_pos(

@@ -55,9 +55,27 @@ std::vector<float> ObservationManager::compute()
 
     // Add to history with clip/scale processing
     term.add(obs);
+  }
 
-    // Append concatenated history to output
-    term.append_to(obs_buffer_);
+  if (!use_gym_history_) {
+    // Legacy layout: all history for term 0, then all history for term 1, ...
+    for (const auto & term : terms_) {
+      term.append_to(obs_buffer_);
+    }
+    return obs_buffer_;
+  }
+
+  // Isaac/Gym-style layout used by DWAQ: complete frames from oldest to newest.
+  // DWAQ conditions every historical frame on the command active right now.
+  const int history_length = terms_.empty() ? 0 : terms_.front().history_length;
+  for (int history_index = 0; history_index < history_length; ++history_index) {
+    for (const auto & term : terms_) {
+      const int source_index =
+        replace_velocity_command_history_ && term.name == "velocity_commands" ?
+        history_length - 1 : history_index;
+      const auto & entry = term.get(source_index);
+      obs_buffer_.insert(obs_buffer_.end(), entry.begin(), entry.end());
+    }
   }
 
   return obs_buffer_;
@@ -92,6 +110,22 @@ void ObservationManager::parse_config(const YAML::Node & obs_config)
     throw std::runtime_error("Observations config must be a map");
   }
 
+  const auto use_gym_history = obs_config["use_gym_history"];
+  if (use_gym_history && !use_gym_history.IsNull()) {
+    use_gym_history_ = use_gym_history.as<bool>();
+  }
+
+  const auto replace_velocity_command_history =
+    obs_config["replace_velocity_command_history"];
+  if (replace_velocity_command_history && !replace_velocity_command_history.IsNull()) {
+    replace_velocity_command_history_ = replace_velocity_command_history.as<bool>();
+  }
+
+  if (replace_velocity_command_history_ && !use_gym_history_) {
+    throw std::runtime_error(
+            "replace_velocity_command_history requires use_gym_history: true");
+  }
+
   bool should_scale_before_clip_by_default = false;
   const auto global_scale_first = obs_config["scale_first"];
   if (global_scale_first && !global_scale_first.IsNull()) {
@@ -111,6 +145,27 @@ void ObservationManager::parse_config(const YAML::Node & obs_config)
     const auto & term = terms_.back();
     std::cout << "[ObservationManager] Registered: " << term.name << " (size="
               << term.single_size() << " x " << term.history_length << " history)" << std::endl;
+  }
+
+  if (use_gym_history_ && !terms_.empty()) {
+    const int history_length = terms_.front().history_length;
+    for (const auto & term : terms_) {
+      if (term.history_length != history_length) {
+        throw std::runtime_error(
+                "use_gym_history requires the same history_length for every observation term");
+      }
+    }
+  }
+
+  if (replace_velocity_command_history_) {
+    bool has_velocity_commands = false;
+    for (const auto & term : terms_) {
+      has_velocity_commands = has_velocity_commands || term.name == "velocity_commands";
+    }
+    if (!has_velocity_commands) {
+      throw std::runtime_error(
+              "replace_velocity_command_history requires a velocity_commands observation");
+    }
   }
 
   // Pre-allocate output buffer
@@ -156,7 +211,8 @@ ObservationTermCfg::ObsFunc ObservationManager::observation_function_for(
 
 bool ObservationManager::is_reserved_config_key(const std::string & term_name)
 {
-  return term_name == "scale_first" || term_name == "use_gym_history";
+  return term_name == "scale_first" || term_name == "use_gym_history" ||
+         term_name == "replace_velocity_command_history";
 }
 
 void ObservationManager::read_term_params(

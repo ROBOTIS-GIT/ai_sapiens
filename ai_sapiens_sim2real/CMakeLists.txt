@@ -276,6 +276,14 @@ if(BUILD_TESTING)
   ament_add_gtest(test_gait_clock test/test_gait_clock.cpp src/policy/gait_clock.cpp)
   target_link_libraries(test_gait_clock yaml-cpp Eigen3::Eigen)
 
+  # ObservationManager: legacy term-major and DWAQ frame-major history layouts.
+  ament_add_gtest(test_observation_manager
+    test/test_observation_manager.cpp
+    src/observation/observation_manager.cpp
+    src/observation/observations.cpp
+    src/policy/motion_reference.cpp)
+  target_link_libraries(test_observation_manager yaml-cpp Eigen3::Eigen)
+
   # StateMachineConfig/RootConfig: config validation and mimic-state detection.
   ament_add_gtest(test_state_machine_config test/test_state_machine_config.cpp
     src/config/config_utils.cpp

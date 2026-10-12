@@ -25,8 +25,13 @@
 namespace ai_sapiens_sim2real
 {
 
-void GaitClock::advance(float & phase, const SharedControlData & shared) const
+void GaitClock::advance(float & phase, const SharedControlData & shared)
 {
+  if (hold_first_step_ && first_step_) {
+    first_step_ = false;
+    return;
+  }
+  first_step_ = false;
   phase = update_(phase, shared);
 }
 
@@ -42,6 +47,14 @@ GaitPhaseUpdate free_running(float increment)
 {
   return [increment](float phase, const SharedControlData &) {
            return next_phase(phase, increment);
+         };
+}
+
+GaitPhaseUpdate reset_when_command_is_stationary(float increment, float threshold)
+{
+  return [increment, threshold](float phase, const SharedControlData & shared) {
+           return shared.mode.velocity_commands.norm() > threshold ?
+                  next_phase(phase, increment) : 0.0f;
          };
 }
 
@@ -67,61 +80,32 @@ float require_period(const YAML::Node & params)
   return period;
 }
 
-// Standing-aware rules and their config dispatch are deactivated until the
-// training export emits these params. Kept here; to re-enable, uncomment this
-// block and call select_update(params, increment) from make_gait_clock below
-// instead of free_running(increment).
-
-/*
-bool is_standing(const SharedControlData & shared, float lin_threshold, float yaw_threshold)
+std::optional<float> command_threshold(const YAML::Node & params)
 {
-  const auto & cmd = shared.mode.velocity_commands;
-  return std::hypot(cmd.x(), cmd.y()) < lin_threshold && std::abs(cmd.z()) < yaw_threshold;
-}
-
-GaitPhaseUpdate freeze_when_standing(float increment, float lin_thr, float yaw_thr)
-{
-  return [increment, lin_thr, yaw_thr](float phase, const SharedControlData & shared) {
-           return is_standing(shared, lin_thr, yaw_thr) ? phase : next_phase(phase, increment);
-         };
-}
-
-GaitPhaseUpdate reset_when_standing(float increment, float lin_thr, float yaw_thr)
-{
-  return [increment, lin_thr, yaw_thr](float phase, const SharedControlData & shared) {
-           return is_standing(shared, lin_thr, yaw_thr) ? 0.0f : next_phase(phase, increment);
-         };
-}
-
-float read_threshold(const YAML::Node & params, const char * key)
-{
-  const auto node = params[key];
-  return (node && !node.IsNull()) ? node.as<float>() : 0.0f;
-}
-
-GaitPhaseUpdate select_update(const YAML::Node & params, float increment)
-{
-  const std::string mode =
-    (params["update"] && !params["update"].IsNull()) ?
-    params["update"].as<std::string>() : "free_running";
-
-  if (mode == "free_running") {
-    return free_running(increment);
+  const auto threshold_node = params["command_threshold"];
+  if (!threshold_node || threshold_node.IsNull()) {
+    return std::nullopt;
   }
 
-  const float lin_thr = read_threshold(params, "lin_thresh");
-  const float yaw_thr = read_threshold(params, "yaw_thresh");
-  if (mode == "freeze_when_standing") {
-    return freeze_when_standing(increment, lin_thr, yaw_thr);
+  const float threshold = threshold_node.as<float>();
+  if (!std::isfinite(threshold) || threshold < 0.0f) {
+    throw std::runtime_error("gait_phase command_threshold must be finite and >= 0");
   }
-  if (mode == "reset_when_standing") {
-    return reset_when_standing(increment, lin_thr, yaw_thr);
-  }
-
-  throw std::runtime_error("gait_phase: unknown update rule '" + mode + "'");
+  return threshold;
 }
 
-*/
+void validate_offset(const YAML::Node & params)
+{
+  const auto offset_node = params["offset"];
+  if (!offset_node || offset_node.IsNull()) {
+    return;
+  }
+
+  const float offset = offset_node.as<float>();
+  if (!std::isfinite(offset) || offset < 0.0f || offset >= 1.0f) {
+    throw std::runtime_error("gait_phase offset must be finite and in [0, 1)");
+  }
+}
 
 }  // namespace
 
@@ -134,6 +118,15 @@ std::optional<GaitClock> make_gait_clock(const YAML::Node & observations, double
 
   const auto params = term["params"];
   const float increment = static_cast<float>(step_dt) / require_period(params);
+  validate_offset(params);
+
+  const auto threshold = command_threshold(params);
+  if (threshold.has_value()) {
+    // DWAQ evaluates its first observation at phase zero, then advances by one
+    // policy step. Keep that ordering even though PolicyRuntime calls advance()
+    // immediately before constructing the observation.
+    return GaitClock(reset_when_command_is_stationary(increment, *threshold), true);
+  }
 
   return GaitClock(free_running(increment));
 }

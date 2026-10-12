@@ -77,6 +77,7 @@ selectors:
       209: MimicUMRStandUp
       210: MimicUMRLieDownBack
       211: MimicUMRStandUpBack
+      221: SubVelocityTerrain
 
 state_machine:
   initial: Damping
@@ -116,6 +117,16 @@ state_machine:
         - when: MimicRequested
           trigger: edge
           select: mimic_selector
+    SubVelocityTerrain:
+      run: velocity_policy_walk_terrain
+      transitions:
+        - when: DampingRequested
+          to: Damping
+        - when: ReadyPoseRequested
+          to: ReadyPose
+        - when: VelocityRequested
+          to: Velocity
+
     Mimic:
       abstract: true
       transitions:
@@ -217,6 +228,14 @@ state_behaviors:
   velocity_policy:
     kind: policy
     asset: locomotion/velocity/walk_default
+
+  velocity_policy_walk_terrain:
+    kind: policy
+    asset: locomotion/velocity/walk_terrain
+
+  velocity_policy_woojin_dreamwaq_amp_phase_free:
+    kind: policy
+    asset: locomotion/velocity/woojin_dreamwaq_amp_phase_free
 
   mimic_squat:
     kind: mimic

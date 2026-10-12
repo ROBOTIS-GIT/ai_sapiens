@@ -37,6 +37,7 @@ namespace ai_sapiens_sim2real
  *
  * Parses sim2real.yaml observations section, creates ObservationTermCfg for each,
  * and computes the full observation vector in YAML order with clip/scale/history.
+ * History is term-major by default, or frame-major when use_gym_history is enabled.
  */
 class ObservationManager
 {
@@ -117,6 +118,8 @@ private:
   const MotionReference * reference_motion_;
   std::vector<ObservationTermCfg> terms_;
   std::vector<float> obs_buffer_;
+  bool use_gym_history_{false};
+  bool replace_velocity_command_history_{false};
 };
 
 }  // namespace ai_sapiens_sim2real
