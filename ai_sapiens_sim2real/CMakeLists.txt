@@ -49,6 +49,7 @@ include_directories(include)
 # Executable
 # ============================================================================
 add_executable(ai_sapiens_sim2real_node
+  src/policy/any2track_policy.cpp
   src/policy/action_pipeline.cpp
   src/command_publishers/joint_command_publisher.cpp
   src/config/config_utils.cpp
@@ -105,6 +106,17 @@ target_link_libraries(ai_sapiens_sim2real_node
   mujoco::mujoco
   OpenSSL::Crypto
 )
+
+# Offline reference check only; deployed sim2sim uses ROS pelvis odometry.
+add_executable(any2track_reference_check
+  src/any2track_reference_check.cpp
+  src/policy/any2track_policy.cpp
+  src/policy/onnx_inference.cpp
+  src/config/config_utils.cpp
+  src/config/sim2real_config.cpp)
+target_link_libraries(any2track_reference_check
+  yaml-cpp Eigen3::Eigen ${ONNXRUNTIME_LIBRARY} mujoco::mujoco OpenSSL::Crypto)
+install(TARGETS any2track_reference_check DESTINATION lib/${PROJECT_NAME})
 
 # ============================================================================
 # teleop input plugins
@@ -272,6 +284,18 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 
   find_package(ament_cmake_gtest REQUIRED)
+
+  ament_add_gtest(test_any2track_policy
+    test/test_any2track_policy.cpp src/policy/any2track_policy.cpp
+    src/config/config_utils.cpp src/config/sim2real_config.cpp)
+  target_link_libraries(test_any2track_policy yaml-cpp Eigen3::Eigen OpenSSL::Crypto)
+  target_compile_definitions(test_any2track_policy PRIVATE
+    TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/data")
+  add_executable(any2track_parity_probe test/any2track_parity_probe.cpp
+    src/policy/any2track_policy.cpp src/policy/onnx_inference.cpp
+    src/config/config_utils.cpp src/config/sim2real_config.cpp)
+  target_link_libraries(any2track_parity_probe
+    yaml-cpp Eigen3::Eigen OpenSSL::Crypto ${ONNXRUNTIME_LIBRARY})
 
   # Offline parity with humanoid_motion; datasets are generated from the user's clip.
   add_executable(dance_reference_probe

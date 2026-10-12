@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "ai_sapiens_sim2real/config/config_utils.hpp"
+#include "ai_sapiens_sim2real/config/any2track_config.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -365,10 +366,18 @@ Sim2RealConfig::Sim2RealConfig(const std::filesystem::path & path)
 
       step_dt_ = step_dt_node.as<double>();
       joint_properties_ = read_joint_properties(node, policy_joints_);
-      action_properties_ = read_action_properties(
-        node,
-        policy_joints_,
-        joint_properties_.default_position);
+      const auto runtime = node["runtime_type"];
+      any2track_ = runtime && runtime.as<std::string>() == "any2track_gt_xy_adapter";
+      if (any2track_) {
+        validate_any2track_config(node);
+        action_properties_.scale = node["actions"]["reference_residual"]["scale"].as<std::vector<float>>();
+        action_properties_.offset.assign(policy_joints_.size(), 0.0f);
+        action_properties_.clip.resize(policy_joints_.size());
+        action_properties_.raw_clip.resize(policy_joints_.size());
+      } else {
+        action_properties_ = read_action_properties(
+          node, policy_joints_, joint_properties_.default_position);
+      }
       observations_ = node["observations"];
       steering_ = read_planar_steering(node);
       const auto commands = node["commands"];

@@ -1,0 +1,418 @@
+runtime_type: any2track_gt_xy_adapter
+step_dt: 0.02
+path_tracking:
+  version: 1
+  source: ground_truth
+  anchor: pelvis
+  frame: robot_heading
+  reference: fixed_motion_world
+  simulation_only: true
+  reference_time_offset_steps: 1
+  motion_end: truncate
+velocity_estimation:
+  version: 1
+  history_length: 20
+orientation_tracking:
+  version: 1
+  anchor: pelvis
+  alignment: initial_yaw
+  representation: relative_rotation_first_two_columns_row_major
+  quaternion_order: wxyz
+  requires_pelvis_orientation_estimate: true
+  reference_time_offset_steps: 1
+history_length: 79
+joint_vel_scale: 0.05
+policy_joints:
+- left_hip_pitch_joint
+- left_hip_roll_joint
+- left_hip_yaw_joint
+- left_knee_joint
+- left_ankle_pitch_joint
+- left_ankle_roll_joint
+- right_hip_pitch_joint
+- right_hip_roll_joint
+- right_hip_yaw_joint
+- right_knee_joint
+- right_ankle_pitch_joint
+- right_ankle_roll_joint
+- waist_yaw_joint
+- left_shoulder_pitch_joint
+- left_shoulder_roll_joint
+- left_shoulder_yaw_joint
+- left_elbow_joint
+- left_wrist_roll_joint
+- right_shoulder_pitch_joint
+- right_shoulder_roll_joint
+- right_shoulder_yaw_joint
+- right_elbow_joint
+- right_wrist_roll_joint
+joint_properties:
+  left_hip_pitch_joint:
+    default_position: -0.30000001192092896
+    stiffness: 76.45161437988281
+    damping: 4.867060661315918
+    position_limit: null
+  left_hip_roll_joint:
+    default_position: 0.0
+    stiffness: 76.45161437988281
+    damping: 4.867060661315918
+    position_limit: null
+  left_hip_yaw_joint:
+    default_position: 0.0
+    stiffness: 76.45161437988281
+    damping: 4.867060661315918
+    position_limit: null
+  left_knee_joint:
+    default_position: 0.6299999952316284
+    stiffness: 76.45161437988281
+    damping: 4.867060661315918
+    position_limit: null
+  left_ankle_pitch_joint:
+    default_position: -0.33000001311302185
+    stiffness: 76.45161437988281
+    damping: 4.867060661315918
+    position_limit: null
+  left_ankle_roll_joint:
+    default_position: 0.0
+    stiffness: 22.301042556762695
+    damping: 1.419728398323059
+    position_limit: null
+  right_hip_pitch_joint:
+    default_position: -0.30000001192092896
+    stiffness: 76.45161437988281
+    damping: 4.867060661315918
+    position_limit: null
+  right_hip_roll_joint:
+    default_position: 0.0
+    stiffness: 76.45161437988281
+    damping: 4.867060661315918
+    position_limit: null
+  right_hip_yaw_joint:
+    default_position: 0.0
+    stiffness: 76.45161437988281
+    damping: 4.867060661315918
+    position_limit: null
+  right_knee_joint:
+    default_position: 0.6299999952316284
+    stiffness: 76.45161437988281
+    damping: 4.867060661315918
+    position_limit: null
+  right_ankle_pitch_joint:
+    default_position: -0.33000001311302185
+    stiffness: 76.45161437988281
+    damping: 4.867060661315918
+    position_limit: null
+  right_ankle_roll_joint:
+    default_position: 0.0
+    stiffness: 22.301042556762695
+    damping: 1.419728398323059
+    position_limit: null
+  waist_yaw_joint:
+    default_position: 0.0
+    stiffness: 76.45161437988281
+    damping: 4.867060661315918
+    position_limit: null
+  left_shoulder_pitch_joint:
+    default_position: 0.20000000298023224
+    stiffness: 22.301042556762695
+    damping: 1.419728398323059
+    position_limit: null
+  left_shoulder_roll_joint:
+    default_position: 0.20000000298023224
+    stiffness: 22.301042556762695
+    damping: 1.419728398323059
+    position_limit: null
+  left_shoulder_yaw_joint:
+    default_position: 0.0
+    stiffness: 22.301042556762695
+    damping: 1.419728398323059
+    position_limit: null
+  left_elbow_joint:
+    default_position: 0.949999988079071
+    stiffness: 22.301042556762695
+    damping: 1.419728398323059
+    position_limit: null
+  left_wrist_roll_joint:
+    default_position: 0.0
+    stiffness: 22.301042556762695
+    damping: 1.419728398323059
+    position_limit: null
+  right_shoulder_pitch_joint:
+    default_position: 0.20000000298023224
+    stiffness: 22.301042556762695
+    damping: 1.419728398323059
+    position_limit: null
+  right_shoulder_roll_joint:
+    default_position: -0.20000000298023224
+    stiffness: 22.301042556762695
+    damping: 1.419728398323059
+    position_limit: null
+  right_shoulder_yaw_joint:
+    default_position: 0.0
+    stiffness: 22.301042556762695
+    damping: 1.419728398323059
+    position_limit: null
+  right_elbow_joint:
+    default_position: 0.949999988079071
+    stiffness: 22.301042556762695
+    damping: 1.419728398323059
+    position_limit: null
+  right_wrist_roll_joint:
+    default_position: 0.0
+    stiffness: 22.301042556762695
+    damping: 1.419728398323059
+    position_limit: null
+torque_limits:
+- 96.86399841308594
+- 96.86399841308594
+- 96.86399841308594
+- 96.86399841308594
+- 96.86399841308594
+- 47.277000427246094
+- 96.86399841308594
+- 96.86399841308594
+- 96.86399841308594
+- 96.86399841308594
+- 96.86399841308594
+- 47.277000427246094
+- 96.86399841308594
+- 47.277000427246094
+- 47.277000427246094
+- 47.277000427246094
+- 47.277000427246094
+- 47.277000427246094
+- 47.277000427246094
+- 47.277000427246094
+- 47.277000427246094
+- 47.277000427246094
+- 47.277000427246094
+commands: {}
+actions:
+  reference_residual:
+    clip: null
+    scale:
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    offset: []
+observations:
+  dif_joint_pos:
+    params: {}
+    clip: null
+    scale:
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    history_length: 1
+    dimension: 23
+  dif_joint_vel:
+    params: {}
+    clip: null
+    scale:
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    history_length: 1
+    dimension: 23
+  gvec_pelvis:
+    params: {}
+    clip: null
+    scale:
+    - 1.0
+    - 1.0
+    - 1.0
+    history_length: 1
+    dimension: 3
+  gyro_pelvis:
+    params: {}
+    clip: null
+    scale:
+    - 1.0
+    - 1.0
+    - 1.0
+    history_length: 1
+    dimension: 3
+  joint_pos:
+    params: {}
+    clip: null
+    scale:
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    history_length: 1
+    dimension: 23
+  joint_vel:
+    params: {}
+    clip: null
+    scale:
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    history_length: 1
+    dimension: 23
+  last_motor_targets:
+    params: {}
+    clip: null
+    scale:
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    history_length: 1
+    dimension: 23
+  motion_anchor_ori_b:
+    params: {}
+    clip: null
+    scale:
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    history_length: 1
+    dimension: 6
+  path_position_error:
+    params: {}
+    clip: null
+    scale:
+    - 1.0
+    - 1.0
+    history_length: 1
+    dimension: 2
+  ref_feet_height:
+    params: {}
+    clip: null
+    scale:
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    history_length: 1
+    dimension: 4
+  ref_root_height:
+    params: {}
+    clip: null
+    scale:
+    - 1.0
+    history_length: 1
+    dimension: 1

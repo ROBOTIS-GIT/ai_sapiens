@@ -34,6 +34,7 @@
 #include <yaml-cpp/yaml.h>  // NOLINT(build/include_order)
 
 #include "ai_sapiens_sim2real/policy/action_pipeline.hpp"
+#include "ai_sapiens_sim2real/policy/any2track_policy.hpp"
 #include "ai_sapiens_sim2real/policy/gait_clock.hpp"
 #include "ai_sapiens_sim2real/policy/motion_reference.hpp"
 #include "ai_sapiens_sim2real/observation/observation_manager.hpp"
@@ -52,9 +53,9 @@ class OnnxInference;
  * This base is the whole behavior for a plain `kind: policy` state. The
  * per-tick flow lives here once (enter/update are template methods);
  * MimicPolicyRuntime extends it through the on_enter()/prepare_observation() hooks to play
- * a reference motion. The base knows nothing about motion beyond handing the
- * observation manager an optional reference motion, since some observation
- * terms read one.
+ * a reference motion. Any2Track's separate input/action ABI is composed through
+ * Any2TrackPolicy, shared with the standalone simulator. Both paths keep target
+ * validation, failure escalation and controller command delivery in common.
  */
 class PolicyRuntime
 {
@@ -66,7 +67,8 @@ public:
     const Sim2RealConfig & sim2real_config,
     const std::vector<std::string> & controller_joint_names,
     SharedControlData * shared_data,
-    const MotionReference * reference_motion = nullptr);
+    const MotionReference * reference_motion = nullptr,
+    const MimicBehavior * any2track_mimic = nullptr);
   virtual ~PolicyRuntime();
 
   void reset();
@@ -82,6 +84,7 @@ public:
   const std::string & state_name() const;
   size_t observation_size() const
   {
+    if (any2track_) {return 134U;}
     if (!obs_manager_) {
       return 0U;
     }
@@ -164,6 +167,8 @@ private:
   ActionPipeline action_pipeline_;
   JointCommand target_command_;
 
+  Any2TrackSample any2track_sample() const;
+  std::unique_ptr<Any2TrackPolicy> any2track_;
   std::unique_ptr<OnnxInference> inference_;
   std::unique_ptr<ObservationManager> obs_manager_;
   // Set only when this policy declares a gait_phase observation.

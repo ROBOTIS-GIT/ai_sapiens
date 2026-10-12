@@ -19,12 +19,14 @@
 namespace ai_sapiens_sim2real
 {
 
-OnnxInference::OnnxInference(const std::string & model_path)
+OnnxInference::OnnxInference(const std::string & model_path, bool any2track)
+: any2track_(any2track)
 {
   configure_session_options();
   session_ = std::make_unique<Ort::Session>(env_, model_path.c_str(), session_options_);
   load_input_metadata(model_path);
   load_output_metadata(model_path);
+  if (any2track_) {validate_any2track_model();}
   allocate_action_buffer();
   log_model_summary(model_path);
 }
@@ -67,9 +69,9 @@ void OnnxInference::load_input_metadata(const std::string & model_path)
 
 void OnnxInference::load_output_metadata(const std::string & model_path)
 {
-  if (session_->GetOutputCount() != 1) {
+  if (session_->GetOutputCount() != (any2track_ ? 2U : 1U)) {
     throw std::runtime_error(
-      "ONNX policy model must have exactly one output, found " +
+      "ONNX policy model expected " + std::to_string(any2track_ ? 2 : 1) + " output(s), found " +
       std::to_string(session_->GetOutputCount()) + ": " + model_path);
   }
 
@@ -315,4 +317,35 @@ std::string OnnxInference::shape_to_string(const std::vector<int64_t> & shape)
 }
 
 
+void OnnxInference::validate_any2track_model() const
+{
+  const std::vector<std::string> names{"obs", "velocity_history", "history"};
+  const std::vector<std::vector<int64_t>> shapes{{1, 134}, {1, 20, 75}, {1, 75, 79}};
+  const auto metadata = session_->GetModelMetadata();
+  Ort::AllocatorWithDefaultOptions allocator;
+  const auto type = metadata.LookupCustomMetadataMapAllocated("runtime_type", allocator);
+  const auto velocity_name = session_->GetOutputNameAllocated(1, allocator);
+  const auto velocity_type = session_->GetOutputTypeInfo(1);
+  if (!type || std::string(type.get()) != "any2track_gt_xy_adapter" ||
+    input_names_ != names || normalized_input_shapes_ != shapes ||
+    output_names_[0] != "continuous_actions" || normalized_output_shape_ != std::vector<int64_t>{1, 23} ||
+    std::string(velocity_name.get()) != "estimated_velocity" ||
+    normalize_policy_shape(velocity_type.GetTensorTypeAndShapeInfo().GetShape(), "velocity") !=
+    std::vector<int64_t>{1, 3})
+  {
+    throw std::runtime_error("Any2Track ONNX does not match the adapter/velocity ABI");
+  }
+  for (size_t i = 0; i < session_->GetInputCount(); ++i) {
+    const auto t = session_->GetInputTypeInfo(i);
+    if (t.GetTensorTypeAndShapeInfo().GetElementType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT) {
+      throw std::runtime_error("Any2Track inputs must be float32");
+    }
+  }
+  for (size_t i = 0; i < session_->GetOutputCount(); ++i) {
+    const auto t = session_->GetOutputTypeInfo(i);
+    if (t.GetTensorTypeAndShapeInfo().GetElementType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT) {
+      throw std::runtime_error("Any2Track outputs must be float32");
+    }
+  }
+}
 }  // namespace ai_sapiens_sim2real

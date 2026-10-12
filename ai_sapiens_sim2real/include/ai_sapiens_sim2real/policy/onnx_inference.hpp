@@ -49,7 +49,7 @@ public:
    * @brief Construct ONNX inference session from model file.
    * @param model_path Path to the .onnx model file
    */
-  explicit OnnxInference(const std::string & model_path);
+  explicit OnnxInference(const std::string & model_path, bool any2track = false);
 
   /**
    * @brief Run inference with observation map.
@@ -93,6 +93,9 @@ public:
   }
 
 private:
+  bool any2track_{false};
+  void validate_any2track_model() const;
+
   // Startup phases.
   void configure_session_options();
   void load_input_metadata(const std::string & model_path);

@@ -11,6 +11,14 @@ a realtime-oriented loop, and publishes joint position/gain commands.
 > operator can select the configured Damping state. Use
 > `command_publisher_enabled:=false` for a non-actuating startup check.
 
+## Redred Any2Track adapter
+
+For `Cyclo-Mimic-K1-Rev1-Redred-Glopo-any2track` and the `redred_a2t_gpt` bundle,
+see [Any2Track deployment](docs/any2track.md) for ROS sim2sim and sim2real
+using the same `/state_estimator/odom` pelvis input, reference preparation,
+and offline training-parity validation.
+Use `robot:=k1_any2track` for its dedicated root configuration (selector 204).
+
 ## Runtime at a glance
 
 The package deliberately separates mode selection from policy execution:

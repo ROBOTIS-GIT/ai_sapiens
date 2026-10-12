@@ -121,6 +121,8 @@ public:
     return observation_origin_;
   }
 
+  bool any2track() const {return any2track_;}
+
   bool use_imu_orientation() const {return use_imu_orientation_;}
 
 private:
@@ -135,6 +137,7 @@ private:
   std::optional<DanceReferenceConfig> dance_reference_;
   MotionObservationOrigin observation_origin_{MotionObservationOrigin::Episode};
   bool use_imu_orientation_{false};
+  bool any2track_{false};
 };
 
 }  // namespace ai_sapiens_sim2real
