@@ -40,14 +40,17 @@ struct JointStatesData
 {
   Eigen::VectorXf position;
   Eigen::VectorXf velocity;
+  Eigen::VectorXf effort;
   std::chrono::steady_clock::time_point received_at{};
 
   void resize(size_t num_joints)
   {
     position.resize(num_joints);
     velocity.resize(num_joints);
+    effort.resize(num_joints);
     position.setZero();
     velocity.setZero();
+    effort.setZero();
   }
 };
 

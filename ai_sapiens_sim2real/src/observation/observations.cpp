@@ -240,6 +240,16 @@ std::vector<float> obs_motion_command(
   return pos;
 }
 
+// Torque feedback from JointState, reordered to the active policy joints.
+// Scaling and independent short/long histories are specified by sim2real.yaml.
+std::vector<float> obs_applied_torque(
+  const ObservationContext & context,
+  const YAML::Node & /*params*/)
+{
+  return controller_vector_to_active_policy(
+    context.shared.sensors.joint_effort, context.joints.policy_to_controller);
+}
+
 std::vector<float> obs_motion_anchor_ori_b(
   const ObservationContext & context,
   const YAML::Node & /*params*/)
@@ -294,6 +304,9 @@ struct ObservationRegistrar
     ObservationRegistry::register_observation("motion_joint_vel", obs_motion_joint_vel);
     ObservationRegistry::register_observation("motion_command", obs_motion_command);
     ObservationRegistry::register_observation("motion_anchor_ori_b", obs_motion_anchor_ori_b);
+    ObservationRegistry::register_observation("applied_torque", obs_applied_torque);
+    ObservationRegistry::register_observation("applied_torque_long", obs_applied_torque);
+    ObservationRegistry::register_observation("joint_pos_rel_long", obs_joint_pos_rel);
   }
 };
 

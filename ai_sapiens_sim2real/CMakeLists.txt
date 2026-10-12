@@ -332,6 +332,16 @@ if(BUILD_TESTING)
     src/policy/motion_reference.cpp)
   target_link_libraries(test_motion_playback Eigen3::Eigen)
 
+  # Carry v74: feedback effort and independent short/long observation histories.
+  ament_add_gtest(test_dual_history_observation
+    test/test_dual_history_observation.cpp
+    src/observation/observation_manager.cpp
+    src/observation/observations.cpp
+    src/policy/motion_reference.cpp
+    src/sensor_handles/joint_states_sensor_handle.cpp)
+  ament_target_dependencies(test_dual_history_observation rclcpp realtime_tools sensor_msgs)
+  target_link_libraries(test_dual_history_observation yaml-cpp Eigen3::Eigen)
+
   # AxisRange: zero-preserving normalize/scale/clamp helpers (header-only).
   ament_add_gtest(test_axis_range test/test_axis_range.cpp)
 

@@ -64,6 +64,8 @@ struct SensorData
   Eigen::Quaternionf orientation{Eigen::Quaternionf::Identity()};
   Eigen::VectorXf joint_pos;
   Eigen::VectorXf joint_vel;
+  // JointState effort in robot order; missing effort is represented by zero.
+  Eigen::VectorXf joint_effort;
 
   // Project world gravity into the body frame using the current orientation.
   void compute_projected_gravity()
@@ -213,6 +215,7 @@ struct SharedControlData
   {
     sensors.joint_pos.resize(num_joints);
     sensors.joint_vel.resize(num_joints);
+    sensors.joint_effort = Eigen::VectorXf::Zero(static_cast<Eigen::Index>(num_joints));
     output.default_joint_pos.resize(num_joints);
     output.command.resize(action_size);
     output.last_published.resize(action_size);

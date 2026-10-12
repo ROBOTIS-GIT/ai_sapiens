@@ -75,6 +75,7 @@ void JointStatesSensorHandle::update(const rclcpp::Time & /*time*/)
   // Copy to the shared sensor block.
   sensors_->joint_pos = data->position;
   sensors_->joint_vel = data->velocity;
+  sensors_->joint_effort = data->effort;
 
   const auto elapsed = std::chrono::steady_clock::now() - data->received_at;
   if (elapsed > timeout_) {
@@ -153,6 +154,9 @@ size_t JointStatesSensorHandle::parse_joint_state_message(
 
     data->position[model_idx] = static_cast<float>(msg.position[msg_idx]);
     data->velocity[model_idx] = static_cast<float>(msg.velocity[msg_idx]);
+    if (msg_idx < msg.effort.size()) {
+      data->effort[model_idx] = static_cast<float>(msg.effort[msg_idx]);
+    }
     complete_joints_found++;
   }
 

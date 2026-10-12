@@ -68,16 +68,16 @@ selectors:
       200: MimicSquat
       201: MimicDance1
       202: MimicDance2
-      # 203:
-      # 204:
-      # 205:
-      206: CarryStage2V62
+      203: MimicKoryo
+      204: MimicTaeguek1
+      205: MimicTaeguek2
+      206: CarryStage2V74M115800
       207: ArmModeV3Yaw
       208: MimicUMRLieDown
       209: MimicUMRStandUp
       210: MimicUMRLieDownBack
       211: MimicUMRStandUpBack
-      221: SubVelocityTerrain
+      # 221: SubVelocityTerrain
 
 state_machine:
   initial: Damping
@@ -117,15 +117,15 @@ state_machine:
         - when: MimicRequested
           trigger: edge
           select: mimic_selector
-    SubVelocityTerrain:
-      run: velocity_policy_walk_terrain
-      transitions:
-        - when: DampingRequested
-          to: Damping
-        - when: ReadyPoseRequested
-          to: ReadyPose
-        - when: VelocityRequested
-          to: Velocity
+    # SubVelocityTerrain:
+    #   run: velocity_policy_walk_terrain
+    #   transitions:
+    #     - when: DampingRequested
+    #       to: Damping
+    #     - when: ReadyPoseRequested
+    #       to: ReadyPose
+    #     - when: VelocityRequested
+    #       to: Velocity
 
     Mimic:
       abstract: true
@@ -146,9 +146,9 @@ state_machine:
       parent: Mimic
       run: mimic_dance2
 
-    CarryStage2V62:
+    CarryStage2V74M115800:
       parent: Mimic
-      run: carry_stage2_v62
+      run: carry_stage2_v74_m115800
 
     ArmModeV3Yaw:
       parent: Mimic
@@ -166,6 +166,16 @@ state_machine:
     MimicUMRStandUpBack:
       parent: Mimic
       run: mimic_umr_stand_up_back
+
+    MimicKoryo:
+      parent: Mimic
+      run: mimic_koryo
+    MimicTaeguek1:
+      parent: Mimic
+      run: mimic_taeguek_1
+    MimicTaeguek2:
+      parent: Mimic
+      run: mimic_taeguek_2
 
 state_behaviors:
   damping:
@@ -229,13 +239,13 @@ state_behaviors:
     kind: policy
     asset: locomotion/velocity/walk_default
 
-  velocity_policy_walk_terrain:
-    kind: policy
-    asset: locomotion/velocity/walk_terrain
+  # velocity_policy_walk_terrain:
+  #   kind: policy
+  #   asset: locomotion/velocity/walk_terrain
 
-  velocity_policy_woojin_dreamwaq_amp_phase_free:
-    kind: policy
-    asset: locomotion/velocity/woojin_dreamwaq_amp_phase_free
+  # velocity_policy_woojin_dreamwaq_amp_phase_free:
+  #   kind: policy
+  #   asset: locomotion/velocity/woojin_dreamwaq_amp_phase_free
 
   mimic_squat:
     kind: mimic
@@ -250,9 +260,9 @@ state_behaviors:
     asset: mimic/dance2
     motion: dance2.csv
 
-  carry_stage2_v62:
+  carry_stage2_v74_m115800:
     kind: policy
-    asset: locomotion/carry/stage2_v62_model_109000
+    asset: locomotion/carry/carry_distill_student_v9_model_4800
 
   arm_mode_v3_yaw:
     kind: policy
@@ -276,3 +286,15 @@ state_behaviors:
     kind: mimic
     asset: mimic/umr_stand_up_back_v2
     motion: k1_stand_up_back_v2_converted.csv
+  mimic_koryo:
+    kind: mimic
+    asset: mimic/koryo
+    motion: k1_koryo_converted.csv
+  mimic_taeguek_1:
+    kind: mimic
+    asset: mimic/taeguek_1
+    motion: k1_taeguek01_converted.csv
+  mimic_taeguek_2:
+    kind: mimic
+    asset: mimic/taeguek_2
+    motion: k1_taeguek02_converted.csv
