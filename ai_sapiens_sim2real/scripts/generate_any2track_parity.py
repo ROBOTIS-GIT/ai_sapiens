@@ -127,7 +127,7 @@ def main():
                     target.numpy().ravel(),
                 )
             )
-            assert len(record) == 7660
+            assert len(record) == 7526 + obs['state'].shape[-1]
             records.append(
                 struct.pack('<II', int(tick == 0), episode) + record.astype('<f4').tobytes()
             )

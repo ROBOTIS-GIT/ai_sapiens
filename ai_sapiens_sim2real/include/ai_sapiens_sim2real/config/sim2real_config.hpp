@@ -122,6 +122,7 @@ public:
   }
 
   bool any2track() const {return any2track_;}
+  bool any2track_path_tracking() const {return any2track_path_tracking_;}
 
   bool use_imu_orientation() const {return use_imu_orientation_;}
 
@@ -138,6 +139,7 @@ private:
   MotionObservationOrigin observation_origin_{MotionObservationOrigin::Episode};
   bool use_imu_orientation_{false};
   bool any2track_{false};
+  bool any2track_path_tracking_{false};
 };
 
 }  // namespace ai_sapiens_sim2real

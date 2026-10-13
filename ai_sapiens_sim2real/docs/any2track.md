@@ -1,4 +1,63 @@
-# Redred Any2Track adapter deployment
+# Any2Track adapter deployment
+
+## BTS Boy With Luv (`bts_boywithluv_a2t`)
+
+The supplied model exports `opentrack_anyadapter`: `obs` is
+`[1,132]`, `velocity_history` is `[1,20,75]`, and `history` is `[1,75,79]`.
+It has **no XY/path-position input**. Robot IMU quaternion and gyro supply attitude,
+gravity, and angular velocity in both sim2sim and sim2real. Odometry is not required
+and its loss does not interrupt this model. Redred's 134-element XY model retains
+its existing pelvis-odometry input and watchdog.
+
+Both models use the same `PolicyRuntime`, `Any2TrackPolicy`, and `OnnxInference`.
+The loader validates each exported schema and packs the foot/root heights at the
+correct offsets; it does not pad or fabricate an XY input for BTS.
+
+Build and source the ROS workspace, then start MuJoCo and the BTS policy:
+
+```bash
+ros2 launch ai_sapiens_sim2real bts_boywithluv_any2track.launch.py start_simulator:=true
+```
+
+For an already-running simulator or real robot bringup, use:
+
+```bash
+ros2 launch ai_sapiens_sim2real bts_boywithluv_any2track.launch.py
+```
+
+This uses `config/k1_bts_boywithluv_a2t_config.yaml`. Select **205** for
+`MimicBtsBoywithluvA2t`, after ReadyPose. The dedicated ReadyPose matches the first
+CSV joint pose. The local main `k1_config.yaml` also registers selector 205 using
+the existing state/behavior format; its shared ReadyPose is unchanged. The
+0.1-second command transition and Velocity completion/fallback remain in use.
+The reference contains 1749 frames at 50 Hz (34.96 seconds between first and last).
+
+The deployment files are the original `exported/policy.onnx`,
+`params/sim2real.yaml`, and the CSV selected by `motion` in the root config.
+No generated reference files or model hashes are required. Compatible model
+checkpoints can be replaced directly; restart the policy node to load them.
+
+The existing ROS smoke test also accepts the BTS config:
+
+```bash
+RMW_IMPLEMENTATION=rmw_fastrtps_cpp \
+  python3 src/ai_sapiens/ai_sapiens_sim2real/scripts/run_any2track_smoke_test.py \
+  --robot k1_bts_boywithluv_a2t
+```
+
+This uses synthetic ROS sensors and is not a physical balance test.
+
+Validation on 2026-10-13: build and all 17 CTest targets passed. BTS and Redred ROS
+smoke tests passed, including IMU-source checks, missing-odometry behavior, reentry,
+and motion completion, with both generated reference files absent. The BTS
+iteration-16000 training/Torch oracle matched 170 native steps loaded directly
+from CSV with maximum input error `2.91e-7` and action/target error `3.82e-6` (tolerance
+`2e-5`). The parity probe uses identical preceding targets on both sides to isolate
+observation packing and inference differences from accumulated numerical drift.
+Full closed-loop MuJoCo execution and physical robot execution have not been
+validated for this bundle.
+
+## Redred (`redred_a2t_gpt`)
 
 `Cyclo-Mimic-K1-Rev1-Redred-Glopo-any2track` in `humanoid_motion` trains a
 Specialist and then an Adapter. The supplied `redred_a2t_gpt/exported/policy.onnx`
@@ -118,30 +177,20 @@ control, Newton 10 iterations, Euler integration and training gains/torque limit
 Its saved CSV can be replayed with `scripts/view_any2track_rollout.py --scene
 <scene.xml> --rollout <rollout.csv>` in a Python MuJoCo environment with a display.
 
-## Reference assets and re-export
+## Reference loading
 
-CSV alone lacks training foot-site heights. Two generated files were added
-alongside the supplied assets:
+The runtime uses the existing `MotionReference` CSV reader. At startup it derives
+reference velocities using central differences (one-sided at the ends), and
+computes the four training foot-point heights from the installed
+`ai_sapiens_description/mujoco/k1/k1.xml` model. This is offline FK of the CSV
+reference, not a live MuJoCo position or an estimator input. No FK runs in the
+control loop. CSV joint names are mapped to policy/model order.
 
-- `params/any2track_reference.bin`: frame poses, generalized velocities, and four
-  foot-site heights from the training model/FK.
-- `params/any2track_reference.yaml`: schema, joint order, provenance and SHA256
-  hashes binding the binary, original CSV, ONNX and YAML.
-
-The supplied CSV was checked against the Redred training NPZ, including quaternion
-conversion (CSV XYZW ↔ training WXYZ). Native startup refuses mixed/tampered
-assets. Prepare these sidecars again whenever replacing a model or YAML:
-
-```bash
-# In the humanoid_motion Python environment; both directories must be accessible.
-python /path/to/ai_sapiens_sim2real/scripts/prepare_any2track_reference.py \
-  --humanoid-motion /path/to/humanoid_motion \
-  --bundle /path/to/redred_a2t_gpt
-```
-
-The original ONNX/YAML/CSV are not rewritten. The project ignores deployment
-assets in Git, so transfer the **whole bundle including both sidecars** to the
-robot. Scripts and runtime code are tracked normally.
+The ONNX input/output shapes and exported observation/action schema are still
+validated. There is no ONNX/CSV hash binding and no dependency on
+`any2track_reference.bin`, `any2track_reference.yaml`, a training NPZ, or a separate
+conversion command. The original deployment assets remain ignored by Git, so
+copy ONNX, YAML, and the configured CSV to the target machine as usual.
 
 ## Validation performed
 

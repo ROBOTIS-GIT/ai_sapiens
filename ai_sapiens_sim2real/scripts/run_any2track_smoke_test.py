@@ -12,11 +12,11 @@ Synthetic sensors and isolated ROS domain; no physical robot or balance test.
 """
 
 import argparse
+import csv
 import math
 import os
 from pathlib import Path
 import signal
-import struct
 import subprocess
 import tempfile
 import time
@@ -27,6 +27,7 @@ import yaml
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--domain-id', type=int, default=189)
+    p.add_argument('--robot', default='k1_any2track', help='Root config name without _config.yaml')
     args = p.parse_args()
     os.environ['ROS_DOMAIN_ID'] = str(args.domain_id)
     os.environ['ROS_AUTOMATIC_DISCOVERY_RANGE'] = 'LOCALHOST'
@@ -38,19 +39,38 @@ def main():
     from std_msgs.msg import Float64MultiArray
 
     share = Path(get_package_share_directory('ai_sapiens_sim2real'))
-    bundle = share / 'assets/k1/mimic/redred_a2t_gpt'
-    raw = (bundle / 'params/any2track_reference.bin').read_bytes()
-    frame0, frame1 = (struct.unpack_from('<63f', raw, 12 + i * 252) for i in range(2))
+    config = yaml.safe_load((share / f'config/{args.robot}_config.yaml').read_text())
+    table = config['selectors']['mimic_selector']['table']
+    if len(table) != 1:
+        raise ValueError('Smoke test requires a dedicated config with one mimic selector')
+    selector, mode_name = next(iter(table.items()))
+    behavior_name = config['state_machine']['states'][mode_name]['run']
+    behavior = config['state_behaviors'][behavior_name]
+    bundle = share / 'assets/k1' / behavior['asset']
+    deployment = yaml.safe_load((bundle / 'params/sim2real.yaml').read_text())
+    path_tracking = deployment['runtime_type'] == 'any2track_gt_xy_adapter'
+    obs_size = 134 if path_tracking else 132
+    with (bundle / 'params' / behavior['motion']).open() as stream:
+        rows = [list(map(float, row)) for row in csv.reader(stream) if row]
+    # ROS test sensors come from the original CSV, not generated deployment files.
+    frames = []
+    for i in range(2):
+        row = rows[i]
+        lo, hi = max(0, i - 1), i + 1
+        dt = (hi - lo) * deployment['step_dt']
+        qpos = row[:3] + [row[6]] + row[3:6] + row[7:]
+        qvel = [(rows[hi][j] - rows[lo][j]) / dt for j in range(3)] + [0.0] * 3
+        qvel += [(rows[hi][j] - rows[lo][j]) / dt for j in range(7, 30)]
+        frames.append(qpos + qvel)
+    frame0, frame1 = frames
     robot_xy = list(frame0[:2])
     robot_q = list(frame0[3:7])
     # Deliberately disagree with the IMU, including tilt, to detect estimator leakage.
     odom_q = [math.cos(0.4), math.sin(0.4), 0.0, 0.0]
     imu_valid = True
-    config = yaml.safe_load((share / 'config/k1_any2track_config.yaml').read_text())
     config['policy_asset_roots'] = [str(share / 'assets/k1')]
     config['teleop_input']['config'] = str(share / 'config/teleop/keyboard.yaml')
-    mode_name = 'MimicRedredAny2Track'
-    config['selectors']['mimic_selector']['table'] = {204: mode_name}
+    config['selectors']['mimic_selector']['table'] = {selector: mode_name}
     config['state_machine']['states'] = {
         k: v
         for k, v in config['state_machine']['states'].items()
@@ -59,9 +79,9 @@ def main():
     config['state_behaviors'] = {
         k: v
         for k, v in config['state_behaviors'].items()
-        if k in ('damping', 'ready_pose', 'velocity_policy', 'mimic_redred_any2track')
+        if k in ('damping', 'ready_pose', 'velocity_policy', behavior_name)
     }
-    config['state_behaviors']['mimic_redred_any2track']['time_end'] = 0.8
+    config['state_behaviors'][behavior_name]['time_end'] = 0.8
     with tempfile.TemporaryDirectory(prefix='any2track-smoke-') as folder:
         folder = Path(folder)
         (folder / 'root.yaml').write_text(yaml.safe_dump(config))
@@ -160,7 +180,7 @@ def main():
                 sequence += 1
                 key.sequence = sequence
                 key.input_code = code
-                key.selector_code = 204
+                key.selector_code = selector
                 pubs['keyboard'].publish(key)
                 if send_odom:
                     odom = Odometry()
@@ -182,7 +202,7 @@ def main():
             found = [
                 o
                 for o in observations[begin:]
-                if len(o) == 134
+                if len(o) == obs_size
                 and max(abs(o[j] - (frame1[7 + j] - frame0[7 + j])) for j in range(23)) < 1e-5
             ]
             assert found, 'Missing upcoming-frame entry observation'
@@ -206,8 +226,14 @@ def main():
             code = 2
             drive(3, lambda: state['mode'] == 'ReadyPose')
             code = 4
-            drive(3, lambda: state['mode'] == 'Velocity')
-            print('PASS: missing odometry rejects Any2Track entry', flush=True)
+            if path_tracking:
+                drive(3, lambda: state['mode'] == 'Velocity')
+                print('PASS: missing odometry rejects Any2Track entry', flush=True)
+            else:
+                drive(3, lambda: state['mode'] == mode_name)
+                print('PASS: orientation-only policy runs without odometry', flush=True)
+                code = 3
+                drive(3, lambda: state['mode'] == 'Velocity')
             send_odom = True
             code = 0
             drive(0.1)
@@ -224,8 +250,15 @@ def main():
                 flush=True,
             )
             send_odom = False
-            drive(3, lambda: state['mode'] == 'Velocity')
-            print('PASS: odometry loss hands off to Velocity', flush=True)
+            if path_tracking:
+                drive(3, lambda: state['mode'] == 'Velocity')
+                print('PASS: odometry loss hands off to Velocity', flush=True)
+            else:
+                drive(0.2)
+                assert state['mode'] == mode_name
+                print('PASS: odometry loss does not interrupt orientation-only policy', flush=True)
+                code = 3
+                drive(3, lambda: state['mode'] == 'Velocity')
             # Same physical pose in a different odometry world.
             angle = 0.7
             c, s = math.cos(angle / 2), math.sin(angle / 2)
@@ -248,7 +281,7 @@ def main():
             drive(3, lambda: state['mode'] == 'Velocity')
             assert state['commands'] > 10
             print(
-                'PASS: reentry realigns XY/yaw, clears targets/history; '
+                'PASS: reentry realigns the reference, clears targets/history; '
                 'finite clip completes into Velocity',
                 flush=True,
             )
@@ -258,7 +291,7 @@ def main():
             code = 4
             drive(0.3)
             assert state['mode'] == 'Velocity'
-            assert not any(len(o) == 134 for o in observations[begin:])
+            assert not any(len(o) == obs_size for o in observations[begin:])
             print('PASS: invalid IMU attitude rejects entry despite valid odometry', flush=True)
             code = 0
             imu_valid = True

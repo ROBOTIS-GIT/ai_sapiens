@@ -29,8 +29,8 @@ using namespace ai_sapiens_sim2real;  // NOLINT
 int main(int argc, char ** argv)
 {
   try {
-    if (argc < 3 || argc > 5) {
-      std::cerr << "Usage: any2track_reference_check BUNDLE SCENE.xml [STEPS=full] [ROLLOUT.csv]\n";
+    if (argc < 3 || argc > 6) {
+      std::cerr << "Usage: any2track_reference_check BUNDLE SCENE.xml [STEPS=full] [ROLLOUT.csv] [MOTION.csv]\n";
       return 2;
     }
     std::cout << "OFFLINE REFERENCE CHECK: XY comes from MuJoCo ground truth. "
@@ -38,8 +38,8 @@ int main(int argc, char ** argv)
     const std::filesystem::path bundle = std::filesystem::absolute(argv[1]);
     Sim2RealConfig cfg(bundle / "params/sim2real.yaml");
     MimicBehavior mimic;
-    mimic.motion_file = bundle / "params/redred_k1.csv";
-    Any2TrackPolicy core(cfg, mimic, bundle / "exported/policy.onnx");
+    mimic.motion_file = bundle / "params" / (argc == 6 ? argv[5] : "redred_k1.csv");
+    Any2TrackPolicy core(cfg, mimic);
     OnnxInference network((bundle / "exported/policy.onnx").string(), true);
     char error[2048]{};
     std::unique_ptr<mjModel, decltype(& mj_deleteModel)> model(

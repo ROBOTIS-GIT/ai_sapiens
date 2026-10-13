@@ -17,12 +17,10 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstring>
-#include <fstream>
-#include <iomanip>
 #include <memory>
-#include <sstream>
-#include <openssl/evp.h>
+#include <ament_index_cpp/get_package_share_directory.hpp>
+#include <mujoco/mujoco.h>
+#include "ai_sapiens_sim2real/policy/motion_reference.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -31,25 +29,6 @@ namespace
 void require(bool ok, const std::string & message)
 {
   if (!ok) {throw std::runtime_error("Any2Track: " + message);}
-}
-std::string sha256(const std::filesystem::path & path)
-{
-  std::ifstream file(path, std::ios::binary);
-  require(file.good(), "cannot open " + path.string());
-  std::unique_ptr<EVP_MD_CTX, decltype(& EVP_MD_CTX_free)> ctx(EVP_MD_CTX_new(), EVP_MD_CTX_free);
-  require(ctx && EVP_DigestInit_ex(ctx.get(), EVP_sha256(), nullptr) == 1, "SHA256 init failed");
-  char buffer[65536];
-  while (file.read(buffer, sizeof(buffer)) || file.gcount()) {
-    require(EVP_DigestUpdate(ctx.get(), buffer, file.gcount()) == 1, "SHA256 update failed");
-  }
-  unsigned char digest[EVP_MAX_MD_SIZE];
-  unsigned int size = 0;
-  require(EVP_DigestFinal_ex(ctx.get(), digest, &size) == 1, "SHA256 failed");
-  std::ostringstream text;
-  for (unsigned int i = 0; i < size; ++i) {
-    text << std::hex << std::setfill('0') << std::setw(2) << static_cast<unsigned int>(digest[i]);
-  }
-  return text.str();
 }
 float yaw(const Eigen::Quaternionf & q)
 {
@@ -70,46 +49,85 @@ void validate_sample(const Any2TrackSample & s)
 }  // namespace
 
 Any2TrackPolicy::Any2TrackPolicy(
-  const Sim2RealConfig & config, const MimicBehavior & mimic,
-  const std::filesystem::path & model_path)
+  const Sim2RealConfig & config, const MimicBehavior & mimic)
 : defaults_(config.joint_properties().default_position), scale_(config.action_properties().scale),
-  last_targets_(23), current_history_(52), completion_state_(mimic.on_complete)
+  last_targets_(23), current_history_(52), path_tracking_(config.any2track_path_tracking()),
+  completion_state_(mimic.on_complete)
 {
-  require(config.any2track(), "requires any2track_gt_xy_adapter");
+  require(config.any2track(), "requires a supported Any2Track adapter");
   require(std::abs(mimic.fps - 50.0f) < 1e-5 && mimic.mjlab_format.value_or(true),
       "requires 50 Hz MJLab CSV");
-  const auto folder = config.path().parent_path();
-  const auto manifest = YAML::LoadFile((folder / "any2track_reference.yaml").string());
-  require(manifest["version"].as<int>() == 1 && manifest["columns"].as<int>() == 63 &&
-    manifest["step_dt"].as<double>() == config.step_dt() &&
-    manifest["joint_names"].as<std::vector<std::string>>() == config.policy_joints(),
-      "reference schema mismatch");
-  const auto binary = folder / manifest["reference_file"].as<std::string>();
-  for (const auto & item : std::vector<std::pair<std::string, std::filesystem::path>>{
-      {"reference_sha256", binary}, {"motion_csv_sha256", mimic.motion_file},
-      {"policy_sha256", model_path}, {"sim2real_sha256", config.path()}})
-  {
-    require(sha256(item.second) == manifest[item.first].as<std::string>(),
-        "asset hash mismatch: " + item.first);
+  // Use the same CSV loader and installed K1 kinematics as the existing Mimic
+  // runtime. Reference FK is computed once at load, never from live simulator state.
+  MotionReference motion(mimic.motion_file.string(), mimic.fps, config.policy_joints(), true);
+  const int count = motion.frame_count();
+  require(count >= 2, "motion requires at least two frames");
+  const auto xml = std::filesystem::path(
+    ament_index_cpp::get_package_share_directory("ai_sapiens_description")) / "mujoco/k1/k1.xml";
+  char error[1024]{};
+  std::unique_ptr<mjModel, decltype(& mj_deleteModel)> model(
+    mj_loadXML(xml.c_str(), nullptr, error, sizeof(error)), mj_deleteModel);
+  require(static_cast<bool>(model), "cannot load K1 kinematics: " + std::string(error));
+  require(model->nq == 30 && model->nv == 29 && model->jnt_type[0] == mjJNT_FREE,
+    "expected a free-base K1 model with 23 joints");
+  std::unique_ptr<mjData, decltype(& mj_deleteData)> data(mj_makeData(model.get()), mj_deleteData);
+  std::array<int, 23> csv_indices{}, qadr{}, vadr{};
+  for (int j = 0; j < 23; ++j) {
+    const auto & name = config.policy_joints()[j];
+    const auto found = std::find(motion.joint_order().begin(), motion.joint_order().end(), name);
+    const int joint = mj_name2id(model.get(), mjOBJ_JOINT, name.c_str());
+    require(found != motion.joint_order().end() && joint > 0 &&
+      model->jnt_type[joint] == mjJNT_HINGE, "missing K1 motion joint: " + name);
+    csv_indices[j] = std::distance(motion.joint_order().begin(), found);
+    qadr[j] = model->jnt_qposadr[joint];
+    vadr[j] = model->jnt_dofadr[joint];
   }
-  std::ifstream in(binary, std::ios::binary);
-  char magic[8];
-  uint32_t count = 0;
-  in.read(magic, 8);
-  in.read(reinterpret_cast<char *>(&count), 4);
-  const uint32_t endian = 1;
-  require(*reinterpret_cast<const char *>(&endian) == 1, "reference requires a little-endian host");
-  require(in && std::memcmp(magic, "A2TREF01", 8) == 0 && count >= 2 && count <= 1000000 &&
-    count == manifest["frames"].as<uint32_t>(), "invalid reference header");
+  const std::array<int, 2> feet{
+    mj_name2id(model.get(), mjOBJ_BODY, "left_ankle_roll_link"),
+    mj_name2id(model.get(), mjOBJ_BODY, "right_ankle_roll_link")};
+  require(feet[0] >= 0 && feet[1] >= 0, "missing K1 foot bodies");
+  // Training sites, expressed in the ankle-roll link: sole and front/top.
+  // Order: left sole, right sole, left top, right top.
+  const std::array<std::array<mjtNum, 3>, 2> foot_points{{
+    {{0.0325, 0, -0.0635}}, {{0.10, 0, -0.0535}}}};
+  std::vector<std::array<mjtNum, 30>> poses(count);
+  for (int i = 0; i < count; ++i) {
+    const auto f = motion.frame(i);
+    auto & q = poses[i];
+    for (int j = 0; j < 3; ++j) {
+      q[j] = f.root_position[j];
+    }
+    q[3] = f.root_quaternion.w(); q[4] = f.root_quaternion.x();
+    q[5] = f.root_quaternion.y(); q[6] = f.root_quaternion.z();
+    mju_normalize4(q.data() + 3);
+    for (int j = 0; j < 23; ++j) {
+      q[qadr[j]] = f.joint_pos[csv_indices[j]];
+    }
+  }
   frames_.resize(count);
-  in.read(reinterpret_cast<char *>(frames_.data()), count * sizeof(Frame));
-  require(in && in.peek() == std::char_traits<char>::eof(), "invalid reference length");
-  for (const auto & f : frames_) {
-    require(std::all_of(f.begin(), f.end(), [](float x) {
-        return std::isfinite(x);
-        }), "nonfinite reference");
-    require(std::abs(Eigen::Quaternionf(f[3], f[4], f[5], f[6]).norm() - 1) < 1e-3,
-      "reference quaternion must be WXYZ unit length");
+  for (int i = 0; i < count; ++i) {
+    const int lo = std::max(0, i - 1), hi = std::min(count - 1, i + 1);
+    mj_differentiatePos(model.get(), data->qvel, (hi - lo) * config.step_dt(),
+      poses[lo].data(), poses[hi].data());
+    std::copy(poses[i].begin(), poses[i].end(), data->qpos);
+    mj_kinematics(model.get(), data.get());
+    auto & f = frames_[i];
+    std::copy_n(data->qpos, 7, f.begin());
+    std::copy_n(data->qvel, 6, f.begin() + 30);
+    for (int j = 0; j < 23; ++j) {
+      f[7 + j] = data->qpos[qadr[j]];
+      f[36 + j] = data->qvel[vadr[j]];
+    }
+    for (int j = 0; j < 4; ++j) {
+      const int body = feet[j % 2];
+      const auto & point = foot_points[j / 2];
+      f[59 + j] = data->xpos[3 * body + 2] +
+        data->xmat[9 * body + 6] * point[0] +
+        data->xmat[9 * body + 7] * point[1] +
+        data->xmat[9 * body + 8] * point[2];
+    }
+    require(std::all_of(f.begin(), f.end(), [](float x) {return std::isfinite(x);}),
+      "nonfinite motion reference");
   }
   const auto frame_index = [&](double time) {
       const double f = time / config.step_dt();
@@ -121,7 +139,7 @@ Any2TrackPolicy::Any2TrackPolicy(
   end_ = mimic.time_end ? frame_index(*mimic.time_end) : count - 1;
   require(start_ < end_, "motion window requires at least two frames");
   require(completion_state_ != "stay", "finite path must hand off at motion end");
-  inputs_["obs"].resize(134);
+  inputs_["obs"].resize(path_tracking_ ? 134 : 132);
   inputs_["velocity_history"].resize(20 * 75);
   inputs_["history"].resize(75 * 79);
 }
@@ -188,15 +206,18 @@ bool Any2TrackPolicy::observe(const Any2TrackSample & s)
       obs[121 + row * 2 + col] = relative(row, col);
     }
   }
-  const Eigen::Vector2f robot_xy = reference_origin_ + (alignment_ *
-    Eigen::Vector3f(s.xy.x() - origin_.x(), s.xy.y() - origin_.y(), 0)).head<2>();
-  const Eigen::Vector2f error = Eigen::Rotation2Df(-yaw(robot)) * (Eigen::Vector2f(f[0],
+  if (path_tracking_) {
+    const Eigen::Vector2f robot_xy = reference_origin_ + (alignment_ *
+      Eigen::Vector3f(s.xy.x() - origin_.x(), s.xy.y() - origin_.y(), 0)).head<2>();
+    const Eigen::Vector2f error = Eigen::Rotation2Df(-yaw(robot)) * (Eigen::Vector2f(f[0],
       f[1]) - robot_xy);
-  obs[127] = error.x(); obs[128] = error.y();
-  for (int j = 0; j < 4; ++j) {
-    obs[129 + j] = f[59 + j];
+    obs[127] = error.x(); obs[128] = error.y();
   }
-  obs[133] = f[2];
+  const size_t feet_offset = path_tracking_ ? 129 : 127;
+  for (int j = 0; j < 4; ++j) {
+    obs[feet_offset + j] = f[59 + j];
+  }
+  obs[feet_offset + 4] = f[2];
   std::array<float, 75> velocity{};
   std::copy_n(obs.begin() + 46, 6, velocity.begin());
   std::copy_n(obs.begin() + 52, 69, velocity.begin() + 6);

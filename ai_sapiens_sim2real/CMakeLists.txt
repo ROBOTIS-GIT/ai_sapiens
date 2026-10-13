@@ -110,12 +110,14 @@ target_link_libraries(ai_sapiens_sim2real_node
 # Offline reference check only; deployed sim2sim uses ROS pelvis odometry.
 add_executable(any2track_reference_check
   src/any2track_reference_check.cpp
+  src/policy/motion_reference.cpp
   src/policy/any2track_policy.cpp
   src/policy/onnx_inference.cpp
   src/config/config_utils.cpp
   src/config/sim2real_config.cpp)
+ament_target_dependencies(any2track_reference_check ament_index_cpp)
 target_link_libraries(any2track_reference_check
-  yaml-cpp Eigen3::Eigen ${ONNXRUNTIME_LIBRARY} mujoco::mujoco OpenSSL::Crypto)
+  yaml-cpp Eigen3::Eigen ${ONNXRUNTIME_LIBRARY} mujoco::mujoco)
 install(TARGETS any2track_reference_check DESTINATION lib/${PROJECT_NAME})
 
 # ============================================================================
@@ -287,15 +289,19 @@ if(BUILD_TESTING)
 
   ament_add_gtest(test_any2track_policy
     test/test_any2track_policy.cpp src/policy/any2track_policy.cpp
+    src/policy/motion_reference.cpp
     src/config/config_utils.cpp src/config/sim2real_config.cpp)
-  target_link_libraries(test_any2track_policy yaml-cpp Eigen3::Eigen OpenSSL::Crypto)
+  ament_target_dependencies(test_any2track_policy ament_index_cpp)
+  target_link_libraries(test_any2track_policy yaml-cpp Eigen3::Eigen mujoco::mujoco)
   target_compile_definitions(test_any2track_policy PRIVATE
     TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/data")
   add_executable(any2track_parity_probe test/any2track_parity_probe.cpp
+    src/policy/motion_reference.cpp
     src/policy/any2track_policy.cpp src/policy/onnx_inference.cpp
     src/config/config_utils.cpp src/config/sim2real_config.cpp)
+  ament_target_dependencies(any2track_parity_probe ament_index_cpp)
   target_link_libraries(any2track_parity_probe
-    yaml-cpp Eigen3::Eigen OpenSSL::Crypto ${ONNXRUNTIME_LIBRARY})
+    yaml-cpp Eigen3::Eigen mujoco::mujoco ${ONNXRUNTIME_LIBRARY})
 
   # Offline parity with humanoid_motion; datasets are generated from the user's clip.
   add_executable(dance_reference_probe

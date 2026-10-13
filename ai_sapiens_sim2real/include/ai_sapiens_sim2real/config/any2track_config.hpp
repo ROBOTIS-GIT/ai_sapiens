@@ -25,12 +25,13 @@
 namespace ai_sapiens_sim2real
 {
 // Exact ABI exported by humanoid_motion/source/tasks/any2track/export.py.
-inline const std::vector<std::string> & any2track_observation_names()
+inline std::vector<std::string> any2track_observation_names(bool path_tracking = true)
 {
-  static const std::vector<std::string> names{
+  std::vector<std::string> names{
     "dif_joint_pos", "dif_joint_vel", "gvec_pelvis", "gyro_pelvis", "joint_pos",
     "joint_vel", "last_motor_targets", "motion_anchor_ori_b", "path_position_error",
     "ref_feet_height", "ref_root_height"};
+  if (!path_tracking) {names.erase(names.begin() + 8);}
   return names;
 }
 
@@ -39,7 +40,9 @@ inline void validate_any2track_config(const YAML::Node & n)
   const auto require = [](bool ok, const std::string & what) {
       if (!ok) {throw std::runtime_error("Any2Track contract: " + what);}
     };
-  require(n["runtime_type"].as<std::string>() == "any2track_gt_xy_adapter",
+  const auto runtime = n["runtime_type"].as<std::string>();
+  const bool path_tracking = runtime == "any2track_gt_xy_adapter";
+  require(path_tracking || runtime == "opentrack_anyadapter",
       "unsupported runtime_type");
   require(std::abs(n["step_dt"].as<double>() - 0.02) < 1e-9, "step_dt must be 0.02");
   require(n["history_length"].as<int>() == 79, "history_length must be 79");
@@ -60,13 +63,17 @@ inline void validate_any2track_config(const YAML::Node & n)
     require(props["stiffness"].as<float>() >= 0 && props["damping"].as<float>() >= 0,
       "negative joint gain");
   }
-  const auto p = n["path_tracking"];
-  require(p["version"].as<int>() == 1 && p["source"].as<std::string>() == "ground_truth" &&
+  if (path_tracking) {
+    const auto p = n["path_tracking"];
+    require(p["version"].as<int>() == 1 && p["source"].as<std::string>() == "ground_truth" &&
     p["anchor"].as<std::string>() == "pelvis" && p["frame"].as<std::string>() == "robot_heading" &&
     p["reference"].as<std::string>() == "fixed_motion_world" && p["simulation_only"].as<bool>() &&
     p["reference_time_offset_steps"].as<int>() == 1 &&
       p["motion_end"].as<std::string>() == "truncate",
     "unsupported path_tracking");
+  } else {
+    require(!n["path_tracking"], "opentrack_anyadapter must not declare path_tracking");
+  }
   const auto o = n["orientation_tracking"];
   require(o["version"].as<int>() == 1 && o["anchor"].as<std::string>() == "pelvis" &&
     o["alignment"].as<std::string>() == "initial_yaw" &&
@@ -84,12 +91,14 @@ inline void validate_any2track_config(const YAML::Node & n)
   for (const auto & s : a["scale"]) {
     require(std::isfinite(s.as<float>()) && s.as<float>() > 0, "invalid action scale");
   }
-  const std::vector<int> dims{23, 23, 3, 3, 23, 23, 23, 6, 2, 4, 1};
+  std::vector<int> dims{23, 23, 3, 3, 23, 23, 23, 6, 2, 4, 1};
+  if (!path_tracking) {dims.erase(dims.begin() + 8);}
+  const auto names = any2track_observation_names(path_tracking);
   const auto obs = n["observations"];
   require(obs.size() == dims.size(), "unexpected observation terms");
   size_t i = 0;
   for (const auto & term : obs) {
-    require(term.first.as<std::string>() == any2track_observation_names()[i],
+    require(term.first.as<std::string>() == names[i],
         "observation order mismatch");
     const auto t = term.second;
     require(t["dimension"].as<int>() == dims[i] && t["history_length"].as<int>() == 1 &&

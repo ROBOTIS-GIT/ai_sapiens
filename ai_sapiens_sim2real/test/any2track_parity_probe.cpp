@@ -23,12 +23,12 @@ using namespace ai_sapiens_sim2real;  // NOLINT
 int main(int argc, char ** argv)
 {
   try {
-    if (argc != 3) {throw std::runtime_error("Usage: any2track_parity_probe BUNDLE ORACLE.bin");}
+    if (argc < 3 || argc > 4) {throw std::runtime_error("Usage: any2track_parity_probe BUNDLE ORACLE.bin [MOTION.csv]");}
     const std::filesystem::path b = argv[1];
     Sim2RealConfig cfg(b / "params/sim2real.yaml");
     MimicBehavior mimic;
-    mimic.motion_file = b / "params/redred_k1.csv";
-    Any2TrackPolicy core(cfg, mimic, b / "exported/policy.onnx");
+    mimic.motion_file = b / "params" / (argc == 4 ? argv[3] : "redred_k1.csv");
+    Any2TrackPolicy core(cfg, mimic);
     OnnxInference network((b / "exported/policy.onnx").string(), true);
     std::ifstream in(argv[2], std::ios::binary);
     char magic[8]; uint32_t count;
@@ -37,7 +37,7 @@ int main(int argc, char ** argv)
     float max_input = 0, max_action = 0;
     for (uint32_t step = 0; step < count; ++step) {
       uint32_t reset, align;
-      std::vector<float> row(7660);
+      std::vector<float> row(7526 + core.observation().size());
       in.read(reinterpret_cast<char *>(&reset), 4); in.read(reinterpret_cast<char *>(&align), 4);
       in.read(reinterpret_cast<char *>(row.data()), row.size() * sizeof(float));
       if (!in) {throw std::runtime_error("Truncated oracle");}
@@ -70,7 +70,9 @@ int main(int argc, char ** argv)
       compare(action, 2e-5f, max_action, "action");
       const auto target = core.target(action);
       compare(target, 2e-5f, max_action, "target");
-      core.accept(target); core.advance();
+      // Compare observations under the same preceding commands. Feeding native
+      // roundoff back into history would mix recurrence drift with packing errors.
+      core.accept(std::vector<float>(row.end() - 23, row.end())); core.advance();
     }
     std::cout << "PARITY steps=" << count << " max_input_error=" << max_input
               << " max_action_error=" << max_action << '\n';

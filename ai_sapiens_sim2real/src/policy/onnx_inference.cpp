@@ -320,13 +320,16 @@ std::string OnnxInference::shape_to_string(const std::vector<int64_t> & shape)
 void OnnxInference::validate_any2track_model() const
 {
   const std::vector<std::string> names{"obs", "velocity_history", "history"};
-  const std::vector<std::vector<int64_t>> shapes{{1, 134}, {1, 20, 75}, {1, 75, 79}};
+
   const auto metadata = session_->GetModelMetadata();
   Ort::AllocatorWithDefaultOptions allocator;
   const auto type = metadata.LookupCustomMetadataMapAllocated("runtime_type", allocator);
+  const std::string runtime = type ? type.get() : "";
+  const std::vector<std::vector<int64_t>> shapes{
+    {1, runtime == "opentrack_anyadapter" ? 132 : 134}, {1, 20, 75}, {1, 75, 79}};
   const auto velocity_name = session_->GetOutputNameAllocated(1, allocator);
   const auto velocity_type = session_->GetOutputTypeInfo(1);
-  if (!type || std::string(type.get()) != "any2track_gt_xy_adapter" ||
+  if ((runtime != "any2track_gt_xy_adapter" && runtime != "opentrack_anyadapter") ||
     input_names_ != names || normalized_input_shapes_ != shapes ||
     output_names_[0] != "continuous_actions" || normalized_output_shape_ != std::vector<int64_t>{1, 23} ||
     std::string(velocity_name.get()) != "estimated_velocity" ||

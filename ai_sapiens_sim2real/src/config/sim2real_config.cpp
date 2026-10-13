@@ -367,7 +367,9 @@ Sim2RealConfig::Sim2RealConfig(const std::filesystem::path & path)
       step_dt_ = step_dt_node.as<double>();
       joint_properties_ = read_joint_properties(node, policy_joints_);
       const auto runtime = node["runtime_type"];
-      any2track_ = runtime && runtime.as<std::string>() == "any2track_gt_xy_adapter";
+      any2track_path_tracking_ = runtime && runtime.as<std::string>() == "any2track_gt_xy_adapter";
+      any2track_ = any2track_path_tracking_ ||
+        (runtime && runtime.as<std::string>() == "opentrack_anyadapter");
       if (any2track_) {
         validate_any2track_config(node);
         action_properties_.scale = node["actions"]["reference_residual"]["scale"].as<std::vector<float>>();

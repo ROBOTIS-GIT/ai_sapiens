@@ -19,25 +19,12 @@
 #include <iomanip>
 #include <sstream>
 #include <unistd.h>
-#include <openssl/evp.h>
 #include "ai_sapiens_sim2real/policy/any2track_policy.hpp"
 #include "ai_sapiens_sim2real/config/any2track_config.hpp"
 
 using namespace ai_sapiens_sim2real;  // NOLINT
 namespace
 {
-std::string digest(const std::filesystem::path & p)
-{
-  std::ifstream in(p, std::ios::binary);
-  std::string bytes((std::istreambuf_iterator<char>(in)), {});
-  unsigned char hash[32]; unsigned int size;
-  EVP_Digest(bytes.data(), bytes.size(), hash, &size, EVP_sha256(), nullptr);
-  std::ostringstream out;
-  for (unsigned int i = 0; i < size; ++i) {
-    out << std::hex << std::setfill('0') << std::setw(2) << static_cast<int>(hash[i]);
-  }
-  return out.str();
-}
 class Any2TrackTest : public ::testing::Test
 {
 protected:
@@ -47,36 +34,19 @@ protected:
     dir = mkdtemp(name);
     std::filesystem::copy_file(std::filesystem::path(TEST_DATA_DIR) / "any2track_sim2real.yaml",
         dir / "sim2real.yaml");
-    std::ofstream(dir / "policy.onnx") << "fixture";
-    std::ofstream(dir / "motion.csv") << "fixture";
-    std::ofstream data(dir / "reference.bin", std::ios::binary);
-    data.write("A2TREF01", 8);
-    uint32_t count = 4;
-    data.write(reinterpret_cast<char *>(&count), 4);
+    std::ofstream csv(dir / "motion.csv");
+    csv << std::setprecision(9);
     for (int i = 0; i < 4; ++i) {
-      Any2TrackPolicy::Frame f{};
-      f[0] = .1f * i; f[1] = -.2f * i; f[2] = .75f; f[3] = 1;
-      for (int j = 0; j < 23; ++j) {f[7 + j] = .01f * j + .1f * i; f[36 + j] = .2f * j;}
-      for (int j = 0; j < 4; ++j) {f[59 + j] = .03f * j;}
-      data.write(reinterpret_cast<const char *>(f.data()), sizeof(f));
+      csv << .1f * i << ',' << -.2f * i << ",0.75,0,0,0,1";
+      for (int j = 0; j < 23; ++j) {csv << ',' << .01f * j + .1f * i;}
+      csv << '\n';
     }
-    data.close();
-    YAML::Node manifest;
-    manifest["version"] = 1; manifest["columns"] = 63; manifest["frames"] = 4;
-    manifest["step_dt"] = .02; manifest["reference_file"] = "reference.bin";
-    manifest["joint_names"] = YAML::LoadFile((dir / "sim2real.yaml").string())["policy_joints"];
-    for (const auto & item : std::vector<std::pair<std::string, std::string>>{
-        {"reference_sha256", "reference.bin"}, {"motion_csv_sha256", "motion.csv"},
-        {"policy_sha256", "policy.onnx"}, {"sim2real_sha256", "sim2real.yaml"}})
-    {manifest[item.first] = digest(dir / item.second);}
-    std::ofstream(dir / "any2track_reference.yaml") << manifest;
     mimic.motion_file = dir / "motion.csv";
   }
   void TearDown() override {std::filesystem::remove_all(dir);}
   std::unique_ptr<Any2TrackPolicy> make()
   {
-    return std::make_unique<Any2TrackPolicy>(Sim2RealConfig(dir / "sim2real.yaml"), mimic,
-        dir / "policy.onnx");
+    return std::make_unique<Any2TrackPolicy>(Sim2RealConfig(dir / "sim2real.yaml"), mimic);
   }
   std::filesystem::path dir;
   MimicBehavior mimic;
@@ -89,10 +59,10 @@ TEST_F(Any2TrackTest, UpcomingReferenceAndDistinctHistoryOrders)
   p->reset(s, false); ASSERT_TRUE(p->observe(s));
   const auto & o = p->observation();
   EXPECT_NEAR(o[0], -.1f, 1e-7);
-  EXPECT_NEAR(o[23], -.015f, 1e-7);
+  EXPECT_NEAR(o[23], .235f, 1e-6);
   EXPECT_FLOAT_EQ(o[98], .2f);
   EXPECT_FLOAT_EQ(o[127], .1f); EXPECT_FLOAT_EQ(o[128], -.2f);
-  EXPECT_FLOAT_EQ(o[132], .09f); EXPECT_FLOAT_EQ(o[133], .75f);
+  EXPECT_TRUE(std::isfinite(o[132])); EXPECT_FLOAT_EQ(o[133], .75f);
   const auto & h = p->inputs().at("history");
   EXPECT_FLOAT_EQ(h[0], .1f); EXPECT_FLOAT_EQ(h[5 * 79], -1);
   EXPECT_FLOAT_EQ(h[52 * 79], .2f);
@@ -137,13 +107,47 @@ TEST_F(Any2TrackTest, ClipEndsWithoutWrapAndRejectsBadInputs)
   EXPECT_THROW(p->target(std::vector<float>(22, 0)), std::runtime_error);
 }
 
-TEST_F(Any2TrackTest, MixedAssetsAndInvalidWindowsFailClosed)
+TEST_F(Any2TrackTest, InvalidMotionAndWindowsFailClosed)
 {
   mimic.time_start = .01f; EXPECT_THROW(make(), std::runtime_error);
   mimic.time_start = 0; mimic.on_complete = "stay"; EXPECT_THROW(make(), std::runtime_error);
   mimic.on_complete = "Velocity";
-  std::ofstream(dir / "motion.csv", std::ios::app) << "changed";
+  std::ofstream(dir / "motion.csv") << "0,0,0,0,0,0,0\n";
   EXPECT_THROW(make(), std::runtime_error);
+}
+
+TEST_F(Any2TrackTest, OrientationOnlyAdapterOmitsXYAndKeepsHeightOffsets)
+{
+  auto n = YAML::LoadFile((dir / "sim2real.yaml").string());
+  n["runtime_type"] = "opentrack_anyadapter";
+  // An orientation-only runtime must reject the incompatible XY contract.
+  EXPECT_THROW(validate_any2track_config(n), std::runtime_error);
+  n.remove("path_tracking");
+  EXPECT_THROW(validate_any2track_config(n), std::runtime_error);
+  n["observations"].remove("path_position_error");
+  EXPECT_NO_THROW(validate_any2track_config(n));
+  std::ofstream(dir / "sim2real.yaml") << n;
+  Sim2RealConfig config(dir / "sim2real.yaml");
+  EXPECT_TRUE(config.any2track());
+  EXPECT_FALSE(config.any2track_path_tracking());
+  auto p = make(); Any2TrackSample s;
+  p->reset(s, true); ASSERT_TRUE(p->observe(s));
+  const auto initial = p->observation();
+  ASSERT_EQ(initial.size(), 132U);
+  EXPECT_TRUE(std::isfinite(initial[127]));
+  EXPECT_TRUE(std::isfinite(initial[130]));
+  EXPECT_FLOAT_EQ(initial[131], .75f);
+  s.xy = Eigen::Vector2f(100, -50);
+  ASSERT_TRUE(p->observe(s));
+  EXPECT_EQ(p->observation(), initial);
+  s.orientation = Eigen::Quaternionf(Eigen::AngleAxisf(.4f, Eigen::Vector3f::UnitX()));
+  ASSERT_TRUE(p->observe(s));
+  EXPECT_NEAR(p->observation()[47], -std::sin(.4f), 1e-6);
+  EXPECT_NE(p->observation()[126], initial[126]);
+  for (int i = 1; i <= 3; ++i) {
+    ASSERT_TRUE(p->observe(s)); p->advance();
+  }
+  EXPECT_FALSE(p->observe(s));
 }
 
 TEST_F(Any2TrackTest, SchemaRejectsWrongObservationOrderAndHistory)

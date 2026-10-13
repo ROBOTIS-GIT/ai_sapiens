@@ -11,11 +11,16 @@ a realtime-oriented loop, and publishes joint position/gain commands.
 > operator can select the configured Damping state. Use
 > `command_publisher_enabled:=false` for a non-actuating startup check.
 
-## Redred Any2Track adapter
+## Any2Track adapters
+
+For `bts_boywithluv_a2t`, use `bts_boywithluv_any2track.launch.py` or
+`robot:=k1_bts_boywithluv_a2t` (selector 205). This `opentrack_anyadapter` model
+uses robot IMU attitude/gyro and joint state, with no XY input or estimator
+dependency. See [Any2Track deployment](docs/any2track.md) for both execution modes.
 
 For `Cyclo-Mimic-K1-Rev1-Redred-Glopo-any2track` and the `redred_a2t_gpt` bundle,
 see [Any2Track deployment](docs/any2track.md) for ROS sim2sim and sim2real
-using the same `/state_estimator/odom` pelvis input, reference preparation,
+using the same `/state_estimator/odom` pelvis input, direct CSV loading,
 and offline training-parity validation.
 Use `robot:=k1_any2track` for its dedicated root configuration (selector 204).
 

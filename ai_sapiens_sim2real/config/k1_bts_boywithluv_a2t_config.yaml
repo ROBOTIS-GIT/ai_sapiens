@@ -1,0 +1,143 @@
+# BTS Boy With Luv Any2Track; selector 205. ReadyPose matches motion frame zero.
+robot_joint_order:
+- left_hip_pitch_joint
+- left_hip_roll_joint
+- left_hip_yaw_joint
+- left_knee_joint
+- left_ankle_pitch_joint
+- left_ankle_roll_joint
+- right_hip_pitch_joint
+- right_hip_roll_joint
+- right_hip_yaw_joint
+- right_knee_joint
+- right_ankle_pitch_joint
+- right_ankle_roll_joint
+- waist_yaw_joint
+- left_shoulder_pitch_joint
+- left_shoulder_roll_joint
+- left_shoulder_yaw_joint
+- left_elbow_joint
+- left_wrist_roll_joint
+- right_shoulder_pitch_joint
+- right_shoulder_roll_joint
+- right_shoulder_yaw_joint
+- right_elbow_joint
+- right_wrist_roll_joint
+policy_action_transition:
+  enabled: true
+  duration: 0.1
+policy_asset_roots:
+- ../assets/k1
+mimic_defaults:
+  fps: 50
+  time_start: 0.0
+  time_end: auto
+  on_complete: Velocity
+authority:
+  api_entry:
+    warmup_duration: 3.0
+    velocity_neutral_threshold: 0.05
+    allowed_from_states:
+    - Damping
+    - ReadyPose
+    - Velocity
+  default_velocity_state: Velocity
+teleop_input:
+  plugin: ai_sapiens_sim2real/RadiomasterPocketTeleopInputPlugin
+  config: teleop/radiomaster_pocket.yaml
+  vel_command_timeout: 0.2
+  timeout: 0.2
+teleop_conditions:
+  DampingRequested:
+    input_code: 1
+  ReadyPoseRequested:
+    input_code: 2
+  VelocityRequested:
+    input_code: 3
+  MimicRequested:
+    input_code: 4
+selectors:
+  mimic_selector:
+    table:
+      205: MimicBtsBoywithluvA2t
+state_machine:
+  initial: Damping
+  states:
+    Damping:
+      run: damping
+      transitions:
+      - when: ReadyPoseRequested
+        to: ReadyPose
+    ReadyPose:
+      run: ready_pose
+      transitions:
+      - when: DampingRequested
+        to: Damping
+      - when: VelocityRequested
+        to: Velocity
+      - when: MimicRequested
+        select: mimic_selector
+    Velocity:
+      run: velocity_policy
+      transitions:
+      - when: DampingRequested
+        to: Damping
+      - when: ReadyPoseRequested
+        to: ReadyPose
+      - when: MimicRequested
+        trigger: edge
+        select: mimic_selector
+    Mimic:
+      abstract: true
+      transitions:
+      - when: DampingRequested
+        to: Damping
+      - when: ReadyPoseRequested
+        to: ReadyPose
+      - when: VelocityRequested
+        to: Velocity
+    MimicBtsBoywithluvA2t:
+      parent: Mimic
+      run: mimic_bts_boywithluv_a2t
+state_behaviors:
+  damping:
+    kind: damping
+    damping:
+      values:
+      - [3.0, 3.0, 3.0, 3.0, 3.0, 3.0]
+      - [3.0, 3.0, 3.0, 3.0, 3.0, 3.0]
+      - [3.0]
+      - [3.0, 3.0, 3.0, 3.0, 3.0]
+      - [3.0, 3.0, 3.0, 3.0, 3.0]
+  ready_pose:
+    kind: posture
+    duration: 3.0
+    stiffness:
+      values:
+      - [100.0, 100.0, 100.0, 150.0, 40.0, 40.0]
+      - [100.0, 100.0, 100.0, 150.0, 40.0, 40.0]
+      - [200.0]
+      - [40.0, 40.0, 40.0, 40.0, 40.0]
+      - [40.0, 40.0, 40.0, 40.0, 40.0]
+    damping:
+      values:
+      - [2.0, 2.0, 2.0, 4.0, 2.0, 2.0]
+      - [2.0, 2.0, 2.0, 4.0, 2.0, 2.0]
+      - [5.0]
+      - [10.0, 10.0, 10.0, 10.0, 10.0]
+      - [10.0, 10.0, 10.0, 10.0, 10.0]
+    target_position:
+      values:
+      - [-0.246848032, -0.080209345, 0.20513016, 0.464095443, -0.172149673, 0.103798993]
+      - [-0.180059761, -0.119076349, -0.208562538, 1.247166276, -0.082475208, -0.026272533]
+      - [0.029495256]
+      - [0.453765601, 0.751511872, -0.292181611, -0.046899017, 0.009224731]
+      - [0.645769954, -0.751622319, 0.400082797, 0.071344353, -0.055763565]
+  velocity_policy:
+    kind: policy
+    asset: locomotion/velocity/walk_default
+  mimic_bts_boywithluv_a2t:
+    kind: mimic
+    asset: mimic/bts_boywithluv_a2t
+    motion: 01_bts_boy_with_luv.csv
+    mjlab_format: true

@@ -40,12 +40,11 @@ struct Any2TrackSample
 class Any2TrackPolicy
 {
 public:
-  // Binary rows: qpos XYZ/WXYZ/joints, qvel world-linear/body-angular/joints,
+  // CSV-derived frames: qpos XYZ/WXYZ/joints, qvel world-linear/body-angular/joints,
   // then the four training foot-site world heights, all float32 little endian.
   using Frame = std::array<float, 63>;
   Any2TrackPolicy(
-    const Sim2RealConfig & config, const MimicBehavior & mimic,
-    const std::filesystem::path & model_path);
+    const Sim2RealConfig & config, const MimicBehavior & mimic);
   void reset(const Any2TrackSample & sample, bool align_on_entry);
   bool observe(const Any2TrackSample & sample);
   std::vector<float> target(const std::vector<float> & action) const;
@@ -68,6 +67,7 @@ private:
   Eigen::Quaternionf alignment_{Eigen::Quaternionf::Identity()};
   size_t start_{0}, end_{0}, cursor_{0};
   bool first_{true};
+  bool path_tracking_{false};
   std::string completion_state_;
 };
 }  // namespace ai_sapiens_sim2real

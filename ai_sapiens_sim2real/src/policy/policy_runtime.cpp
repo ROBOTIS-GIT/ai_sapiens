@@ -75,9 +75,9 @@ PolicyRuntime::PolicyRuntime(
         "Global-position Mimic requires robot/reference_root_position_xy_w; "
         "root velocity observations belong to an incompatible training schema");
   }
-  requires_localization_ = has_robot_xy || sim2real_config.any2track();
+  requires_localization_ = has_robot_xy || sim2real_config.any2track_path_tracking();
   requires_imu_orientation_ = sim2real_config.any2track() || sim2real_config.use_imu_orientation();
-  if (requires_imu_orientation_ && !requires_localization_) {
+  if (requires_imu_orientation_ && !requires_localization_ && !sim2real_config.any2track()) {
     throw std::runtime_error("reference_trajectory.orientation_source=imu requires global-position Mimic");
   }
   if (has_robot_xy != has_reference_xy ||
@@ -91,13 +91,14 @@ PolicyRuntime::PolicyRuntime(
   log_loading();
   if (sim2real_config.any2track()) {
     if (!any2track_mimic) {throw std::runtime_error("Any2Track requires a mimic behavior");}
-    any2track_ = std::make_unique<Any2TrackPolicy>(sim2real_config, *any2track_mimic, model_path_);
+    any2track_ = std::make_unique<Any2TrackPolicy>(sim2real_config, *any2track_mimic);
     RCLCPP_INFO(node_->get_logger(),
-      "[Any2Track] GT-trained XY policy: deployment uses pelvis odometry XY only, "
-      "IMU attitude/gyro, 20-frame velocity history and 79-frame adapter history");
+      "[Any2Track] IMU attitude/gyro; XY input=%s; "
+      "20-frame velocity history and 79-frame adapter history",
+      requires_localization_ ? "pelvis odometry" : "none (orientation-only model)");
   }
   load_onnx_model();
-  const size_t observation_size = any2track_ ? 134U :
+  const size_t observation_size = any2track_ ? any2track_->observation().size() :
     create_observation_manager(sim2real_config, shared_data, reference_motion);
   if (!any2track_) {
     inference_->validate_policy_metadata(
@@ -205,7 +206,8 @@ void PolicyRuntime::reset_episode_state()
 void PolicyRuntime::on_enter()
 {
   if (any2track_) {
-    any2track_->reset(any2track_sample(), shared_data_->localization.align_on_entry);
+    any2track_->reset(any2track_sample(),
+      !requires_localization_ || shared_data_->localization.align_on_entry);
   }
   if (gait_clock_) {
     gait_clock_->reset(policy_->gait_phase);
@@ -548,7 +550,7 @@ void PolicyRuntime::validate_observation_size(size_t observation_size) const
 Any2TrackSample PolicyRuntime::any2track_sample() const
 {
   Any2TrackSample sample;
-  sample.xy = shared_data_->localization.position;
+  if (requires_localization_) {sample.xy = shared_data_->localization.position;}
   // Only XY comes from the estimator; attitude and gyro come from the robot IMU.
   sample.orientation = sensors_->orientation;
   sample.gyro = sensors_->angular_velocity;
