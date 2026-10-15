@@ -2,6 +2,12 @@
 Changelog for package ai_sapiens
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.3.0 (2026-10-07)
+------------------
+* Added configurable interpolation of joint targets and PD gains when entering
+  a policy from another policy or a posture state.
+* Contributors: Kiwoong Park
+
 0.2.3 (2026-09-29)
 ------------------
 * Allowed RC input with nonzero hardware error codes without triggering

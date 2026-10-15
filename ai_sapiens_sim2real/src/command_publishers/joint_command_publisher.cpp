@@ -43,10 +43,10 @@ JointCommandPublisher::JointCommandPublisher(
   // publish() indexes these by controller joint, so sizes must match exactly.
   const size_t joint_count = controller_joint_names_.size();
   const bool has_matching_action_output_sizes =
-    output_->processed_action.size() == joint_count &&
+    output_->command.position.size() == joint_count &&
     output_->feedforward.size() == joint_count &&
-    output_->stiffness.size() == joint_count &&
-    output_->damping.size() == joint_count;
+    output_->command.stiffness.size() == joint_count &&
+    output_->command.damping.size() == joint_count;
   if (!has_matching_action_output_sizes) {
     throw std::runtime_error(
       "processed_action, feedforward, stiffness, and damping sizes must match "
@@ -93,7 +93,7 @@ void JointCommandPublisher::publish(const rclcpp::Time & time)
   for (size_t controller_index = 0; controller_index < controller_joint_names_.size();
     ++controller_index)
   {
-    float val = output_->processed_action[controller_index];
+    float val = output_->command.position[controller_index];
 
     const bool has_position_limit =
       controller_index < output_->position_limits.size() &&
@@ -106,16 +106,22 @@ void JointCommandPublisher::publish(const rclcpp::Time & time)
     msg_.positions[controller_index] = static_cast<double>(val);
     msg_.feedforward[controller_index] =
       static_cast<double>(output_->feedforward[controller_index]);
-    msg_.kp[controller_index] = static_cast<double>(output_->stiffness[controller_index]);
-    msg_.kd[controller_index] = static_cast<double>(output_->damping[controller_index]);
+    msg_.kp[controller_index] = static_cast<double>(output_->command.stiffness[controller_index]);
+    msg_.kd[controller_index] = static_cast<double>(output_->command.damping[controller_index]);
 
-    const bool can_store_published_action = controller_index < output_->published_action.size();
-    if (can_store_published_action) {
-      output_->published_action[controller_index] = val;
+    const bool can_store_published_command = controller_index <
+      output_->last_published.position.size();
+    if (can_store_published_command) {
+      output_->last_published.position[controller_index] = val;
+      output_->last_published.stiffness[controller_index] =
+        output_->command.stiffness[controller_index];
+      output_->last_published.damping[controller_index] =
+        output_->command.damping[controller_index];
     }
   }
 
   publisher_->publish(msg_);
+  output_->has_published_command = true;
 }
 
 std::string JointCommandPublisher::get_name() const

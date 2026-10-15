@@ -527,8 +527,8 @@ void ControlLoop::log_basic_status(int iteration, const char * reason)
     shared_data_.policy.episode_time,
     shared_data_.policy.input.size(),
     shared_data_.policy.last_action.size(),
-    shared_data_.output.processed_action.size(),
-    shared_data_.output.published_action.size());
+    shared_data_.output.command.position.size(),
+    shared_data_.output.last_published.position.size());
 }
 
 void ControlLoop::log_detailed_status()
@@ -571,11 +571,11 @@ void ControlLoop::log_detailed_status()
   RCLCPP_INFO(
     node_->get_logger(),
     "  processed_action:  %s",
-    format_vector_preview(shared_data_.output.processed_action, 6).c_str());
+    format_vector_preview(shared_data_.output.command.position, 6).c_str());
   RCLCPP_INFO(
     node_->get_logger(),
     "  published_action:  %s",
-    format_vector_preview(shared_data_.output.published_action, 6).c_str());
+    format_vector_preview(shared_data_.output.last_published.position, 6).c_str());
 }
 
 std::string ControlLoop::format_vec3(float x, float y, float z)
@@ -600,8 +600,8 @@ void ControlLoop::publish_raw_debug_topics()
   raw_observation_publisher_->publish(obs_msg);
 
   std_msgs::msg::Float64MultiArray action_msg;
-  action_msg.data.reserve(shared_data_.output.processed_action.size());
-  for (const auto value : shared_data_.output.processed_action) {
+  action_msg.data.reserve(shared_data_.output.command.position.size());
+  for (const auto value : shared_data_.output.command.position) {
     action_msg.data.push_back(static_cast<double>(value));
   }
 
