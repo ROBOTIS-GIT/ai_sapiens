@@ -92,7 +92,7 @@
               <joint name="left_knee_joint" class="QC080-240-R020-RE" type="hinge" axis="0 1 0" range="0 2.3562" limited="true"
                 actuatorfrclimited="true" actuatorfrcrange="-96.864 96.864"/>
               <geom class="visual" type="mesh" mesh="left_knee_link" material="white"/>
-              <geom class="collision" pos="0.0 0 -0.10" type="cylinder" size="0.04 0.09"
+              <geom class="collision" type="mesh" mesh="left_knee_link"
                 name="left_knee_link_collision_0"/>
               <body name="left_ankle_pitch_link" pos="0.0 0.0 -0.294">
                 <inertial mass="6.809980800000e-01"
@@ -164,7 +164,7 @@
               <joint name="right_knee_joint" class="QC080-240-R020-RE" type="hinge" axis="0 1 0" range="0 2.3562" limited="true"
                 actuatorfrclimited="true" actuatorfrcrange="-96.864 96.864"/>
               <geom class="visual" type="mesh" mesh="right_knee_link" material="white"/>
-              <geom class="collision" pos="0.0 0 -0.10" type="cylinder" size="0.04 0.09"
+              <geom class="collision" type="mesh" mesh="right_knee_link"
                 name="right_knee_link_collision_0"/>
               <body name="right_ankle_pitch_link" pos="0.0 0.0 -0.294">
                 <inertial mass="6.809980800000e-01"
