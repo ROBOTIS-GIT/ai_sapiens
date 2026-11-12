@@ -170,6 +170,11 @@ struct BehaviorOutput
 // Policy-side working state. Written by PolicyController and PolicyRuntime.
 struct PolicyState
 {
+  // Student mimic observation and the Hangang arm inputs while a walking clip plays.
+  std::vector<float> mimic_gate_obs;
+  std::vector<float> hangang_mask_pos;
+  std::vector<float> hangang_mask_vel;
+  std::vector<float> hangang_mask_last;
   std::vector<float> last_action;
   std::vector<float> input;  // scaled/clipped observation vector fed to ONNX
   // 2026-09-30 carry port (from carry_ws sim2sim runtime): mode_command observation [w,h,bow,sin,cos,0].

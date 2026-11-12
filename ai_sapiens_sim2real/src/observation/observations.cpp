@@ -130,6 +130,19 @@ std::vector<float> obs_velocity_commands(
 }
 
 // joint_pos_rel: Joint positions relative to default
+// 2026-10-12 walk-greet: replace masked (non-NaN) entries, policy joint order.
+static void apply_hangang_mask(std::vector<float> & values, const std::vector<float> & mask)
+{
+  if (mask.empty()) {
+    return;
+  }
+  for (size_t i = 0; i < values.size() && i < mask.size(); ++i) {
+    if (!std::isnan(mask[i])) {
+      values[i] = mask[i];
+    }
+  }
+}
+
 std::vector<float> obs_joint_pos_rel(
   const ObservationContext & context,
   const YAML::Node & /*params*/)
@@ -143,6 +156,7 @@ std::vector<float> obs_joint_pos_rel(
       context.shared.sensors.joint_pos[static_cast<Eigen::Index>(controller_index)] -
       context.shared.output.default_joint_pos[static_cast<Eigen::Index>(controller_index)];
   }
+  apply_hangang_mask(result, context.shared.policy.hangang_mask_pos);
 
   return result;
 }
@@ -152,8 +166,10 @@ std::vector<float> obs_joint_vel_rel(
   const ObservationContext & context,
   const YAML::Node & /*params*/)
 {
-  return controller_vector_to_active_policy(
+  auto result = controller_vector_to_active_policy(
     context.shared.sensors.joint_vel, context.joints.policy_to_controller);
+  apply_hangang_mask(result, context.shared.policy.hangang_mask_vel);
+  return result;
 }
 
 // last_action is controller-sized with the policy-order action in the front
@@ -163,9 +179,11 @@ std::vector<float> obs_last_action(
   const YAML::Node & /*params*/)
 {
   const auto & last_action = context.shared.policy.last_action;
-  return {
+  std::vector<float> result{
     last_action.begin(),
     last_action.begin() + static_cast<std::ptrdiff_t>(context.joints.policy_joint_names.size())};
+  apply_hangang_mask(result, context.shared.policy.hangang_mask_last);
+  return result;
 }
 
 // gait_phase: Periodic locomotion clock produced by GaitClock (policy-side).
@@ -271,6 +289,16 @@ std::vector<float> obs_motion_anchor_ori_b(
   return {rot(0, 0), rot(0, 1), rot(1, 0), rot(1, 1), rot(2, 0), rot(2, 1)};
 }
 
+std::vector<float> obs_mimic_gate(const ObservationContext & context, const YAML::Node & params)
+{
+  const auto & observation = context.shared.policy.mimic_gate_obs;
+  if (!observation.empty()) {
+    return observation;
+  }
+  const size_t clips = params && params["clips"] ? params["clips"].size() : 0U;
+  return std::vector<float>(124U + 1U + clips, 0.0f);
+}
+
 // 2026-09-30 carry port (from carry_ws sim2sim runtime): carry mode_command [w,h,bow,sin,cos,0].
 std::vector<float> obs_carry_mode(const ObservationContext & context, const YAML::Node &)
 {
@@ -289,6 +317,7 @@ struct ObservationRegistrar
   ObservationRegistrar()
   {
     ObservationRegistry::register_observation("mode_command", obs_carry_mode);
+    ObservationRegistry::register_observation("mimic_gate", obs_mimic_gate);
     ObservationRegistry::register_observation("arm_mode", obs_arm_mode);
     ObservationRegistry::register_observation("base_ang_vel", obs_base_ang_vel);
     ObservationRegistry::register_observation("projected_gravity", obs_projected_gravity);

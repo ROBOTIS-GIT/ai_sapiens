@@ -17,8 +17,11 @@
 #include "ai_sapiens_sim2real/policy/policy_runtime.hpp"
 
 #include <cmath>
+#include <algorithm>
+#include <limits>
 
 #include "ai_sapiens_sim2real/policy/onnx_inference.hpp"
+#include "ai_sapiens_sim2real/policy/torso_orientation.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -67,6 +70,10 @@ PolicyRuntime::PolicyRuntime(
   log_joint_coverage(controller_joint_names);
   log_loading();
   load_onnx_model();
+  const auto mimic_term = sim2real_config.observations()["mimic_gate"];
+  if (mimic_term && !mimic_term.IsNull()) {
+    configure_mimic_gate(mimic_term);  // before the observation manager sizes the mimic_gate term
+  }
   const size_t observation_size =
     create_observation_manager(sim2real_config, shared_data, reference_motion);
   gait_clock_ = make_gait_clock(sim2real_config.observations(), step_dt_);
@@ -88,7 +95,8 @@ PolicyRuntime::PolicyRuntime(
     }
     const auto cfg = carry_term["params"];
     if (!cfg || !cfg["sa_on_min_us"] || cfg["sa_on_min_us"].IsNull() ||
-      !cfg["sa_on_max_us"] || cfg["sa_on_max_us"].IsNull()) {
+      !cfg["sa_on_max_us"] || cfg["sa_on_max_us"].IsNull())
+    {
       throw std::runtime_error("Carry SA CH5 ON PWM bounds must be verified and configured");
     }
     carry_sa_min_ = cfg["sa_on_min_us"].as<int>();
@@ -99,8 +107,10 @@ PolicyRuntime::PolicyRuntime(
     if (cfg["se_channel"] && !cfg["se_channel"].IsNull()) {
       carry_se_channel_ = cfg["se_channel"].as<int>();
       if (carry_se_channel_ < 1 || carry_se_channel_ > 16 ||
-        carry_se_channel_ == 5) {
-        throw std::runtime_error("Invalid SE channel; CH5 is SA. CH8 (SD) is allowed for the bow trigger");
+        carry_se_channel_ == 5)
+      {
+        throw std::runtime_error(
+            "Invalid SE channel; CH5 is SA. CH8 (SD) is allowed for the bow trigger");
       }
       carry_se_min_ = cfg["se_on_min_us"].as<int>();
       carry_se_max_ = cfg["se_on_max_us"].as<int>();
@@ -109,6 +119,23 @@ PolicyRuntime::PolicyRuntime(
       }
     }
     carry_machine_.emplace();
+  }
+  if (mimic_gate_) {
+    if (obs_manager_->get_term_names().back() != "mimic_gate") {
+      throw std::runtime_error("mimic_gate must be the last observation term");
+    }
+    // w sits right after the 124-D teacher block.
+    mimic_w_index_ = static_cast<int>(observation_size) - mimic_gate_->observation_size() +
+      k1_mimic_gate::kTeacherDim;
+    const auto walk_n = std::count(mimic_gate_->params.walk_allowed.begin(),
+        mimic_gate_->params.walk_allowed.end(), true);
+    if (walk_n > 0 && mimic_arm_indices_.size() != 10U) {
+      throw std::runtime_error("mimic_gate walk_clips needs 10 arm joints");
+    }
+    RCLCPP_INFO(node_->get_logger(),
+        "[MimicGate] walk-allowed clips: %ld (arms-only %ld), w index %d", walk_n,
+      std::count(mimic_gate_->params.arms_only_ref.begin(), mimic_gate_->params.arms_only_ref.end(),
+        true), mimic_w_index_);
   }
   validate_observation_size(observation_size);
   obs_buffer_[onnx_input_name_].resize(observation_size);
@@ -172,7 +199,22 @@ void PolicyRuntime::install_velocity_command_ranges() const
 void PolicyRuntime::reset_episode_state()
 {
   policy_->episode_time = 0.0f;
-  if (carry_machine_) carry_machine_->reset();
+  if (carry_machine_) {carry_machine_->reset();}
+  // Shared policy state survives behavior changes; never leak mimic arm masking
+  // into another policy's observations.
+  policy_->hangang_mask_pos.clear();
+  policy_->hangang_mask_vel.clear();
+  policy_->hangang_mask_last.clear();
+  if (mimic_gate_) {
+    // PolicyRuntime instances share this buffer, but v8 and v16 have different
+    // clip counts. Restore this policy's observation width before history reset.
+    policy_->mimic_gate_obs.assign(
+      static_cast<size_t>(mimic_gate_->observation_size()), 0.0f);
+    mimic_gate_->reset();
+    mimic_last_state_ = -1;
+    std::fill(mimic_walk_last_.begin(), mimic_walk_last_.end(), 0.0f);
+    mimic_walk_active_ = false;
+  }
   policy_->carry_mode.fill(0.0f);
   policy_->arm_mode = 0.0F;
   if (arm_mode_) {
@@ -222,9 +264,10 @@ PolicyUpdateResult PolicyRuntime::update(const rclcpp::Duration & period)
     return PolicyUpdateResult::TargetUnavailable;
   }
 
-  if (!update_arm_mode()) return PolicyUpdateResult::TargetUnavailable;
+  if (!update_arm_mode()) {return PolicyUpdateResult::TargetUnavailable;}
   resolve_active_velocity_command();
   update_carry_mode();
+  update_mimic_gate();
   compute_observation();
 
   PolicyUpdateResult result = PolicyUpdateResult::TargetUnavailable;
@@ -253,7 +296,7 @@ bool PolicyRuntime::advance_policy_tick(const rclcpp::Duration & period)
 
 bool PolicyRuntime::update_arm_mode()
 {
-  if (!arm_mode_) return true;
+  if (!arm_mode_) {return true;}
   const auto & rc = shared_data_->teleop;
   const int ch = arm_mode_->channel;
   if (rc.unavailable || !rc.carry_rc_valid[ch]) {
@@ -303,7 +346,7 @@ void PolicyRuntime::resolve_active_velocity_command()
 // no-op unless carry_machine_ was created in the constructor.
 void PolicyRuntime::update_carry_mode()
 {
-  if (!carry_machine_) return;
+  if (!carry_machine_) {return;}
   const auto & teleop = shared_data_->teleop;
   if (teleop.unavailable || !teleop.carry_rc_valid[5]) {
     // Preserve the existing damping path on unavailable operator input.
@@ -319,15 +362,305 @@ void PolicyRuntime::update_carry_mode()
   const bool se = active(carry_se_channel_, carry_se_min_, carry_se_max_);
   float leg_sum = 0.0f;
   for (size_t j = 0; j < 12; ++j) {
-    const float v = sensors_->joint_vel[static_cast<Eigen::Index>(joint_context_.policy_to_controller[j])];
+    const float v =
+      sensors_->joint_vel[static_cast<Eigen::Index>(joint_context_.policy_to_controller[j])];
     leg_sum += v * v;
   }
   const auto requested = mode_->velocity_commands;
   const bool quiet = requested.cwiseAbs().maxCoeff() < 0.1f &&
     std::sqrt(leg_sum / 12.0f) < 0.35f && sensors_->angular_velocity.norm() < 0.35f;
   policy_->carry_mode = carry_machine_->step(sa, se, quiet,
-    {requested.x(), requested.y(), requested.z()});
-  for (int j = 0; j < 3; ++j) mode_->velocity_commands[j] = carry_machine_->command[j];
+      {requested.x(), requested.y(), requested.z()});
+  for (int j = 0; j < 3; ++j) {
+    mode_->velocity_commands[j] = carry_machine_->command[j];
+  }
+}
+
+void PolicyRuntime::configure_mimic_gate(const YAML::Node & term)
+{
+  const auto & names = joint_context_.policy_joint_names;
+  if (names.size() != static_cast<size_t>(k1_mimic_gate::kJoints) ||
+    std::abs(step_dt_ - 0.02) > 1e-9 ||
+    names[12] != "waist_yaw_joint" || names[0] != "left_hip_pitch_joint" ||
+    names[11] != "right_ankle_roll_joint")
+  {
+    throw std::runtime_error(
+        "mimic_gate requires the 23-joint 50 Hz robot joint order");
+  }
+  const auto cfg = term["params"];
+  if (!cfg || !cfg["clips"] || !cfg["clips"].IsSequence() || cfg["clips"].size() == 0) {
+    throw std::runtime_error("mimic_gate needs params.clips");
+  }
+  // trigger switch: trigger_* (2026-10-12: SA CH5, abort_on_release) or the older sd_* keys
+  const auto key = [&](const char * a, const char * b) {return cfg[a] ? cfg[a] : cfg[b];};
+  mimic_sd_channel_ = key("trigger_channel", "sd_channel").as<int>();
+  mimic_sd_min_ = key("trigger_on_min_us", "sd_on_min_us").as<int>();
+  mimic_sd_max_ = key("trigger_on_max_us", "sd_on_max_us").as<int>();
+  mimic_dial_base_ = cfg["dial_base"].as<int>();
+  if (mimic_sd_channel_ < 1 || mimic_sd_channel_ > 16 || mimic_sd_min_ < 500 ||
+    mimic_sd_max_ > 2500 ||
+    mimic_sd_min_ > mimic_sd_max_)
+  {
+    throw std::runtime_error("Invalid mimic_gate SD channel / PWM bounds");
+  }
+  k1_mimic_gate::Parameters p;
+  p.dt = static_cast<float>(step_dt_);
+  p.abort_on_release = cfg["abort_on_release"] && cfg["abort_on_release"].as<bool>();
+  const auto opt = [&](const char * key, float & value) {
+      if (cfg[key]) {
+        value = cfg[key].as<float>();
+      }
+    };
+  opt("quiet_seconds", p.quiet_seconds);
+  opt("pending_timeout_seconds", p.pending_timeout_seconds);
+  opt("ramp_seconds", p.ramp_seconds);
+  opt("bridge_min_seconds", p.bridge_min_seconds);
+  opt("bridge_max_seconds", p.bridge_max_seconds);
+  opt("bridge_joint_speed", p.bridge_joint_speed);
+  opt("bridge_torso_speed", p.bridge_torso_speed);
+  opt("abort_max_reference_tilt", p.abort_max_reference_tilt);
+  opt("quiet_command", p.quiet_command);
+  opt("quiet_leg_speed", p.quiet_leg_speed);
+  opt("quiet_ang_speed", p.quiet_ang_speed);
+  if (cfg["acceleration_limits"]) {
+    for (int i = 0; i < 3; ++i) {
+      p.acceleration_limits[i] = cfg["acceleration_limits"][i].as<float>();
+    }
+  }
+  const auto params_dir = sim2real_config_path_.parent_path();
+  std::vector<k1_mimic_gate::Clip> clips;
+  for (size_t i = 0; i < cfg["clips"].size(); ++i) {
+    const auto path = params_dir / cfg["clips"][i].as<std::string>();
+    clips.push_back(k1_mimic_gate::load_clip(path.string(), p.waist_index, p.dt));
+    mimic_clip_names_.push_back(
+      cfg["clip_names"] &&
+        i <
+        cfg["clip_names"].size() ? cfg["clip_names"][i].as<std::string>() : path.stem().string());
+  }
+  // 2026-10-12 walk-greet: clips that may play while walking (names from clip_names)
+  const auto flags = [&](const char * key) {
+      std::vector<bool> out(mimic_clip_names_.size(), false);
+      if (!cfg[key]) {return out;}
+      for (const auto & n : cfg[key]) {
+        const auto it = std::find(mimic_clip_names_.begin(), mimic_clip_names_.end(),
+          n.as<std::string>());
+        if (it == mimic_clip_names_.end()) {
+          throw std::runtime_error(std::string("mimic_gate ") + key + ": unknown clip " +
+            n.as<std::string>());
+        }
+        out[static_cast<size_t>(it - mimic_clip_names_.begin())] = true;
+      }
+      return out;
+    };
+  p.walk_allowed = flags("walk_clips");
+  p.arms_only_ref = flags("arms_only_ref_clips");
+  p.fast_start = flags("fast_start_clips");   // 2026-10-13 patch4
+  p.hold_frames.assign(clips.size(), -1);
+  if (const auto hold_clips = cfg["hold_clips"]) {
+    if (!hold_clips.IsMap()) {throw std::runtime_error("mimic_gate hold_clips must be a map");}
+    for (const auto & item : hold_clips) {
+      const auto name = item.first.as<std::string>();
+      const auto it = std::find(mimic_clip_names_.begin(), mimic_clip_names_.end(), name);
+      if (it == mimic_clip_names_.end()) {
+        throw std::runtime_error("mimic_gate hold_clips: unknown clip " + name);
+      }
+      if (!item.second.IsSequence() || item.second.size() != 1U) {
+        throw std::runtime_error("mimic_gate hold_clips needs one frame per clip: " + name);
+      }
+      const auto index = static_cast<size_t>(it - mimic_clip_names_.begin());
+      const int frame = item.second[0].as<int>();
+      if (frame < 0 || frame >= clips[index].frames() - 1) {
+        throw std::runtime_error("mimic_gate hold_clips frame out of range: " + name);
+      }
+      p.hold_frames[index] = frame;
+    }
+  }
+  if (cfg["hold_max_seconds"]) {p.hold_max_seconds = cfg["hold_max_seconds"].as<float>();}
+  if (!std::isfinite(p.hold_max_seconds) || p.hold_max_seconds < 0.f) {
+    throw std::runtime_error("Invalid mimic_gate hold_max_seconds");
+  }
+  if (cfg["switch_walk_seconds"]) {p.switch_walk_seconds = cfg["switch_walk_seconds"].as<float>();} // patch5
+  if (!(p.switch_walk_seconds >= 0.f && p.switch_walk_seconds <= 2.f)) {
+    throw std::runtime_error("Invalid switch_walk_seconds");
+  }
+  RCLCPP_INFO(node_->get_logger(), "[MimicGate] stand-start walk switch: %s (leg handoff %.2f s)",
+    p.switch_walk_seconds > 0.f ? "on" : "off", p.switch_walk_seconds);
+  if (cfg["fast_start_ramp_seconds"]) {
+    p.fast_ramp_seconds = cfg["fast_start_ramp_seconds"].as<float>();
+  }
+  if (!(p.fast_ramp_seconds >= 0.f && p.fast_ramp_seconds <= p.ramp_seconds)) {
+    throw std::runtime_error("Invalid fast_start_ramp_seconds");
+  }
+  RCLCPP_INFO(node_->get_logger(), "[MimicGate] fast-start clips: %zu, ramp %.2f s",
+    static_cast<size_t>(std::count(p.fast_start.begin(), p.fast_start.end(), true)),
+    p.fast_ramp_seconds > 0.f ? p.fast_ramp_seconds : p.ramp_seconds);
+  if (const auto inter = cfg["interactive"]) {   // 2026-10-13 hold + branch (shake hands / fake)
+    const auto index_of = [&](const std::string & n) {
+        const auto it = std::find(mimic_clip_names_.begin(), mimic_clip_names_.end(), n);
+        if (it == mimic_clip_names_.end()) {
+          throw std::runtime_error("mimic_gate interactive: unknown clip " + n);
+        }
+        return static_cast<int>(it - mimic_clip_names_.begin());
+      };
+    p.inter_clip = index_of(inter["clip"].as<std::string>());
+    p.inter_hold_frame = inter["hold_frame"].as<int>();
+    p.inter_low_clip = index_of(inter["low_clip"].as<std::string>());
+    p.inter_low_frame = inter["low_frame"].as<int>();
+    mimic_select_channel_ = inter["select_channel"].as<int>();
+    mimic_select_low_max_ = inter["select_low_max_us"].as<int>();
+    mimic_select_high_min_ = inter["select_high_min_us"].as<int>();
+    mimic_confirm_channel_ = inter["confirm_channel"].as<int>();
+    p.confirm_is_trigger = mimic_confirm_channel_ == mimic_sd_channel_;
+    if (mimic_select_channel_ < 1 || mimic_select_channel_ > 16 || mimic_confirm_channel_ < 1 ||
+      mimic_confirm_channel_ > 16 || mimic_select_low_max_ >= mimic_select_high_min_ ||
+      p.inter_hold_frame < 0 || p.inter_low_frame < 0)
+    {
+      throw std::runtime_error("Invalid mimic_gate interactive config");
+    }
+    RCLCPP_INFO(node_->get_logger(),
+        "[MimicGate] interactive %s: hold frame %d, CH%d <= %d us -> %s frame %d, >= %d us -> continue, confirm CH%d flip",
+      inter["clip"].as<std::string>().c_str(), p.inter_hold_frame, mimic_select_channel_,
+        mimic_select_low_max_,
+      inter["low_clip"].as<std::string>().c_str(), p.inter_low_frame, mimic_select_high_min_,
+        mimic_confirm_channel_);
+  }
+  // 2026-10-13 patch3: dial slot table (dial_base + i -> clip name); clips left out are reachable only internally
+  mimic_dial_clips_.clear();
+  if (const auto dial_clips = cfg["dial_clips"]) {
+    std::string table;
+    for (const auto & n : dial_clips) {
+      const auto it = std::find(mimic_clip_names_.begin(), mimic_clip_names_.end(),
+          n.as<std::string>());
+      if (it == mimic_clip_names_.end()) {
+        throw std::runtime_error("mimic_gate dial_clips: unknown clip " + n.as<std::string>());
+      }
+      mimic_dial_clips_.push_back(static_cast<int>(it - mimic_clip_names_.begin()));
+      table += " " +
+        std::to_string(mimic_dial_base_ + static_cast<int>(mimic_dial_clips_.size()) - 1) + "=" +
+        *it;
+    }
+    RCLCPP_INFO(node_->get_logger(), "[MimicGate] dial table:%s", table.c_str());
+  }
+  // 2026-10-15 patch6: loop slots after the dial table (dial_base + len(dial_clips) + k)
+  if (const auto dial_loops = cfg["dial_loops"]) {
+    if (mimic_dial_clips_.empty()) {
+      throw std::runtime_error("mimic_gate dial_loops needs dial_clips");
+    }
+    for (const auto & seq : dial_loops) {
+      std::vector<int> ids;
+      std::string text;
+      for (const auto & n : seq) {
+        const auto it = std::find(mimic_clip_names_.begin(), mimic_clip_names_.end(),
+            n.as<std::string>());
+        if (it == mimic_clip_names_.end()) {
+          throw std::runtime_error("mimic_gate dial_loops: unknown clip " + n.as<std::string>());
+        }
+        ids.push_back(static_cast<int>(it - mimic_clip_names_.begin()));
+        text += (text.empty() ? "" : " > ") + *it;
+      }
+      if (ids.empty()) {throw std::runtime_error("mimic_gate dial_loops: empty loop");}
+      p.loops.push_back(ids);
+      RCLCPP_INFO(node_->get_logger(),
+          "[MimicGate] dial loop %d = %s (repeat; release = finish the clip)",
+        mimic_dial_base_ + static_cast<int>(mimic_dial_clips_.size() + p.loops.size()) - 1,
+          text.c_str());
+    }
+  }
+  for (size_t j = 0; j < names.size(); ++j) {
+    if (names[j].find("shoulder") != std::string::npos ||
+      names[j].find("elbow") != std::string::npos ||
+      names[j].find("wrist") != std::string::npos) {mimic_arm_indices_.push_back(j);}
+  }
+  mimic_walk_last_.assign(names.size(), 0.0f);
+  mimic_gate_.emplace(p, std::move(clips));
+  policy_->mimic_gate_obs.assign(static_cast<size_t>(mimic_gate_->observation_size()), 0.0f);
+  RCLCPP_INFO(node_->get_logger(),
+      "[MimicGate] %s: %zu clips, trigger CH%d %d-%d us (%s), dial %d..%zu",
+    state_name_.c_str(), mimic_clip_names_.size(), mimic_sd_channel_, mimic_sd_min_, mimic_sd_max_,
+    p.abort_on_release ? "release = stop" : "second press = stop", mimic_dial_base_,
+    static_cast<size_t>(mimic_dial_base_) +
+    (mimic_dial_clips_.empty() ? mimic_clip_names_.size() :
+    mimic_dial_clips_.size() + p.loops.size()) - 1U);
+}
+
+void PolicyRuntime::update_mimic_gate()
+{
+  if (!mimic_gate_) {return;}
+  const auto & teleop = shared_data_->teleop;
+  k1_mimic_gate::Inputs in;
+  const bool rc = !teleop.unavailable &&
+    teleop.carry_rc_valid[static_cast<size_t>(mimic_sd_channel_)];
+  const uint16_t sd_us = teleop.carry_rc_us[static_cast<size_t>(mimic_sd_channel_)];
+  in.sd = rc && sd_us >= mimic_sd_min_ && sd_us <= mimic_sd_max_;
+  in.dial = teleop.unavailable ? -1 : static_cast<int>(teleop.selector_code) - mimic_dial_base_;
+  // 2026-10-15 patch6: dial slots right after the dial table select a loop
+  if (!mimic_dial_clips_.empty() && in.dial >= static_cast<int>(mimic_dial_clips_.size())) {
+    const int k = in.dial - static_cast<int>(mimic_dial_clips_.size());
+    if (k < static_cast<int>(mimic_gate_->params.loops.size())) {in.loop = k;}
+  }
+  if (!mimic_dial_clips_.empty() && in.dial >= 0) {
+    in.dial = in.dial <
+      static_cast<int>(mimic_dial_clips_.size()) ? mimic_dial_clips_[static_cast<size_t>(in.dial)] :
+      -1;
+  }
+  in.stick = mode_->velocity_commands;
+  k1_mimic_gate::Vec default_q;
+  for (int j = 0; j < k1_mimic_gate::kJoints; ++j) {
+    const auto c =
+      static_cast<Eigen::Index>(joint_context_.policy_to_controller[static_cast<size_t>(j)]);
+    in.q[j] = sensors_->joint_pos[c];
+    in.dq[j] = sensors_->joint_vel[c];
+    default_q[j] = output_->default_joint_pos[c];
+  }
+  in.gyro = sensors_->angular_velocity;
+  in.torso = torso_orientation_in_world(*sensors_, joint_context_);
+  if (mimic_select_channel_ > 0 && !teleop.unavailable) {
+    const auto ch = static_cast<size_t>(mimic_select_channel_);
+    const auto cf = static_cast<size_t>(mimic_confirm_channel_);
+    if (teleop.carry_rc_valid[ch]) {
+      const int us = teleop.carry_rc_us[ch];
+      in.select = us <= mimic_select_low_max_ ? 1 : (us >= mimic_select_high_min_ ? 2 : 0);
+    }
+    in.confirm = teleop.carry_rc_valid[cf] ? teleop.carry_rc_us[cf] >
+      1500 : mimic_gate_->confirm_previous;
+  } else {
+    in.confirm = mimic_gate_->confirm_previous;
+  }
+  mimic_gate_->step(in);
+  mode_->velocity_commands = mimic_gate_->cmd;
+  mimic_gate_->observation(in, default_q, policy_->last_action.data(),
+      policy_->mimic_gate_obs.data());
+  // Walking inference sees its own previous arm command while an upper-body clip plays.
+  mimic_walk_active_ = mimic_gate_->walking_clip_active();
+  if (mimic_walk_active_) {
+    const size_t n = joint_context_.policy_joint_names.size();
+    const auto & ap = action_pipeline_.properties();
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    policy_->hangang_mask_pos.assign(n, nan);
+    policy_->hangang_mask_vel.assign(n, nan);
+    policy_->hangang_mask_last.assign(n, nan);
+    for (const size_t j : mimic_arm_indices_) {
+      policy_->hangang_mask_pos[j] = ap.offset[j] + ap.scale[j] * mimic_walk_last_[j] -
+        default_q[static_cast<Eigen::Index>(j)];
+      policy_->hangang_mask_vel[j] = 0.0f;
+      policy_->hangang_mask_last[j] = mimic_walk_last_[j];
+    }
+  } else if (!policy_->hangang_mask_pos.empty()) {
+    policy_->hangang_mask_pos.clear();
+    policy_->hangang_mask_vel.clear();
+    policy_->hangang_mask_last.clear();
+  }
+  if (mimic_gate_->state != mimic_last_state_) {
+    static const char * kNames[] = {"WALK", "PENDING", "CLIP_IN", "CLIP", "CLIP_OUT", "BRIDGE_IN",
+      "BRIDGE_OUT"};
+    RCLCPP_INFO(node_->get_logger(), "[MimicGate] %s clip %d (%s) w %.2f%s",
+        kNames[mimic_gate_->state],
+      mimic_gate_->clip + mimic_dial_base_,
+        mimic_clip_names_[static_cast<size_t>(mimic_gate_->clip)].c_str(),
+      mimic_gate_->w,
+        mimic_gate_->loop < 0 ? "" : (mimic_gate_->loop_stop ? " [loop, finishing]" : " [loop]"));
+    mimic_last_state_ = mimic_gate_->state;
+  }
 }
 
 void PolicyRuntime::compute_observation()
@@ -343,6 +676,28 @@ std::optional<std::vector<float>> PolicyRuntime::run_policy_inference()
 {
   try {
     auto raw_action = inference_->run(obs_buffer_);
+    if (mimic_gate_ && mimic_walk_active_) {
+      // The second call with w = 0 runs pure walking on the masked observation.
+      auto walk_obs = obs_buffer_;
+      walk_obs[onnx_input_name_][static_cast<size_t>(mimic_w_index_)] = 0.0f;
+      const auto walk_action = inference_->run(walk_obs);
+      std::vector<bool> arm(raw_action.size(), false);
+      for (const size_t j : mimic_arm_indices_) {
+        arm[j] = true;
+      }
+      for (size_t j = 0; j < raw_action.size(); ++j) {
+        // patch5: after a mid-clip switch the student's leg share (1 - handoff) fades out
+        if (!arm[j]) {
+          raw_action[j] = walk_action[j] + (1.0f - mimic_gate_->handoff) *
+            (raw_action[j] - walk_action[j]);
+        }
+      }
+      std::copy(walk_action.begin(), walk_action.end(), mimic_walk_last_.begin());
+    } else if (mimic_gate_) {
+      std::copy(raw_action.begin(),
+          raw_action.begin() + static_cast<std::ptrdiff_t>(mimic_walk_last_.size()),
+        mimic_walk_last_.begin());
+    }
     consecutive_inference_failures_ = 0;
     return raw_action;
   } catch (const std::exception & e) {

@@ -36,6 +36,7 @@
 #include "ai_sapiens_sim2real/policy/action_pipeline.hpp"
 #include "ai_sapiens_sim2real/policy/arm_mode.hpp"
 #include "ai_sapiens_sim2real/policy/carry_mode.hpp"
+#include "ai_sapiens_sim2real/policy/mimic_gate.hpp"
 #include "ai_sapiens_sim2real/policy/gait_clock.hpp"
 #include "ai_sapiens_sim2real/policy/motion_reference.hpp"
 #include "ai_sapiens_sim2real/observation/observation_manager.hpp"
@@ -144,6 +145,22 @@ private:
   int carry_se_channel_{0};
   int carry_sa_min_{0}, carry_sa_max_{0};
   int carry_se_min_{0}, carry_se_max_{0};
+  // Unified walking and mimic gate; its configured trigger plays the CH11-selected clip.
+  void configure_mimic_gate(const YAML::Node & term);
+  void update_mimic_gate();
+  std::optional<k1_mimic_gate::Gate> mimic_gate_;
+  std::vector<std::string> mimic_clip_names_;
+  int mimic_sd_channel_{0}, mimic_sd_min_{0}, mimic_sd_max_{0}, mimic_dial_base_{0},
+  mimic_last_state_{-1};
+  // Arm joints, the walking policy's previous raw action, and the ONNX blend weight index.
+  std::vector<size_t> mimic_arm_indices_;
+  std::vector<float> mimic_walk_last_;
+  int mimic_w_index_{-1};
+  bool mimic_walk_active_{false};
+  // 2026-10-13 interactive clip inputs (select = CH10 pot, confirm = SD toggle position)
+  int mimic_select_channel_{0}, mimic_select_low_max_{0}, mimic_select_high_min_{0},
+  mimic_confirm_channel_{0};
+  std::vector<int> mimic_dial_clips_;  // dial slot -> clip index (2026-10-13); empty = identity
   std::optional<std::vector<float>> run_policy_inference();
   PolicyUpdateResult accept_action(
     const std::vector<float> & raw_action,

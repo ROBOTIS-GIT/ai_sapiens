@@ -75,9 +75,18 @@ selectors:
       207: ArmModeV3Yaw
       208: MimicUMRLieDown
       209: MimicUMRStandUp
-      210: MimicUMRLieDownBack
+      210: MimicUMRStandUp2 #MimicUMRLieDownBack
       211: MimicUMRStandUpBack
-      # 221: SubVelocityTerrain
+      212: MimicTaeguek1
+      213: MimicTaeguek2
+      214: MimicTaeguek3
+      215: MimicTaeguek4
+      216: MimicTaeguek5
+      217: MimicTaeguek6
+      218: MimicTaeguek7
+      219: MimicTaeguek8
+      220: MimicHangangStudentV8M2999
+      224: MimicTaebaek
 
 state_machine:
   initial: Damping
@@ -160,6 +169,9 @@ state_machine:
     MimicUMRStandUp:
       parent: Mimic
       run: mimic_umr_stand_up
+    MimicUMRStandUp2:
+      parent: Mimic
+      run: mimic_umr_stand_up_2
     MimicUMRLieDownBack:
       parent: Mimic
       run: mimic_umr_lie_down_back
@@ -175,7 +187,34 @@ state_machine:
       run: mimic_taeguek_1
     MimicTaeguek2:
       parent: Mimic
-      run: mimic_taeguek_2
+      run: mimic_taeguek_selected_2
+    MimicTaeguek3:
+      parent: Mimic
+      run: mimic_taeguek_selected_3
+    MimicTaeguek4:
+      parent: Mimic
+      run: mimic_taeguek_selected_4
+    MimicTaeguek5:
+      parent: Mimic
+      run: mimic_taeguek_selected_5
+    MimicTaeguek6:
+      parent: Mimic
+      run: mimic_taeguek_selected_6
+    MimicTaeguek7:
+      parent: Mimic
+      run: mimic_taeguek_selected_7
+    MimicTaeguek8:
+      parent: Mimic
+      run: mimic_taeguek_selected_8
+
+    MimicHangangStudentV8M2999:
+      parent: Mimic
+      run: mimic_hangang_student_v8_m2999
+
+    MimicTaebaek:
+      parent: Mimic
+      run: mimic_taebaek
+
 
 state_behaviors:
   damping:
@@ -237,7 +276,7 @@ state_behaviors:
       - [0.0, 0.0, 0.0, 0.0, 0.0] # right arm
   velocity_policy:
     kind: policy
-    asset: locomotion/velocity/walk_default
+    asset: locomotion/velocity/mimic_v16_sd
 
   # velocity_policy_walk_terrain:
   #   kind: policy
@@ -268,6 +307,10 @@ state_behaviors:
     kind: policy
     asset: locomotion/arm_mode/v3_yaw_ft_24999
 
+  mimic_hangang_student_v8_m2999:
+    kind: policy
+    asset: locomotion/velocity/hangang_mimic_student_v8_model_2999
+
   mimic_umr_lie_down:
     kind: mimic
     asset: mimic/umr_lie_down_v2
@@ -277,6 +320,10 @@ state_behaviors:
     kind: mimic
     asset: mimic/umr_stand_up_v2
     motion: k1_0008_stand_up_soft_landing_converted.csv
+  mimic_umr_stand_up_2:
+    kind: mimic
+    asset: mimic/umr_stand_up_ai_sapiens_soft_entry_dr_19999
+    motion: k1_0008_stand_up_ai_sapiens_soft_entry.csv
   mimic_umr_lie_down_back:
     kind: mimic
     asset: mimic/umr_lie_down_back_v2
@@ -288,13 +335,58 @@ state_behaviors:
     motion: k1_stand_up_back_v2_converted.csv
   mimic_koryo:
     kind: mimic
-    asset: mimic/koryo
-    motion: k1_koryo_converted.csv
+    asset: mimic/koryo_2
+    motion: k1_koryo_support_v2_50hz_converted.csv
   mimic_taeguek_1:
     kind: mimic
     asset: mimic/taeguek_1
     motion: k1_taeguek01_converted.csv
-  mimic_taeguek_2:
+  # mimic_taeguek_2:
+  #   kind: mimic
+  #   asset: mimic/taeguek_2
+  #   motion: k1_taeguek02_converted.csv
+  # mimic_taeguek_3:
+  #   kind: mimic
+  #   asset: mimic/taeguek_3
+  #   motion: taegeuk3.csv
+  # mimic_taeguek_7:
+  #   kind: mimic
+  #   asset: mimic/taeguek_7
+  #   motion: taeguek07.csv
+  # mimic_taeguek_8:
+  #   kind: mimic
+  #   asset: mimic/taeguek_8
+  #   motion: taeguek08.csv
+  mimic_taebaek:
     kind: mimic
-    asset: mimic/taeguek_2
-    motion: k1_taeguek02_converted.csv
+    asset: mimic/taebaek
+    motion: taebaek_moc_a_v41fjsoft_noloc_k1.csv
+    fps: 100
+  mimic_taeguek_selected_2:
+    kind: mimic
+    asset: mimic/taeguek_selected_20261019/taeguek_02
+    motion: k1_taeguek02_collision_only_50hz_converted.csv
+  mimic_taeguek_selected_3:
+    kind: mimic
+    asset: mimic/taeguek_selected_20261019/taeguek_03
+    motion: k1_taeguek03_collision_only_50hz_converted.csv
+  mimic_taeguek_selected_4:
+    kind: mimic
+    asset: mimic/taeguek_selected_20261019/taeguek_04
+    motion: k1_taeguek04_collision_only_50hz_converted.csv
+  mimic_taeguek_selected_5:
+    kind: mimic
+    asset: mimic/taeguek_selected_20261019/taeguek_05
+    motion: k1_taeguek05_collision_only_50hz_converted.csv
+  mimic_taeguek_selected_6:
+    kind: mimic
+    asset: mimic/taeguek_selected_20261019/taeguek_06
+    motion: k1_taeguek06_collision_only_50hz_converted.csv
+  mimic_taeguek_selected_7:
+    kind: mimic
+    asset: mimic/taeguek_selected_20261019/taeguek_07
+    motion: k1_taeguek07_collision_only_50hz_converted.csv
+  mimic_taeguek_selected_8:
+    kind: mimic
+    asset: mimic/taeguek_selected_20261019/taeguek_08
+    motion: k1_taeguek08_collision_only_50hz_converted.csv
