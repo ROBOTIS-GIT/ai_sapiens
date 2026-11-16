@@ -34,5 +34,4 @@ RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc  && \
     echo "source ${COLCON_WS}/install/setup.bash" >> ~/.bashrc  && \
     echo "alias cb='colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --parallel-workers 1'" >> ~/.bashrc && \
     echo "alias sb='source ~/.bashrc'" >> ~/.bashrc && \
-    echo "alias zenoh='ros2 run rmw_zenoh_cpp rmw_zenohd'">> ~/.bashrc && \
-    echo "export RMW_IMPLEMENTATION=rmw_zenoh_cpp" >> ~/.bashrc
+    echo "alias zenoh='ros2 run rmw_zenoh_cpp rmw_zenohd'">> ~/.bashrc
