@@ -27,7 +27,7 @@ if [ -f "${PGID_FILE}" ]; then
         kill -TERM -"${PGID}" 2>/dev/null || echo "[${SERVICE_NAME} finish] Warning: kill -TERM -${PGID} failed or group already gone"
 
         # Wait until the process group is gone, with a hard timeout
-        TIMEOUT=30        # total seconds to wait
+        TIMEOUT=5         # total seconds to wait
         SLEEP_INTERVAL=1  # seconds between checks
         ELAPSED=0
 
