@@ -29,7 +29,8 @@ OperatorCommandInputs add_operator_command_input_handles(
   const std::shared_ptr<ControlLoop> & control_loop,
   const rclcpp::Node::SharedPtr & node,
   SharedControlData * state,
-  const OperatorCommandInputOptions & options)
+  const OperatorCommandInputOptions & options,
+  const rclcpp::SubscriptionOptions & subscription_options)
 {
   OperatorCommandInputs inputs;
   inputs.teleop_input_loader =
@@ -37,8 +38,9 @@ OperatorCommandInputs add_operator_command_input_handles(
     "ai_sapiens_sim2real", "ai_sapiens_sim2real::TeleopInputPluginBase");
   inputs.teleop_input_plugin =
     inputs.teleop_input_loader->createSharedInstance(options.teleop_input_plugin);
-  inputs.teleop_input_plugin->configure(
-    node, load_yaml_file(options.teleop_input_config_path, "teleop input plugin config"));
+  inputs.teleop_input_plugin->configure_with_subscription_options(
+    node, load_yaml_file(options.teleop_input_config_path, "teleop input plugin config"),
+    subscription_options);
 
   control_loop->add_sensor_handle(
     std::make_shared<TeleopInputHandle>(
@@ -55,14 +57,14 @@ OperatorCommandInputs add_operator_command_input_handles(
         node,
         &state->api,
         options.api_heartbeat_topic,
-        options.api_heartbeat_timeout),
+        options.api_heartbeat_timeout, subscription_options),
     false);
   control_loop->add_sensor_handle(
     std::make_shared<TwistCommandHandle>(
         node,
         &state->api,
         &state->active_velocity_command_ranges,
-        options.cmd_vel_topic),
+        options.cmd_vel_topic, subscription_options),
     false);
   return inputs;
 }

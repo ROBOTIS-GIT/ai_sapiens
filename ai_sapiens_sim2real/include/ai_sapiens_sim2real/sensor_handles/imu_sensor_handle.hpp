@@ -19,6 +19,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <memory>
 #include <string>
 
 #include <Eigen/Dense>  // NOLINT(build/include_order)
@@ -28,6 +29,7 @@
 
 #include "ai_sapiens_sim2real/interfaces/sensor_handle_base.hpp"
 #include "ai_sapiens_sim2real/shared_control_data.hpp"
+#include "ai_sapiens_sim2real/sensor_handles/input_gap_monitor.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -63,7 +65,9 @@ public:
     SensorData * sensors,
     ModeRequests * requests,
     double timeout_seconds,
-    const std::string & topic = "/imu_sensor_broadcaster/imu");
+    const std::string & topic = "/imu_sensor_broadcaster/imu",
+    const rclcpp::SubscriptionOptions & subscription_options = {},
+    double expected_rate_hz = 1000.0);
 
   void update(const rclcpp::Time & /*time*/) override;
 
@@ -86,6 +90,7 @@ private:
   SensorData * sensors_;
   ModeRequests * requests_;
   std::string topic_;
+  std::unique_ptr<InputGapMonitor> input_gap_monitor_;
 
   // Subscription callback writes buffer_; update() copies it into SharedControlData.
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr subscription_;
