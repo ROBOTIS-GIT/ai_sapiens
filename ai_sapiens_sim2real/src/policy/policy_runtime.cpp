@@ -19,7 +19,7 @@
 #include <cmath>
 
 #include "ai_sapiens_sim2real/policy/onnx_inference.hpp"
-#include "ai_sapiens_sim2real/policy/policy_diagnostics.hpp"
+#include "ai_sapiens_sim2real/policy/diagnostics/policy_diagnostics.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -202,11 +202,15 @@ void PolicyRuntime::on_enter()
 {
   if (gait_clock_) {
     gait_clock_->reset(policy_->phase_state);
-    if (gait_clock_->resolve_command_before_update()) {resolve_active_velocity_command();}
+
+    // Seed adaptive entry history with the current command, preserving legacy ordering.
+    if (gait_clock_->resolve_command_before_update()) {
+      resolve_active_velocity_command();
+    }
   }
 }
 
-bool PolicyRuntime::prepare_observation()
+bool PolicyRuntime::update_reference_state()
 {
   if (gait_clock_) {
     gait_clock_->advance(policy_->phase_state, *shared_data_);
@@ -222,37 +226,46 @@ void PolicyRuntime::advance_clocks()
 
 PolicyUpdateResult PolicyRuntime::update(const rclcpp::Duration & period)
 {
-  diagnostics_->advance(period.seconds());
+  diagnostics_->accumulate_sensor_interval(period.seconds());
 
   if (!advance_policy_tick(period)) {
     return PolicyUpdateResult::Skipped;
   }
 
-  if (!prepare_policy_observation()) {
+  if (!update_observation_sources()) {
     return PolicyUpdateResult::TargetUnavailable;
   }
 
-  diagnostics_->begin(policy_->episode_time, shared_data_->sensors);
+  compute_observation();
+
+  diagnostics_->begin_capture(policy_->episode_time, shared_data_->sensors);
   const auto action = evaluate_policy_action();
   const auto decision = apply_action(action);
-  diagnostics_->finish(action, shared_data_->sensors, decision);
+  diagnostics_->finish_capture(action, shared_data_->sensors, decision);
   advance_clocks();
 
   return action.is_accepted() ? PolicyUpdateResult::TargetReady :
          PolicyUpdateResult::TargetUnavailable;
 }
 
-bool PolicyRuntime::prepare_policy_observation()
+bool PolicyRuntime::update_observation_sources()
 {
-  const bool command_first = gait_clock_ && gait_clock_->resolve_command_before_update();
-  if (command_first) {resolve_active_velocity_command();}
+  // Preserve legacy phase timing: command-reset clocks use the previous resolved command.
+  const bool requires_current_command =
+    gait_clock_ && gait_clock_->resolve_command_before_update();
 
-  if (!prepare_observation()) {
+  if (requires_current_command) {
+    resolve_active_velocity_command();
+  }
+
+  if (!update_reference_state()) {
     return false;
   }
 
-  if (!command_first) {resolve_active_velocity_command();}
-  compute_observation();
+  if (!requires_current_command) {
+    resolve_active_velocity_command();
+  }
+
   return true;
 }
 
@@ -302,9 +315,9 @@ void PolicyRuntime::compute_observation()
 
 std::vector<float> PolicyRuntime::run_policy_inference()
 {
-  diagnostics_->input(obs_buffer_);
+  diagnostics_->capture_input(obs_buffer_);
   auto output = inference_->run(obs_buffer_);
-  diagnostics_->output(output);
+  diagnostics_->capture_output(output);
   return output;
 }
 

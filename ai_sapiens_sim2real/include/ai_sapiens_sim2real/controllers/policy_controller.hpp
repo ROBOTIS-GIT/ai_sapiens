@@ -31,7 +31,7 @@
 #include "ai_sapiens_sim2real/interfaces/controller_base.hpp"
 #include "ai_sapiens_sim2real/command_transition.hpp"
 #include "ai_sapiens_sim2real/config/action_transition_config.hpp"
-#include "ai_sapiens_sim2real/policy/mimic_policy_runtime.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/mimic_policy_runtime.hpp"
 #include "ai_sapiens_sim2real/policy/policy_runtime.hpp"
 #include "ai_sapiens_sim2real/config/sim2real_config.hpp"
 #include "ai_sapiens_sim2real/shared_control_data.hpp"

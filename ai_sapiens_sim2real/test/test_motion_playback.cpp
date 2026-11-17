@@ -17,10 +17,10 @@
 #include <limits>
 #include <cstdio>
 #include <unistd.h>
-#include "ai_sapiens_sim2real/policy/motion_source.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/motion_source.hpp"
 
-#include "ai_sapiens_sim2real/policy/motion_playback.hpp"
-#include "ai_sapiens_sim2real/policy/motion_reference.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/motion_playback.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/motion_reference.hpp"
 
 using ai_sapiens_sim2real::MotionPlayback;
 using ai_sapiens_sim2real::MotionReference;

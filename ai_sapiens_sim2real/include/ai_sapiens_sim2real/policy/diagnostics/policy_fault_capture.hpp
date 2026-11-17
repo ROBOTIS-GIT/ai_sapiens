@@ -14,13 +14,13 @@
 //
 // Author: Kiwoong Park
 
-#ifndef AI_SAPIENS_SIM2REAL__POLICY__POLICY_FAULT_CAPTURE_HPP_
-#define AI_SAPIENS_SIM2REAL__POLICY__POLICY_FAULT_CAPTURE_HPP_
+#ifndef AI_SAPIENS_SIM2REAL__POLICY__DIAGNOSTICS__POLICY_FAULT_CAPTURE_HPP_
+#define AI_SAPIENS_SIM2REAL__POLICY__DIAGNOSTICS__POLICY_FAULT_CAPTURE_HPP_
 
 #include <rclcpp/clock.hpp>
 #include <rclcpp/logger.hpp>
 
-#include "ai_sapiens_sim2real/policy/action_fault_record.hpp"
+#include "ai_sapiens_sim2real/policy/diagnostics/action_fault_record.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -35,12 +35,12 @@ public:
     std::shared_ptr<ActionFaultRecorder> recorder,
     std::shared_ptr<const FaultPolicyMetadata> metadata, rclcpp::Logger logger);
   void reset() noexcept;
-  void begin(
+  void begin_capture(
     double episode_time, const SensorData & sensors,
     const std::optional<SensorData> & previous, double interval) noexcept;
-  void input(const std::unordered_map<std::string, std::vector<float>> & inputs) noexcept;
-  void output(const std::vector<float> & output) noexcept;
-  std::string finish(
+  void capture_input(const std::unordered_map<std::string, std::vector<float>> & inputs) noexcept;
+  void capture_output(const std::vector<float> & output) noexcept;
+  std::string finish_capture(
     const PolicyActionResult & result, const PolicyActionDecision & decision) noexcept;
 
 private:
@@ -57,4 +57,4 @@ private:
 };
 }  // namespace ai_sapiens_sim2real
 
-#endif  // AI_SAPIENS_SIM2REAL__POLICY__POLICY_FAULT_CAPTURE_HPP_
+#endif  // AI_SAPIENS_SIM2REAL__POLICY__DIAGNOSTICS__POLICY_FAULT_CAPTURE_HPP_

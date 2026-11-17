@@ -14,8 +14,8 @@
 //
 // Author: Woojin Wie
 
-#ifndef AI_SAPIENS_SIM2REAL__POLICY__TORSO_ORIENTATION_HPP_
-#define AI_SAPIENS_SIM2REAL__POLICY__TORSO_ORIENTATION_HPP_
+#ifndef AI_SAPIENS_SIM2REAL__POLICY__MIMIC__TORSO_ORIENTATION_HPP_
+#define AI_SAPIENS_SIM2REAL__POLICY__MIMIC__TORSO_ORIENTATION_HPP_
 
 #include <Eigen/Dense>  // NOLINT(build/include_order)
 
@@ -54,4 +54,4 @@ inline Eigen::Quaternionf torso_orientation_in_world(
 
 }  // namespace ai_sapiens_sim2real
 
-#endif  // AI_SAPIENS_SIM2REAL__POLICY__TORSO_ORIENTATION_HPP_
+#endif  // AI_SAPIENS_SIM2REAL__POLICY__MIMIC__TORSO_ORIENTATION_HPP_

@@ -17,8 +17,8 @@
 #include "ai_sapiens_sim2real/policy/policy_entry_validator.hpp"
 
 #include "ai_sapiens_sim2real/config/root_config.hpp"
-#include "ai_sapiens_sim2real/policy/motion_reference.hpp"
-#include "ai_sapiens_sim2real/policy/motion_source.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/motion_reference.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/motion_source.hpp"
 
 namespace ai_sapiens_sim2real
 {

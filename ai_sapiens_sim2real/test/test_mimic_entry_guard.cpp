@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include "ai_sapiens_sim2real/policy/mimic_entry_guard.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/mimic_entry_guard.hpp"
 
 using ai_sapiens_sim2real::check_mimic_entry_tilt;
 namespace

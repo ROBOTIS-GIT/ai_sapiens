@@ -18,7 +18,7 @@
 #include <fstream>
 #include <limits>
 #include <yaml-cpp/yaml.h>
-#include "ai_sapiens_sim2real/policy/action_fault_recorder.hpp"
+#include "ai_sapiens_sim2real/policy/diagnostics/action_fault_recorder.hpp"
 
 using namespace ai_sapiens_sim2real;
 
