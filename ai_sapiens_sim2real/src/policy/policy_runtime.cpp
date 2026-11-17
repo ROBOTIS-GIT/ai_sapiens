@@ -202,11 +202,15 @@ void PolicyRuntime::on_enter()
 {
   if (gait_clock_) {
     gait_clock_->reset(policy_->phase_state);
-    if (gait_clock_->resolve_command_before_update()) {resolve_active_velocity_command();}
+
+    // Seed adaptive entry history with the current command, preserving legacy ordering.
+    if (gait_clock_->resolve_command_before_update()) {
+      resolve_active_velocity_command();
+    }
   }
 }
 
-bool PolicyRuntime::prepare_observation()
+bool PolicyRuntime::update_reference_state()
 {
   if (gait_clock_) {
     gait_clock_->advance(policy_->phase_state, *shared_data_);
@@ -228,9 +232,11 @@ PolicyUpdateResult PolicyRuntime::update(const rclcpp::Duration & period)
     return PolicyUpdateResult::Skipped;
   }
 
-  if (!prepare_policy_observation()) {
+  if (!update_observation_sources()) {
     return PolicyUpdateResult::TargetUnavailable;
   }
+
+  compute_observation();
 
   diagnostics_->begin(policy_->episode_time, shared_data_->sensors);
   const auto action = evaluate_policy_action();
@@ -242,17 +248,24 @@ PolicyUpdateResult PolicyRuntime::update(const rclcpp::Duration & period)
          PolicyUpdateResult::TargetUnavailable;
 }
 
-bool PolicyRuntime::prepare_policy_observation()
+bool PolicyRuntime::update_observation_sources()
 {
-  const bool command_first = gait_clock_ && gait_clock_->resolve_command_before_update();
-  if (command_first) {resolve_active_velocity_command();}
+  // Preserve legacy phase timing: command-reset clocks use the previous resolved command.
+  const bool requires_current_command =
+    gait_clock_ && gait_clock_->resolve_command_before_update();
 
-  if (!prepare_observation()) {
+  if (requires_current_command) {
+    resolve_active_velocity_command();
+  }
+
+  if (!update_reference_state()) {
     return false;
   }
 
-  if (!command_first) {resolve_active_velocity_command();}
-  compute_observation();
+  if (!requires_current_command) {
+    resolve_active_velocity_command();
+  }
+
   return true;
 }
 

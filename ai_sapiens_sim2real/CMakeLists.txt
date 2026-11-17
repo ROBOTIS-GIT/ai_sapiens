@@ -386,6 +386,8 @@ if(BUILD_TESTING)
   target_link_libraries(test_action_fault_recorder yaml-cpp Eigen3::Eigen Threads::Threads)
 
   ament_add_gtest(test_policy_action_fault test/test_policy_action_fault.cpp
+    test/test_policy_observation_flow.cpp
+    src/policy/mimic_policy_runtime.cpp
     src/policy/policy_runtime.cpp
     src/policy/policy_diagnostics.cpp
     src/policy/policy_fault_capture.cpp
