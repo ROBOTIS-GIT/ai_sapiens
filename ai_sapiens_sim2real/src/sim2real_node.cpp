@@ -69,6 +69,11 @@ void Sim2RealNode::declare_node_parameters()
   node_->declare_parameter<double>("imu_timeout", 0.5);
   node_->declare_parameter<double>("joint_states_timeout", 0.5);
 
+  rcl_interfaces::msg::ParameterDescriptor input_rate_descriptor;
+  input_rate_descriptor.read_only = true;
+  node_->declare_parameter<double>("imu_expected_rate_hz", 1000.0, input_rate_descriptor);
+  node_->declare_parameter<double>("joint_states_expected_rate_hz", 1000.0, input_rate_descriptor);
+
   node_->declare_parameter<int>("thread_priority", 50);
   node_->declare_parameter<bool>("lock_memory", true);
   node_->declare_parameter<double>("wait_for_ready_timeout", 30.0);
@@ -109,6 +114,9 @@ NodeOptions Sim2RealNode::read_node_options() const
   options.joint_states_topic = node_->get_parameter("joint_states_topic").as_string();
   options.imu_timeout = node_->get_parameter("imu_timeout").as_double();
   options.joint_states_timeout = node_->get_parameter("joint_states_timeout").as_double();
+  options.imu_expected_rate_hz = node_->get_parameter("imu_expected_rate_hz").as_double();
+  options.joint_states_expected_rate_hz =
+    node_->get_parameter("joint_states_expected_rate_hz").as_double();
   options.thread_priority = node_->get_parameter("thread_priority").as_int();
   options.lock_memory = node_->get_parameter("lock_memory").as_bool();
   options.wait_timeout = node_->get_parameter("wait_for_ready_timeout").as_double();
@@ -216,7 +224,7 @@ void Sim2RealNode::add_robot_feedback_inputs()
       &shared_data_->sensors,
       &shared_data_->requests,
       options_.imu_timeout,
-      options_.imu_topic, input_executor_.subscription_options()),
+      options_.imu_topic, input_executor_.subscription_options(), options_.imu_expected_rate_hz),
     true);
   control_loop_->add_sensor_handle(
     std::make_shared<JointStatesSensorHandle>(
@@ -225,7 +233,8 @@ void Sim2RealNode::add_robot_feedback_inputs()
       &shared_data_->requests,
       options_.joint_states_timeout,
       runtime_config_.controller_joints,
-      options_.joint_states_topic, input_executor_.subscription_options()),
+      options_.joint_states_topic, input_executor_.subscription_options(),
+      options_.joint_states_expected_rate_hz),
     true);
 }
 

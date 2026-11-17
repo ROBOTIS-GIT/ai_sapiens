@@ -47,6 +47,10 @@ include_directories(include)
 set_source_files_properties(src/policy/action_fault_recorder.cpp PROPERTIES
   COMPILE_DEFINITIONS "AI_SAPIENS_SIM2REAL_SOURCE_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}\"")
 
+add_library(input_gap_monitor STATIC src/sensor_handles/input_gap_monitor.cpp)
+set_target_properties(input_gap_monitor PROPERTIES POSITION_INDEPENDENT_CODE ON)
+ament_target_dependencies(input_gap_monitor rclcpp)
+
 # ============================================================================
 # Executable
 # ============================================================================
@@ -103,6 +107,7 @@ ament_target_dependencies(ai_sapiens_sim2real_node
 )
 
 target_link_libraries(ai_sapiens_sim2real_node
+  input_gap_monitor
   yaml-cpp
   Eigen3::Eigen
   ${ONNXRUNTIME_LIBRARY}
@@ -179,7 +184,7 @@ ament_target_dependencies(keyboard_teleop_node
   ament_index_cpp
 )
 
-target_link_libraries(radiomaster_pocket_teleop_input_plugin
+target_link_libraries(radiomaster_pocket_teleop_input_plugin input_gap_monitor
   yaml-cpp
   Eigen3::Eigen
 )
@@ -276,10 +281,14 @@ if(BUILD_TESTING)
 
   find_package(ament_cmake_gtest REQUIRED)
 
+  ament_add_gtest(test_input_gap_monitor test/test_input_gap_monitor.cpp)
+  ament_target_dependencies(test_input_gap_monitor rclcpp)
+  target_link_libraries(test_input_gap_monitor input_gap_monitor)
+
   ament_add_gtest(test_input_executor test/test_input_executor.cpp
     src/mode_runtime/input_executor.cpp src/mode_runtime/startup_gate.cpp)
   ament_target_dependencies(test_input_executor rclcpp realtime_tools)
-  target_link_libraries(test_input_executor Threads::Threads yaml-cpp Eigen3::Eigen)
+  target_link_libraries(test_input_executor Threads::Threads yaml-cpp Eigen3::Eigen input_gap_monitor)
 
   # RealtimeRequestGate: accept/consume/discard/busy semantics (header-only).
   ament_add_gtest(test_request_gate test/test_request_gate.cpp)
@@ -357,7 +366,7 @@ if(BUILD_TESTING)
   ament_add_gtest(test_imu_validation test/test_imu_validation.cpp
     src/sensor_handles/imu_sensor_handle.cpp src/mode_runtime/input_executor.cpp)
   ament_target_dependencies(test_imu_validation rclcpp realtime_tools sensor_msgs)
-  target_link_libraries(test_imu_validation Eigen3::Eigen)
+  target_link_libraries(test_imu_validation Eigen3::Eigen input_gap_monitor)
 
   ament_add_gtest(test_motion_playback
     test/test_motion_playback.cpp

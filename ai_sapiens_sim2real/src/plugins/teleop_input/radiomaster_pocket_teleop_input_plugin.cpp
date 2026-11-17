@@ -102,11 +102,15 @@ void RadiomasterPocketTeleopInputPlugin::configure(
 {
   node_ = node;
   read_config(config);
+  input_gap_monitor_ = std::make_unique<InputGapMonitor>(
+    node_, topic_, read_double(config, "expected_publish_rate_hz", 100.0),
+    subscription_options().callback_group);
 
   subscription_ = node_->create_subscription<RcStatus>(
     topic_,
     10,
     [this](const RcStatus::SharedPtr msg) {
+      input_gap_monitor_->received_raw();
       warn_if_hardware_error(*msg);
       handle_raw_message(*msg);
     }, subscription_options());
@@ -179,6 +183,7 @@ void RadiomasterPocketTeleopInputPlugin::on_stale_message(
 void RadiomasterPocketTeleopInputPlugin::on_message_accepted(
   const RcStatus & msg)
 {
+  input_gap_monitor_->received_accepted();
   has_last_realtime_tick_ = true;
   last_realtime_tick_ = msg.realtime_tick;
 }

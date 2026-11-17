@@ -21,6 +21,7 @@
 
 #include "ai_sapiens_sim2real/mode_runtime/input_executor.hpp"
 #include "ai_sapiens_sim2real/mode_runtime/startup_gate.hpp"
+#include "ai_sapiens_sim2real/sensor_handles/input_gap_monitor.hpp"
 
 using ai_sapiens_sim2real::InputExecutor;
 using namespace std::chrono_literals;
@@ -105,4 +106,29 @@ TEST_F(InputExecutorTest, StartupSpinOnlyRunsInputCallbacks)
 
   EXPECT_GT(input_calls, 0);
   EXPECT_EQ(ordinary_calls, 0);
+}
+
+class WaitingTeleopPlugin : public ai_sapiens_sim2real::TeleopInputPluginBase
+{
+public:
+  void configure(const rclcpp::Node::SharedPtr &, const YAML::Node &) override {}
+  ai_sapiens_sim2real::AxisRanges output_axis_ranges() const override {return {};}
+  std::string name() const override {return "waiting_test_plugin";}
+};
+
+TEST_F(InputExecutorTest, StartupWaitFlushesDiagnosticsBeforeAnyTeleopSample)
+{
+  auto node = std::make_shared<rclcpp::Node>("startup_input_gap_test");
+  InputExecutor inputs(node);
+  ai_sapiens_sim2real::InputGapMonitor monitor(node, "/test/startup_gap", 1000.0,
+    inputs.subscription_options().callback_group);
+  auto plugin = std::make_shared<WaitingTeleopPlugin>();
+
+  testing::internal::CaptureStderr();
+  const bool is_ready = ai_sapiens_sim2real::wait_for_teleop_input_sample(node, plugin, 0.15,
+    inputs);
+  const auto output = testing::internal::GetCapturedStderr();
+  EXPECT_FALSE(is_ready);
+  EXPECT_NE(output.find("[Input gap] topic=/test/startup_gap stream=raw"), std::string::npos);
+  EXPECT_NE(output.find("[Input gap] topic=/test/startup_gap stream=accepted"), std::string::npos);
 }

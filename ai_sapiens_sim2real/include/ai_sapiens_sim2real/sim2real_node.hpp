@@ -44,6 +44,8 @@ struct NodeOptions
   std::string joint_states_topic;
   double imu_timeout{0.5};
   double joint_states_timeout{0.5};
+  double imu_expected_rate_hz{1000.0};
+  double joint_states_expected_rate_hz{1000.0};
   int thread_priority{50};
   bool lock_memory{true};
   double wait_timeout{30.0};

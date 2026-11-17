@@ -29,7 +29,8 @@ ImuSensorHandle::ImuSensorHandle(
   ModeRequests * requests,
   double timeout_seconds,
   const std::string & topic,
-  const rclcpp::SubscriptionOptions & subscription_options)
+  const rclcpp::SubscriptionOptions & subscription_options,
+  double expected_rate_hz)
 : node_(node)
   , sensors_(sensors)
   , requests_(requests)
@@ -44,6 +45,10 @@ ImuSensorHandle::ImuSensorHandle(
   ImuData initial_data;
   initial_data.received_at = std::chrono::steady_clock::now();
   buffer_.initRT(initial_data);
+
+  input_gap_monitor_ = std::make_unique<InputGapMonitor>(
+    node_, topic_, expected_rate_hz,
+    subscription_options.callback_group);
 
   // Create subscription
   subscription_ = node_->create_subscription<sensor_msgs::msg::Imu>(
@@ -113,7 +118,7 @@ std::string ImuSensorHandle::get_name() const
 
 void ImuSensorHandle::callback(const sensor_msgs::msg::Imu::SharedPtr msg)
 {
-
+  input_gap_monitor_->received_raw();
   ImuData data;
 
   // Extract angular velocity
@@ -148,7 +153,7 @@ void ImuSensorHandle::callback(const sensor_msgs::msg::Imu::SharedPtr msg)
   // Write to buffer (thread-safe)
   buffer_.writeFromNonRT(data);
   if (data.is_valid) {
-
+    input_gap_monitor_->received_accepted();
     received_once_.store(true);
   }
 }

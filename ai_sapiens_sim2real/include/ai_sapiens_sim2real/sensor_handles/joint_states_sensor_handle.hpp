@@ -19,6 +19,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -29,6 +30,7 @@
 
 #include "ai_sapiens_sim2real/interfaces/sensor_handle_base.hpp"
 #include "ai_sapiens_sim2real/shared_control_data.hpp"
+#include "ai_sapiens_sim2real/sensor_handles/input_gap_monitor.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -75,7 +77,8 @@ public:
     double timeout_seconds,
     const std::vector<std::string> & joint_names,
     const std::string & topic = "/joint_states",
-    const rclcpp::SubscriptionOptions & subscription_options = {});
+    const rclcpp::SubscriptionOptions & subscription_options = {},
+    double expected_rate_hz = 1000.0);
 
   void update(const rclcpp::Time & /*time*/) override;
 
@@ -114,6 +117,7 @@ private:
   SensorData * sensors_;
   ModeRequests * requests_;
   std::string topic_;
+  std::unique_ptr<InputGapMonitor> input_gap_monitor_;
 
   std::vector<std::string> joint_names_;
   size_t num_joints_;
