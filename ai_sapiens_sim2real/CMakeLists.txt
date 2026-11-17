@@ -83,6 +83,10 @@ add_executable(ai_sapiens_sim2real_node
   src/observation/configured_observation_group.cpp
   src/policy/blinkmimic/blinkmimic_observation.cpp
   src/policy/blinkmimic/blinkmimic_policy_runtime.cpp
+  src/policy/supermimic/supermimic_motion.cpp
+  src/policy/supermimic/supermimic_config.cpp
+  src/policy/supermimic/supermimic_observation.cpp
+  src/policy/supermimic/supermimic_policy_runtime.cpp
   src/observation/observation_manager.cpp
   src/observation/observations.cpp
   src/policy/onnx_inference.cpp
