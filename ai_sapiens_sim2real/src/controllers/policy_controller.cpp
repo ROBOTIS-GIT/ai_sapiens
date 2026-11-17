@@ -19,7 +19,7 @@
 #include <vector>
 
 #include "ai_sapiens_sim2real/config/root_config.hpp"
-#include "ai_sapiens_sim2real/policy/action_fault_recorder.hpp"
+#include "ai_sapiens_sim2real/policy/diagnostics/action_fault_recorder.hpp"
 
 namespace ai_sapiens_sim2real
 {

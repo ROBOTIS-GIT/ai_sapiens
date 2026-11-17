@@ -21,7 +21,7 @@
 #include <limits>
 #include <memory>
 
-#include "ai_sapiens_sim2real/policy/mimic_policy_runtime.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/mimic_policy_runtime.hpp"
 
 using namespace ai_sapiens_sim2real;
 

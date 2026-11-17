@@ -14,8 +14,8 @@
 //
 // Author: Kiwoong Park
 
-#ifndef AI_SAPIENS_SIM2REAL__POLICY__MIMIC_POLICY_RUNTIME_HPP_
-#define AI_SAPIENS_SIM2REAL__POLICY__MIMIC_POLICY_RUNTIME_HPP_
+#ifndef AI_SAPIENS_SIM2REAL__POLICY__MIMIC__MIMIC_POLICY_RUNTIME_HPP_
+#define AI_SAPIENS_SIM2REAL__POLICY__MIMIC__MIMIC_POLICY_RUNTIME_HPP_
 
 #include <limits>
 #include <memory>
@@ -26,8 +26,8 @@
 #include <rclcpp/rclcpp.hpp>
 
 #include "ai_sapiens_sim2real/config/mimic_behavior.hpp"
-#include "ai_sapiens_sim2real/policy/motion_playback.hpp"
-#include "ai_sapiens_sim2real/policy/motion_reference.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/motion_playback.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/motion_reference.hpp"
 #include "ai_sapiens_sim2real/policy/policy_runtime.hpp"
 #include "ai_sapiens_sim2real/shared_control_data.hpp"
 
@@ -85,4 +85,4 @@ private:
 
 }  // namespace ai_sapiens_sim2real
 
-#endif  // AI_SAPIENS_SIM2REAL__POLICY__MIMIC_POLICY_RUNTIME_HPP_
+#endif  // AI_SAPIENS_SIM2REAL__POLICY__MIMIC__MIMIC_POLICY_RUNTIME_HPP_

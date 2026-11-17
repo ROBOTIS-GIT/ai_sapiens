@@ -14,10 +14,10 @@
 //
 // Author: Kiwoong Park
 
-#ifndef AI_SAPIENS_SIM2REAL__POLICY__POLICY_DIAGNOSTICS_HPP_
-#define AI_SAPIENS_SIM2REAL__POLICY__POLICY_DIAGNOSTICS_HPP_
+#ifndef AI_SAPIENS_SIM2REAL__POLICY__DIAGNOSTICS__POLICY_DIAGNOSTICS_HPP_
+#define AI_SAPIENS_SIM2REAL__POLICY__DIAGNOSTICS__POLICY_DIAGNOSTICS_HPP_
 
-#include "ai_sapiens_sim2real/policy/policy_fault_capture.hpp"
+#include "ai_sapiens_sim2real/policy/diagnostics/policy_fault_capture.hpp"
 #include "ai_sapiens_sim2real/policy/policy_action_result.hpp"
 
 namespace ai_sapiens_sim2real
@@ -52,4 +52,4 @@ private:
   double sensor_interval_{0.0};
 };
 }  // namespace ai_sapiens_sim2real
-#endif  // AI_SAPIENS_SIM2REAL__POLICY__POLICY_DIAGNOSTICS_HPP_
+#endif  // AI_SAPIENS_SIM2REAL__POLICY__DIAGNOSTICS__POLICY_DIAGNOSTICS_HPP_

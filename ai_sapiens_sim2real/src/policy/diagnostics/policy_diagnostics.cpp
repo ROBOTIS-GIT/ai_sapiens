@@ -14,14 +14,14 @@
 //
 // Author: Kiwoong Park
 
-#include "ai_sapiens_sim2real/policy/policy_diagnostics.hpp"
+#include "ai_sapiens_sim2real/policy/diagnostics/policy_diagnostics.hpp"
 
 #include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
 #include <rclcpp/logging.hpp>
-#include "ai_sapiens_sim2real/policy/action_fault_diagnostics.hpp"
+#include "ai_sapiens_sim2real/policy/diagnostics/action_fault_diagnostics.hpp"
 
 namespace ai_sapiens_sim2real
 {

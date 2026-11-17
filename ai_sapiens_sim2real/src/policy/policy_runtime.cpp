@@ -19,7 +19,7 @@
 #include <cmath>
 
 #include "ai_sapiens_sim2real/policy/onnx_inference.hpp"
-#include "ai_sapiens_sim2real/policy/policy_diagnostics.hpp"
+#include "ai_sapiens_sim2real/policy/diagnostics/policy_diagnostics.hpp"
 
 namespace ai_sapiens_sim2real
 {

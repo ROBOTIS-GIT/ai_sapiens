@@ -24,7 +24,7 @@
 #include <utility>
 #include <Eigen/Geometry>
 #include "ai_sapiens_sim2real/config/root_sections/state_behaviors_config.hpp"
-#include "ai_sapiens_sim2real/policy/mimic_entry_guard.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/mimic_entry_guard.hpp"
 
 namespace ai_sapiens_sim2real
 {
