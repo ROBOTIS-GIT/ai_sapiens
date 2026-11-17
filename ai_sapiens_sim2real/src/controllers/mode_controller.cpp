@@ -40,7 +40,7 @@ ModeController::ModeController(
 
 void ModeController::update(const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
-  update_policy_retry_gate();
+  update_entry_retry_gate();
   const Decision decision = decide();
   apply(decision);
   run_active_mode();
@@ -93,7 +93,7 @@ void ModeController::apply_state_request(const StateRequest & requested)
     requested.reason == TransitionReason::TeleopInputCondition &&
     requested.behavior_kind == BehaviorKind::Policy;
 
-  if (manual_policy_request && policy_retry_gate_.blocked()) {
+  if (manual_policy_request && entry_retry_gate_.blocked()) {
     return;
   }
 
@@ -104,7 +104,7 @@ void ModeController::apply_state_request(const StateRequest & requested)
   }
 
   if (manual_policy_request) {
-    policy_retry_gate_.reject(make_current_teleop_input().input_code);
+    entry_retry_gate_.reject(make_current_teleop_input().input_code);
   }
 
   log_entry_rejection(requested, entry);
@@ -963,10 +963,10 @@ bool ModeController::is_orientation_unsafe() const
   return std::abs(std::acos(z)) > limit_angle;
 }
 
-void ModeController::update_policy_retry_gate()
+void ModeController::update_entry_retry_gate()
 {
   const auto input = make_current_teleop_input();
-  policy_retry_gate_.observe(input.available, input.input_code);
+  entry_retry_gate_.observe(input.available, input.input_code);
 }
 
 PolicyEntryResult ModeController::evaluate_state_entry(const StateRequest & request) const

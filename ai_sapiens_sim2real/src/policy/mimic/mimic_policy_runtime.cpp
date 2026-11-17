@@ -14,16 +14,16 @@
 //
 // Author: Kiwoong Park
 
-#include "ai_sapiens_sim2real/policy/mimic_policy_runtime.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/mimic_policy_runtime.hpp"
 
 #include <algorithm>
 #include <stdexcept>
 #include <utility>
 
 #include "ai_sapiens_sim2real/config/mimic_behavior.hpp"
-#include "ai_sapiens_sim2real/policy/torso_orientation.hpp"
-#include "ai_sapiens_sim2real/policy/mimic_heading_alignment.hpp"
-#include "ai_sapiens_sim2real/policy/motion_source.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/torso_orientation.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/mimic_heading_alignment.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/motion_source.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -113,7 +113,7 @@ void MimicPolicyRuntime::on_enter()
     reference_torso, torso_orientation_in_world(*sensors_, joint_context()));
 }
 
-bool MimicPolicyRuntime::prepare_observation()
+bool MimicPolicyRuntime::update_reference_state()
 {
   // Window ended: hand off to the completion state; false stops this tick's step.
   const auto motion_time = playback_.seek_time(policy_->episode_time);

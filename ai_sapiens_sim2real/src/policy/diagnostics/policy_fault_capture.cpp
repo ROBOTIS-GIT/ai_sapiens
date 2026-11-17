@@ -14,11 +14,11 @@
 //
 // Author: Kiwoong Park
 
-#include "ai_sapiens_sim2real/policy/policy_fault_capture.hpp"
+#include "ai_sapiens_sim2real/policy/diagnostics/policy_fault_capture.hpp"
 
 #include <utility>
 #include <rclcpp/logging.hpp>
-#include "ai_sapiens_sim2real/policy/action_fault_recorder.hpp"
+#include "ai_sapiens_sim2real/policy/diagnostics/action_fault_recorder.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -42,7 +42,7 @@ void PolicyFaultCapture::disable() noexcept
       "Observation capture disabled after diagnostic capture error; control continues");
 }
 
-void PolicyFaultCapture::begin(
+void PolicyFaultCapture::begin_capture(
   double episode_time, const SensorData & sensors,
   const std::optional<SensorData> & previous, double interval) noexcept
 {
@@ -59,7 +59,7 @@ void PolicyFaultCapture::begin(
   }
 }
 
-void PolicyFaultCapture::input(
+void PolicyFaultCapture::capture_input(
   const std::unordered_map<std::string, std::vector<float>> & inputs) noexcept
 {
   if (!is_enabled_) {return;}
@@ -70,7 +70,7 @@ void PolicyFaultCapture::input(
   }
 }
 
-void PolicyFaultCapture::output(const std::vector<float> & output) noexcept
+void PolicyFaultCapture::capture_output(const std::vector<float> & output) noexcept
 {
   if (!is_enabled_) {return;}
   try {
@@ -80,7 +80,7 @@ void PolicyFaultCapture::output(const std::vector<float> & output) noexcept
   }
 }
 
-std::string PolicyFaultCapture::finish(
+std::string PolicyFaultCapture::finish_capture(
   const PolicyActionResult & result, const PolicyActionDecision & decision) noexcept
 {
   if (!is_enabled_) {return {};}

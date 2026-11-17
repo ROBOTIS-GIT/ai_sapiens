@@ -14,7 +14,7 @@
 //
 // Author: Kiwoong Park
 
-#include "ai_sapiens_sim2real/policy/action_fault_diagnostics.hpp"
+#include "ai_sapiens_sim2real/policy/diagnostics/action_fault_diagnostics.hpp"
 
 #include <algorithm>
 #include <cmath>

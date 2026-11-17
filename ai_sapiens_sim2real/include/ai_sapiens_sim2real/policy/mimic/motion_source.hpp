@@ -14,12 +14,12 @@
 
 // Author: Kiwoong Park
 
-#ifndef AI_SAPIENS_SIM2REAL__POLICY__MOTION_SOURCE_HPP_
-#define AI_SAPIENS_SIM2REAL__POLICY__MOTION_SOURCE_HPP_
+#ifndef AI_SAPIENS_SIM2REAL__POLICY__MIMIC__MOTION_SOURCE_HPP_
+#define AI_SAPIENS_SIM2REAL__POLICY__MIMIC__MOTION_SOURCE_HPP_
 
 #include <memory>
 #include <mutex>
-#include "ai_sapiens_sim2real/policy/motion_reference.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/motion_reference.hpp"
 
 namespace ai_sapiens_sim2real
 {

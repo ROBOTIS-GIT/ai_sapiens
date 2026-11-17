@@ -14,14 +14,14 @@
 //
 // Author: Kiwoong Park
 
-#include "ai_sapiens_sim2real/policy/policy_diagnostics.hpp"
+#include "ai_sapiens_sim2real/policy/diagnostics/policy_diagnostics.hpp"
 
 #include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
 #include <rclcpp/logging.hpp>
-#include "ai_sapiens_sim2real/policy/action_fault_diagnostics.hpp"
+#include "ai_sapiens_sim2real/policy/diagnostics/action_fault_diagnostics.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -55,28 +55,30 @@ void PolicyDiagnostics::reset() noexcept
   sensor_interval_ = 0.0;
 }
 
-void PolicyDiagnostics::advance(double period) noexcept
+void PolicyDiagnostics::accumulate_sensor_interval(double period) noexcept
 {
   if (std::isfinite(period) && period > 0.0) {sensor_interval_ += period;}
 }
 
-void PolicyDiagnostics::begin(double episode_time, const SensorData & sensors) noexcept
+void PolicyDiagnostics::begin_capture(double episode_time, const SensorData & sensors) noexcept
 {
-  if (capture_) {capture_->begin(episode_time, sensors, previous_sensors_, sensor_interval_);}
+  if (capture_) {
+    capture_->begin_capture(episode_time, sensors, previous_sensors_, sensor_interval_);
+  }
 }
 
-void PolicyDiagnostics::input(
+void PolicyDiagnostics::capture_input(
   const std::unordered_map<std::string, std::vector<float>> & inputs) noexcept
 {
-  if (capture_) {capture_->input(inputs);}
+  if (capture_) {capture_->capture_input(inputs);}
 }
 
-void PolicyDiagnostics::output(const std::vector<float> & output) noexcept
+void PolicyDiagnostics::capture_output(const std::vector<float> & output) noexcept
 {
-  if (capture_) {capture_->output(output);}
+  if (capture_) {capture_->capture_output(output);}
 }
 
-void PolicyDiagnostics::finish(
+void PolicyDiagnostics::finish_capture(
   const PolicyActionResult & result, const SensorData & sensors,
   const PolicyActionDecision & decision) noexcept
 {
@@ -84,7 +86,7 @@ void PolicyDiagnostics::finish(
     std::string path;
 
     if (capture_) {
-      path = capture_->finish(result, decision);
+      path = capture_->finish_capture(result, decision);
     }
 
     log_result(result, sensors, decision, path);

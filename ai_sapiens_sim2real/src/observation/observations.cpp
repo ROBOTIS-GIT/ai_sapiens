@@ -22,9 +22,9 @@
 #include <unordered_map>
 #include <vector>
 
-#include "ai_sapiens_sim2real/policy/motion_reference.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/motion_reference.hpp"
 #include "ai_sapiens_sim2real/shared_control_data.hpp"
-#include "ai_sapiens_sim2real/policy/torso_orientation.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/torso_orientation.hpp"
 
 namespace ai_sapiens_sim2real
 {

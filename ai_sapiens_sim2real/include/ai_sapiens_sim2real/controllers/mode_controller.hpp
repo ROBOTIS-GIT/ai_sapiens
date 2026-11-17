@@ -189,7 +189,7 @@ private:
   // Startup wiring: load FSM/authority config, enter the initial state.
   void initialize_joint_counts();
   void configure_mode_runtime(const RootConfig & root_config);
-  void update_policy_retry_gate();
+  void update_entry_retry_gate();
   void log_entry_rejection(const StateRequest & request, const PolicyEntryResult & result) const;
   void enter_initial_state();
 
@@ -329,7 +329,7 @@ private:
   BehaviorKind current_behavior_kind_{BehaviorKind::Damping};
   std::chrono::steady_clock::time_point state_enter_time_{};
   bool startup_teleop_input_accepted_{false};
-  RejectedRequestGate policy_retry_gate_;
+  RejectedRequestGate entry_retry_gate_;
   // API entry fires only on a rising edge of the teleop API request, so entry
   // after boot, a failed attempt, or any manual takeover needs a fresh switch
   // toggle. Starts true so an already-high switch cannot enter API at boot.

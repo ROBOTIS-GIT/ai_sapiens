@@ -21,8 +21,8 @@
 #include <sstream>
 
 #include "ai_sapiens_sim2real/command_transition.hpp"
-#include "ai_sapiens_sim2real/policy/action_fault_diagnostics.hpp"
-#include "ai_sapiens_sim2real/policy/action_fault_recorder.hpp"
+#include "ai_sapiens_sim2real/policy/diagnostics/action_fault_diagnostics.hpp"
+#include "ai_sapiens_sim2real/policy/diagnostics/action_fault_recorder.hpp"
 #include "ai_sapiens_sim2real/policy/policy_runtime.hpp"
 
 using namespace ai_sapiens_sim2real;
