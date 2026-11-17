@@ -29,6 +29,7 @@
 #include "ai_sapiens_sim2real/authority.hpp"
 #include "ai_sapiens_sim2real/joint_command.hpp"
 #include "ai_sapiens_sim2real/config/sim2real_config.hpp"
+#include "ai_sapiens_sim2real/policy/gait_clock.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -168,9 +169,9 @@ struct PolicyState
   std::vector<float> input;  // scaled/clipped observation vector fed to ONNX
   Eigen::Quaternionf motion_init_quat{Eigen::Quaternionf::Identity()};
   float episode_time{0.0f};
-  // Gait-phase clock in [0, 1). Advanced by GaitClock once per policy step and
-  // read by the gait_phase observation. Stays 0 for policies without a gait phase.
-  float gait_phase{0.0f};
+  // Raw phase-clock state. Advanced by GaitClock once per policy step and
+  // encoded by observations. The normalized phase stays in [0, 1).
+  PhaseState phase_state;
 };
 
 /**
