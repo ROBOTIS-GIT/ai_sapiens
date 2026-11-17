@@ -30,11 +30,11 @@ public:
   PolicyDiagnostics(FaultPolicyMetadata metadata, rclcpp::Logger logger);
   void set_recorder(std::shared_ptr<ActionFaultRecorder> recorder) noexcept;
   void reset() noexcept;
-  void advance(double period) noexcept;
-  void begin(double episode_time, const SensorData & sensors) noexcept;
-  void input(const std::unordered_map<std::string, std::vector<float>> & inputs) noexcept;
-  void output(const std::vector<float> & output) noexcept;
-  void finish(
+  void accumulate_sensor_interval(double period) noexcept;
+  void begin_capture(double episode_time, const SensorData & sensors) noexcept;
+  void capture_input(const std::unordered_map<std::string, std::vector<float>> & inputs) noexcept;
+  void capture_output(const std::vector<float> & output) noexcept;
+  void finish_capture(
     const PolicyActionResult & result, const SensorData & sensors,
     const PolicyActionDecision & decision) noexcept;
 

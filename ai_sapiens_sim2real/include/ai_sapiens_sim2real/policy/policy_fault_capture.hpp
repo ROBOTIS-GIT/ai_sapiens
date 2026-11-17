@@ -35,12 +35,12 @@ public:
     std::shared_ptr<ActionFaultRecorder> recorder,
     std::shared_ptr<const FaultPolicyMetadata> metadata, rclcpp::Logger logger);
   void reset() noexcept;
-  void begin(
+  void begin_capture(
     double episode_time, const SensorData & sensors,
     const std::optional<SensorData> & previous, double interval) noexcept;
-  void input(const std::unordered_map<std::string, std::vector<float>> & inputs) noexcept;
-  void output(const std::vector<float> & output) noexcept;
-  std::string finish(
+  void capture_input(const std::unordered_map<std::string, std::vector<float>> & inputs) noexcept;
+  void capture_output(const std::vector<float> & output) noexcept;
+  std::string finish_capture(
     const PolicyActionResult & result, const PolicyActionDecision & decision) noexcept;
 
 private:

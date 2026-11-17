@@ -226,7 +226,7 @@ void PolicyRuntime::advance_clocks()
 
 PolicyUpdateResult PolicyRuntime::update(const rclcpp::Duration & period)
 {
-  diagnostics_->advance(period.seconds());
+  diagnostics_->accumulate_sensor_interval(period.seconds());
 
   if (!advance_policy_tick(period)) {
     return PolicyUpdateResult::Skipped;
@@ -238,10 +238,10 @@ PolicyUpdateResult PolicyRuntime::update(const rclcpp::Duration & period)
 
   compute_observation();
 
-  diagnostics_->begin(policy_->episode_time, shared_data_->sensors);
+  diagnostics_->begin_capture(policy_->episode_time, shared_data_->sensors);
   const auto action = evaluate_policy_action();
   const auto decision = apply_action(action);
-  diagnostics_->finish(action, shared_data_->sensors, decision);
+  diagnostics_->finish_capture(action, shared_data_->sensors, decision);
   advance_clocks();
 
   return action.is_accepted() ? PolicyUpdateResult::TargetReady :
@@ -315,9 +315,9 @@ void PolicyRuntime::compute_observation()
 
 std::vector<float> PolicyRuntime::run_policy_inference()
 {
-  diagnostics_->input(obs_buffer_);
+  diagnostics_->capture_input(obs_buffer_);
   auto output = inference_->run(obs_buffer_);
-  diagnostics_->output(output);
+  diagnostics_->capture_output(output);
   return output;
 }
 
