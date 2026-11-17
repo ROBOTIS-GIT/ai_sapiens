@@ -14,16 +14,16 @@
 //
 // Author: Kiwoong Park
 
-#include "ai_sapiens_sim2real/policy/mimic_policy_runtime.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/mimic_policy_runtime.hpp"
 
 #include <algorithm>
 #include <stdexcept>
 #include <utility>
 
 #include "ai_sapiens_sim2real/config/mimic_behavior.hpp"
-#include "ai_sapiens_sim2real/policy/torso_orientation.hpp"
-#include "ai_sapiens_sim2real/policy/mimic_heading_alignment.hpp"
-#include "ai_sapiens_sim2real/policy/motion_source.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/torso_orientation.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/mimic_heading_alignment.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/motion_source.hpp"
 
 namespace ai_sapiens_sim2real
 {

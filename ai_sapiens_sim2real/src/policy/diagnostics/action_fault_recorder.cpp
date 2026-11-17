@@ -14,7 +14,7 @@
 //
 // Author: Kiwoong Park
 
-#include "ai_sapiens_sim2real/policy/action_fault_recorder.hpp"
+#include "ai_sapiens_sim2real/policy/diagnostics/action_fault_recorder.hpp"
 
 #include <cerrno>
 #include <chrono>
@@ -33,7 +33,7 @@
 #include <utility>
 #include <rclcpp/logging.hpp>
 #include <yaml-cpp/yaml.h>
-#include "ai_sapiens_sim2real/policy/action_fault_diagnostics.hpp"
+#include "ai_sapiens_sim2real/policy/diagnostics/action_fault_diagnostics.hpp"
 
 namespace ai_sapiens_sim2real
 {

@@ -44,7 +44,7 @@ include_directories(${ONNXRUNTIME_INCLUDE_DIR})
 include_directories(include)
 
 # Keep diagnostic files in this checkout regardless of the launch directory.
-set_source_files_properties(src/policy/action_fault_recorder.cpp PROPERTIES
+set_source_files_properties(src/policy/diagnostics/action_fault_recorder.cpp PROPERTIES
   COMPILE_DEFINITIONS "AI_SAPIENS_SIM2REAL_SOURCE_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}\"")
 
 add_library(input_gap_monitor STATIC src/sensor_handles/input_gap_monitor.cpp)
@@ -75,17 +75,17 @@ add_executable(ai_sapiens_sim2real_node
   src/mode_runtime/startup_gate.cpp
   src/mode_runtime/input_executor.cpp
   src/policy/gait_clock.cpp
-  src/policy/motion_reference.cpp
+  src/policy/mimic/motion_reference.cpp
   src/policy/policy_entry_validator.cpp
-  src/policy/mimic_policy_runtime.cpp
+  src/policy/mimic/mimic_policy_runtime.cpp
   src/observation/observation_manager.cpp
   src/observation/observations.cpp
   src/policy/onnx_inference.cpp
   src/policy/policy_runtime.cpp
-  src/policy/policy_diagnostics.cpp
-  src/policy/policy_fault_capture.cpp
-  src/policy/action_fault_diagnostics.cpp
-  src/policy/action_fault_recorder.cpp
+  src/policy/diagnostics/policy_diagnostics.cpp
+  src/policy/diagnostics/policy_fault_capture.cpp
+  src/policy/diagnostics/action_fault_diagnostics.cpp
+  src/policy/diagnostics/action_fault_recorder.cpp
   src/config/root_config.cpp
   src/sensor_handles/api_heartbeat_handle.cpp
   src/sensor_handles/imu_sensor_handle.cpp
@@ -308,7 +308,7 @@ if(BUILD_TESTING)
     PHASE_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/data/command_only_phase")
   ament_add_gtest(test_gait_phase_observation test/test_gait_phase_observation.cpp
     src/observation/observations.cpp src/observation/observation_manager.cpp
-    src/policy/motion_reference.cpp src/policy/gait_clock.cpp)
+    src/policy/mimic/motion_reference.cpp src/policy/gait_clock.cpp)
   target_link_libraries(test_gait_phase_observation yaml-cpp Eigen3::Eigen)
   target_compile_definitions(test_gait_phase_observation PRIVATE
     PHASE_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/data/command_only_phase")
@@ -316,7 +316,7 @@ if(BUILD_TESTING)
 
   ament_add_gtest(test_observation_history test/test_observation_history.cpp
     src/observation/observations.cpp src/observation/observation_manager.cpp
-    src/policy/motion_reference.cpp)
+    src/policy/mimic/motion_reference.cpp)
   target_link_libraries(test_observation_history yaml-cpp Eigen3::Eigen)
 
   # StateMachineConfig/RootConfig: config validation and mimic-state detection.
@@ -354,7 +354,7 @@ if(BUILD_TESTING)
     src/config/root_sections/state_machine_config.cpp
     src/config/root_sections/teleop_conditions_config.cpp
     src/controllers/mode_controller.cpp
-    src/policy/motion_reference.cpp
+    src/policy/mimic/motion_reference.cpp
     src/policy/policy_entry_validator.cpp
     src/mode_runtime/authority_runtime.cpp
     src/mode_runtime/mode_state_machine.cpp)
@@ -377,25 +377,25 @@ if(BUILD_TESTING)
 
   ament_add_gtest(test_motion_playback
     test/test_motion_playback.cpp
-    src/policy/motion_reference.cpp)
+    src/policy/mimic/motion_reference.cpp)
   target_link_libraries(test_motion_playback Eigen3::Eigen)
 
   ament_add_gtest(test_action_fault_recorder test/test_action_fault_recorder.cpp
-    src/policy/action_fault_recorder.cpp src/policy/action_fault_diagnostics.cpp)
+    src/policy/diagnostics/action_fault_recorder.cpp src/policy/diagnostics/action_fault_diagnostics.cpp)
   ament_target_dependencies(test_action_fault_recorder rclcpp realtime_tools)
   target_link_libraries(test_action_fault_recorder yaml-cpp Eigen3::Eigen Threads::Threads)
 
   ament_add_gtest(test_policy_action_fault test/test_policy_action_fault.cpp
     test/test_policy_observation_flow.cpp
-    src/policy/mimic_policy_runtime.cpp
+    src/policy/mimic/mimic_policy_runtime.cpp
     src/policy/policy_runtime.cpp
-    src/policy/policy_diagnostics.cpp
-    src/policy/policy_fault_capture.cpp
-    src/policy/action_fault_diagnostics.cpp
-    src/policy/action_fault_recorder.cpp
+    src/policy/diagnostics/policy_diagnostics.cpp
+    src/policy/diagnostics/policy_fault_capture.cpp
+    src/policy/diagnostics/action_fault_diagnostics.cpp
+    src/policy/diagnostics/action_fault_recorder.cpp
     src/policy/action_pipeline.cpp
     src/policy/onnx_inference.cpp
-    src/policy/motion_reference.cpp
+    src/policy/mimic/motion_reference.cpp
     src/policy/gait_clock.cpp
     src/observation/observation_manager.cpp
     src/observation/observations.cpp

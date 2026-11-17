@@ -14,7 +14,7 @@
 //
 // Author: Kiwoong Park
 
-#include "ai_sapiens_sim2real/policy/motion_reference.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/motion_reference.hpp"
 
 #include <cmath>
 

@@ -14,11 +14,11 @@
 //
 // Author: Kiwoong Park
 
-#include "ai_sapiens_sim2real/policy/policy_fault_capture.hpp"
+#include "ai_sapiens_sim2real/policy/diagnostics/policy_fault_capture.hpp"
 
 #include <utility>
 #include <rclcpp/logging.hpp>
-#include "ai_sapiens_sim2real/policy/action_fault_recorder.hpp"
+#include "ai_sapiens_sim2real/policy/diagnostics/action_fault_recorder.hpp"
 
 namespace ai_sapiens_sim2real
 {

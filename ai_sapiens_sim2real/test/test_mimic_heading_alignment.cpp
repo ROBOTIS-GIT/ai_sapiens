@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include "ai_sapiens_sim2real/policy/mimic_heading_alignment.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/mimic_heading_alignment.hpp"
 
 using ai_sapiens_sim2real::mimic_heading_alignment;
 TEST(MimicHeadingAlignment, StandingSupineProneAndNonzeroWaist)

@@ -36,7 +36,7 @@
 #include "ai_sapiens_sim2real/policy/action_pipeline.hpp"
 #include "ai_sapiens_sim2real/policy/policy_action_result.hpp"
 #include "ai_sapiens_sim2real/policy/gait_clock.hpp"
-#include "ai_sapiens_sim2real/policy/motion_reference.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/motion_reference.hpp"
 #include "ai_sapiens_sim2real/observation/observation_manager.hpp"
 #include "ai_sapiens_sim2real/config/sim2real_config.hpp"
 #include "ai_sapiens_sim2real/shared_control_data.hpp"

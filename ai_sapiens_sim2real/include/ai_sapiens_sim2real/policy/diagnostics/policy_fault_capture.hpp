@@ -14,13 +14,13 @@
 //
 // Author: Kiwoong Park
 
-#ifndef AI_SAPIENS_SIM2REAL__POLICY__POLICY_FAULT_CAPTURE_HPP_
-#define AI_SAPIENS_SIM2REAL__POLICY__POLICY_FAULT_CAPTURE_HPP_
+#ifndef AI_SAPIENS_SIM2REAL__POLICY__DIAGNOSTICS__POLICY_FAULT_CAPTURE_HPP_
+#define AI_SAPIENS_SIM2REAL__POLICY__DIAGNOSTICS__POLICY_FAULT_CAPTURE_HPP_
 
 #include <rclcpp/clock.hpp>
 #include <rclcpp/logger.hpp>
 
-#include "ai_sapiens_sim2real/policy/action_fault_record.hpp"
+#include "ai_sapiens_sim2real/policy/diagnostics/action_fault_record.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -57,4 +57,4 @@ private:
 };
 }  // namespace ai_sapiens_sim2real
 
-#endif  // AI_SAPIENS_SIM2REAL__POLICY__POLICY_FAULT_CAPTURE_HPP_
+#endif  // AI_SAPIENS_SIM2REAL__POLICY__DIAGNOSTICS__POLICY_FAULT_CAPTURE_HPP_
