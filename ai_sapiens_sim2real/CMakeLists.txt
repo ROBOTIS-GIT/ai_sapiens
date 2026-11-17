@@ -78,6 +78,7 @@ add_executable(ai_sapiens_sim2real_node
   src/policy/mimic/motion_reference.cpp
   src/policy/policy_entry_validator.cpp
   src/policy/mimic/mimic_policy_runtime.cpp
+  src/observation/configured_observation_group.cpp
   src/observation/observation_manager.cpp
   src/observation/observations.cpp
   src/policy/onnx_inference.cpp

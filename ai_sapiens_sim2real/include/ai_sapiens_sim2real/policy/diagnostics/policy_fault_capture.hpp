@@ -37,7 +37,8 @@ public:
   void reset() noexcept;
   void begin_capture(
     double episode_time, const SensorData & sensors,
-    const std::optional<SensorData> & previous, double interval) noexcept;
+    const std::optional<SensorData> & previous, double interval,
+    const FaultExecutionContext & context = {}) noexcept;
   void capture_input(const std::unordered_map<std::string, std::vector<float>> & inputs) noexcept;
   void capture_output(const std::vector<float> & output) noexcept;
   std::string finish_capture(

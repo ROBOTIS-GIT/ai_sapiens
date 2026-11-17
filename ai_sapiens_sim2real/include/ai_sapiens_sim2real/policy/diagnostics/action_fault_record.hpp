@@ -49,8 +49,16 @@ struct FaultInferenceCall
   std::vector<float> output;
 };
 
+// Captured per inference: shared runtimes can change state/reference between records.
+struct FaultExecutionContext
+{
+  std::string state, behavior, motion_file;
+  std::optional<size_t> motion_frame;
+};
+
 struct FaultSnapshot
 {
+  FaultExecutionContext context;
   int64_t unix_time_ns{0};
   double episode_time{0.0}, sensor_interval{0.0};
   SensorData sensors;

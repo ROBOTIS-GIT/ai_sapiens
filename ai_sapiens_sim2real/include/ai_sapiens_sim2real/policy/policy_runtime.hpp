@@ -34,6 +34,7 @@
 #include <yaml-cpp/yaml.h>  // NOLINT(build/include_order)
 
 #include "ai_sapiens_sim2real/policy/action_pipeline.hpp"
+#include "ai_sapiens_sim2real/policy/diagnostics/action_fault_record.hpp"
 #include "ai_sapiens_sim2real/policy/policy_action_result.hpp"
 #include "ai_sapiens_sim2real/policy/gait_clock.hpp"
 #include "ai_sapiens_sim2real/policy/mimic/motion_reference.hpp"
@@ -69,10 +70,12 @@ public:
     const Sim2RealConfig & sim2real_config,
     const std::vector<std::string> & controller_joint_names,
     SharedControlData * shared_data,
-    const MotionReference * reference_motion = nullptr);
+    const MotionReference * reference_motion = nullptr,
+    std::unique_ptr<PolicyObservation> observations = nullptr);
   virtual ~PolicyRuntime();
 
   void set_fault_recorder(std::shared_ptr<ActionFaultRecorder> recorder);
+  void set_active_behavior(const std::string & state, const std::string & behavior);
 
   void reset();
   void enter();
@@ -94,6 +97,7 @@ public:
 
 protected:
   virtual void on_enter();
+  void set_diagnostic_motion(const std::string & motion_file, size_t frame);
 
   // Update the reference consumed by observation terms: gait phase in the base,
   // motion cursor in Mimic. Does not compute observations or append history.
@@ -172,7 +176,8 @@ private:
 
   std::unique_ptr<OnnxInference> inference_;
   std::unique_ptr<PolicyDiagnostics> diagnostics_;
-  std::unique_ptr<ObservationManager> obs_manager_;
+  FaultExecutionContext diagnostic_context_;
+  std::unique_ptr<PolicyObservation> obs_manager_;
   // Set only when this policy declares a gait_phase observation.
   std::optional<GaitClock> gait_clock_;
   std::string onnx_input_name_;

@@ -31,7 +31,9 @@ public:
   void set_recorder(std::shared_ptr<ActionFaultRecorder> recorder) noexcept;
   void reset() noexcept;
   void accumulate_sensor_interval(double period) noexcept;
-  void begin_capture(double episode_time, const SensorData & sensors) noexcept;
+  void begin_capture(
+    double episode_time, const SensorData & sensors,
+    const FaultExecutionContext & context = {}) noexcept;
   void capture_input(const std::unordered_map<std::string, std::vector<float>> & inputs) noexcept;
   void capture_output(const std::vector<float> & output) noexcept;
   void finish_capture(
@@ -50,6 +52,7 @@ private:
   std::unique_ptr<PolicyFaultCapture> capture_;
   std::optional<SensorData> previous_sensors_;
   double sensor_interval_{0.0};
+  std::string active_state_;
 };
 }  // namespace ai_sapiens_sim2real
 #endif  // AI_SAPIENS_SIM2REAL__POLICY__DIAGNOSTICS__POLICY_DIAGNOSTICS_HPP_

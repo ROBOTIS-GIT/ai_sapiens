@@ -174,3 +174,31 @@ TEST_F(ActionFaultFiles, OversizedQueueRecordIsDroppedWithoutCreatingAFile)
   }
   EXPECT_FALSE(std::filesystem::exists(session));
 }
+
+TEST_F(ActionFaultFiles, SharedPolicySnapshotsKeepTheirOwnReferenceContext)
+{
+  std::string path;
+  {
+    ActionFaultRecorder recorder(options, logger);
+    auto value = record();
+    value.current.context = {"MimicDance2", "dance2", "/motions/dance2.csv", 7};
+    value.previous_accepted = value.current;
+    value.previous_accepted->context = {"MimicDance1", "dance1", "/motions/dance1.csv", 49};
+    path = enqueue_when_available(recorder, value);
+    ASSERT_FALSE(path.empty());
+    value.current.context = {"MimicDance3", "dance3", "/motions/dance3.csv", 0};
+  }
+  const auto file = YAML::LoadFile(path);
+  const auto current = file["current_inference"];
+  const auto previous = file["previous_accepted_inference"];
+  EXPECT_EQ(current["active_state"].as<std::string>(), "MimicDance2");
+  EXPECT_EQ(current["behavior"].as<std::string>(), "dance2");
+  EXPECT_EQ(current["motion_file"].as<std::string>(), "/motions/dance2.csv");
+  EXPECT_EQ(current["motion_frame_zero_based"].as<size_t>(), 7u);
+  EXPECT_EQ(previous["active_state"].as<std::string>(), "MimicDance1");
+  EXPECT_EQ(previous["behavior"].as<std::string>(), "dance1");
+  EXPECT_EQ(previous["motion_file"].as<std::string>(), "/motions/dance1.csv");
+  EXPECT_EQ(previous["motion_frame_zero_based"].as<size_t>(), 49u);
+  EXPECT_NE(file["diagnostics"].as<std::string>().find("Frame (zero-based): 7"),
+    std::string::npos);
+}

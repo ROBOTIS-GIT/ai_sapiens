@@ -44,13 +44,15 @@ void PolicyFaultCapture::disable() noexcept
 
 void PolicyFaultCapture::begin_capture(
   double episode_time, const SensorData & sensors,
-  const std::optional<SensorData> & previous, double interval) noexcept
+  const std::optional<SensorData> & previous, double interval,
+  const FaultExecutionContext & context) noexcept
 {
   if (!is_enabled_) {return;}
   try {
     current_ = {};
     current_.unix_time_ns = system_clock_.now().nanoseconds();
     current_.episode_time = episode_time;
+    current_.context = context;
     current_.sensors = sensors;
     current_.previous_sensors = previous;
     current_.sensor_interval = interval;
