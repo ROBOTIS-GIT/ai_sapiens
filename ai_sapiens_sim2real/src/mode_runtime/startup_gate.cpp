@@ -26,14 +26,20 @@ namespace ai_sapiens_sim2real
 bool wait_for_teleop_input_sample(
   const rclcpp::Node::SharedPtr & node,
   const std::shared_ptr<TeleopInputPluginBase> & plugin,
-  double timeout_seconds)
+  double timeout_seconds,
+  InputExecutor & input_executor)
 {
   const auto start = std::chrono::steady_clock::now();
   const auto timeout = std::chrono::duration<double>(timeout_seconds);
   const std::string topic_name = plugin->topic_name();
+  rclcpp::executors::SingleThreadedExecutor node_executor;
+  node_executor.add_node(node);
 
   while (rclcpp::ok() && !plugin->is_ready()) {
-    rclcpp::spin_some(node);
+    input_executor.spin_some();
+    // The input callback group is explicitly assigned to input_executor, not the node executor.
+    node_executor.spin_some();
+
     const auto elapsed = std::chrono::steady_clock::now() - start;
     const double elapsed_seconds = std::chrono::duration<double>(elapsed).count();
     RCLCPP_INFO_THROTTLE(

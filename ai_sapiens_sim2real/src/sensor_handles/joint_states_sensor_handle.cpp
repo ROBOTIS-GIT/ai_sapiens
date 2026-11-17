@@ -27,7 +27,8 @@ JointStatesSensorHandle::JointStatesSensorHandle(
   ModeRequests * requests,
   double timeout_seconds,
   const std::vector<std::string> & joint_names,
-  const std::string & topic)
+  const std::string & topic,
+  const rclcpp::SubscriptionOptions & subscription_options)
 : node_(node)
   , sensors_(sensors)
   , requests_(requests)
@@ -53,7 +54,8 @@ JointStatesSensorHandle::JointStatesSensorHandle(
   subscription_ = node_->create_subscription<sensor_msgs::msg::JointState>(
     topic,
     10,
-    std::bind(&JointStatesSensorHandle::callback, this, std::placeholders::_1));
+    std::bind(&JointStatesSensorHandle::callback, this, std::placeholders::_1),
+      subscription_options);
 
   RCLCPP_INFO(
     node_->get_logger(),

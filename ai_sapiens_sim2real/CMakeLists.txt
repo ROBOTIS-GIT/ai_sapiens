@@ -69,6 +69,7 @@ add_executable(ai_sapiens_sim2real_node
   src/mode_runtime/mode_state_machine.cpp
   src/mode_runtime/operator_command_inputs.cpp
   src/mode_runtime/startup_gate.cpp
+  src/mode_runtime/input_executor.cpp
   src/policy/gait_clock.cpp
   src/policy/motion_reference.cpp
   src/policy/policy_entry_validator.cpp
@@ -275,6 +276,11 @@ if(BUILD_TESTING)
 
   find_package(ament_cmake_gtest REQUIRED)
 
+  ament_add_gtest(test_input_executor test/test_input_executor.cpp
+    src/mode_runtime/input_executor.cpp src/mode_runtime/startup_gate.cpp)
+  ament_target_dependencies(test_input_executor rclcpp realtime_tools)
+  target_link_libraries(test_input_executor Threads::Threads yaml-cpp Eigen3::Eigen)
+
   # RealtimeRequestGate: accept/consume/discard/busy semantics (header-only).
   ament_add_gtest(test_request_gate test/test_request_gate.cpp)
   ament_target_dependencies(test_request_gate realtime_tools)
@@ -349,7 +355,7 @@ if(BUILD_TESTING)
   ament_add_gtest(test_policy_entry_validator test/test_policy_entry_validator.cpp)
   target_link_libraries(test_policy_entry_validator Eigen3::Eigen yaml-cpp)
   ament_add_gtest(test_imu_validation test/test_imu_validation.cpp
-    src/sensor_handles/imu_sensor_handle.cpp)
+    src/sensor_handles/imu_sensor_handle.cpp src/mode_runtime/input_executor.cpp)
   ament_target_dependencies(test_imu_validation rclcpp realtime_tools sensor_msgs)
   target_link_libraries(test_imu_validation Eigen3::Eigen)
 

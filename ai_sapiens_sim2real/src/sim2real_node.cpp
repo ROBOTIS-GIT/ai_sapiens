@@ -38,7 +38,7 @@ namespace ai_sapiens_sim2real
 // JointCommandPublisher -> publishes the final joint command
 
 Sim2RealNode::Sim2RealNode()
-: node_(std::make_shared<rclcpp::Node>("ai_sapiens_sim2real_node"))
+: node_(std::make_shared<rclcpp::Node>("ai_sapiens_sim2real_node")), input_executor_(node_)
 {
   declare_node_parameters();
 }
@@ -68,6 +68,7 @@ void Sim2RealNode::declare_node_parameters()
   node_->declare_parameter<std::string>("joint_states_topic", "/joint_states");
   node_->declare_parameter<double>("imu_timeout", 0.5);
   node_->declare_parameter<double>("joint_states_timeout", 0.5);
+
   node_->declare_parameter<int>("thread_priority", 50);
   node_->declare_parameter<bool>("lock_memory", true);
   node_->declare_parameter<double>("wait_for_ready_timeout", 30.0);
@@ -215,7 +216,7 @@ void Sim2RealNode::add_robot_feedback_inputs()
       &shared_data_->sensors,
       &shared_data_->requests,
       options_.imu_timeout,
-      options_.imu_topic),
+      options_.imu_topic, input_executor_.subscription_options()),
     true);
   control_loop_->add_sensor_handle(
     std::make_shared<JointStatesSensorHandle>(
@@ -224,7 +225,7 @@ void Sim2RealNode::add_robot_feedback_inputs()
       &shared_data_->requests,
       options_.joint_states_timeout,
       runtime_config_.controller_joints,
-      options_.joint_states_topic),
+      options_.joint_states_topic, input_executor_.subscription_options()),
     true);
 }
 
@@ -243,13 +244,14 @@ void Sim2RealNode::add_operator_command_inputs()
   }
 
   operator_command_inputs_ =
-    add_operator_command_input_handles(control_loop_, node_, shared_data_, input_options);
+    add_operator_command_input_handles(
+    control_loop_, node_, shared_data_, input_options, input_executor_.subscription_options());
 }
 
 void Sim2RealNode::wait_for_teleop_input()
 {
   if (!wait_for_teleop_input_sample(
-      node_, operator_command_inputs_.teleop_input_plugin, options_.wait_timeout))
+      node_, operator_command_inputs_.teleop_input_plugin, options_.wait_timeout, input_executor_))
   {
     throw std::runtime_error("timed out waiting for teleop input plugin sample");
   }
@@ -292,12 +294,24 @@ void Sim2RealNode::add_joint_command_output()
 
 void Sim2RealNode::run_control_loop_until_shutdown()
 {
-  control_loop_->start();
+  try {
+    input_executor_.start();
+    control_loop_->start();
+    RCLCPP_INFO(node_->get_logger(), "Control loop started; input executor is separate.");
+    rclcpp::spin(node_);
+  } catch (...) {
+    rclcpp::shutdown();
+    input_executor_.stop();
+    control_loop_->stop();
+    throw;
+  }
 
-  RCLCPP_INFO(node_->get_logger(), "Control loop started. Spinning...");
-  rclcpp::spin(node_);
-
+  input_executor_.stop();
   control_loop_->stop();
+
+  if (input_executor_.has_failed()) {
+    throw std::runtime_error("input executor failed");
+  }
 
   // Propagate RT-thread aborts as process failures.
   if (control_loop_->faulted()) {

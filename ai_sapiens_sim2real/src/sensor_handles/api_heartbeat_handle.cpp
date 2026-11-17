@@ -25,7 +25,8 @@ ApiHeartbeatHandle::ApiHeartbeatHandle(
   rclcpp::Node::SharedPtr node,
   ApiInput * api,
   const std::string & topic,
-  double timeout_seconds)
+  double timeout_seconds,
+  const rclcpp::SubscriptionOptions & subscription_options)
 : node_(node),
   api_(api),
   topic_(topic),
@@ -47,7 +48,7 @@ ApiHeartbeatHandle::ApiHeartbeatHandle(
       snapshot.received_at = std::chrono::steady_clock::now();
       buffer_.writeFromNonRT(snapshot);
       received_once_.store(true, std::memory_order_release);
-    });
+    }, subscription_options);
   RCLCPP_INFO(
     node_->get_logger(),
     "[ApiHeartbeatHandle] topic(%s) timeout(%.3fs)",
