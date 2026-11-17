@@ -60,6 +60,7 @@ public:
     std::filesystem::path policy_path;
     std::filesystem::path sim2real_config_path;
     std::optional<MimicBehavior> mimic;
+    ActionTransitionConfig action_transition;
   };
 
   explicit RootConfig(const std::filesystem::path & path);

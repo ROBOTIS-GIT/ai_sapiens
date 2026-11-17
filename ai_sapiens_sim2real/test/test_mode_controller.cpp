@@ -273,6 +273,67 @@ TEST(MotionSource, RootConfigRetainsSourcesAcrossConsumers)
   }
 }
 
+TEST(RootConfig, PolicyTransitionsInheritAndOverrideIndividualFields)
+{
+  const auto path = mode_controller_test::write_root_config();
+  auto document = YAML::LoadFile(path.string());
+  auto save = [&]() {std::ofstream(path) << document;};
+  auto expect = [&](const std::string & name, bool enabled, double duration) {
+      const ai_sapiens_sim2real::RootConfig config(path);
+      bool found = false;
+      for (const auto & behavior : config.policy_behaviors()) {
+        if (behavior.name == name) {
+          found = true;
+          EXPECT_EQ(behavior.action_transition.enabled, enabled);
+          EXPECT_DOUBLE_EQ(behavior.action_transition.duration, duration);
+        }
+      }
+      EXPECT_TRUE(found);
+    };
+  expect("velocity_policy", false, 0.2);
+  expect("mimic_run", false, 0.2);
+  document["policy_action_transition"] = YAML::Load("{enabled: true, duration: 0.15}");
+  save();
+  expect("velocity_policy", true, 0.15);
+  expect("mimic_run", true, 0.15);
+  document["state_behaviors"]["velocity_policy"]["policy_action_transition"] =
+    YAML::Load("{duration: 0.4}");
+  document["state_behaviors"]["mimic_run"]["policy_action_transition"] =
+    YAML::Load("{enabled: false}");
+  save();
+  expect("velocity_policy", true, 0.4);
+  expect("mimic_run", false, 0.15);
+  document["policy_action_transition"]["enabled"] = false;
+  document["state_behaviors"]["mimic_run"]["policy_action_transition"] =
+    YAML::Load("{enabled: true, duration: 0.0}");
+  save();
+  expect("velocity_policy", false, 0.4);
+  expect("mimic_run", true, 0.0);
+}
+
+TEST(RootConfig, RejectsInvalidPolicyTransitionOverrides)
+{
+  for (const auto & name : {"velocity_policy", "mimic_run"}) {
+    for (const auto & value : {"{enabled: invalid}", "{duration: -0.1}",
+        "{duration: .nan}", "{duration: .inf}", "{duration: invalid}", "false"})
+    {
+      const auto path = mode_controller_test::write_root_config();
+      auto document = YAML::LoadFile(path.string());
+      document["state_behaviors"][name]["policy_action_transition"] = YAML::Load(value);
+      std::ofstream(path) << document;
+      const ai_sapiens_sim2real::RootConfig config(path);
+      try {
+        config.policy_behaviors();
+        FAIL() << "Expected invalid transition override to be rejected";
+      } catch (const std::runtime_error & error) {
+        EXPECT_NE(std::string(error.what()).find(
+            std::string("state_behaviors.") + name + ".policy_action_transition"),
+          std::string::npos);
+      }
+    }
+  }
+}
+
 TEST(ModeController, WrongMimicTiltKeepsCurrentState)
 {
   ModeControllerFixture fixture;
