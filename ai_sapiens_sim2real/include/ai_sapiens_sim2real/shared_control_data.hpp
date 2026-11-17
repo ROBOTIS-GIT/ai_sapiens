@@ -62,6 +62,8 @@ struct SensorData
   Eigen::Vector3f angular_velocity{Eigen::Vector3f::Zero()};
   Eigen::Vector3f projected_gravity{0.0f, 0.0f, -1.0f};
   Eigen::Quaternionf orientation{Eigen::Quaternionf::Identity()};
+  bool is_imu_usable{false};
+
   Eigen::VectorXf joint_pos;
   Eigen::VectorXf joint_vel;
 

@@ -18,6 +18,8 @@
 #define AI_SAPIENS_SIM2REAL__CONFIG__ROOT_CONFIG_HPP_
 
 #include <filesystem>
+#include <map>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
@@ -88,6 +90,11 @@ public:
 private:
   MimicBehavior build_mimic_behavior(
     const std::string & name, const YAML::Node & behavior_node) const;
+  MimicBehavior read_mimic_behavior(
+    const std::string & name, const YAML::Node & node) const;
+  void validate_mimic_behavior(const std::string & name, const MimicBehavior & mimic) const;
+  std::shared_ptr<MotionSource> get_or_create_motion_source(
+    const std::filesystem::path & motion_file, float fps) const;
   PolicyBehavior read_policy_behavior(
     const std::string & name, const YAML::Node & behavior_node) const;
   YAML::Node behavior_node_with_mimic_defaults(const YAML::Node & behavior_node) const;
@@ -109,6 +116,8 @@ private:
   std::filesystem::path path_;
   std::filesystem::path config_dir_;
   YAML::Node document_;
+  mutable std::mutex motion_sources_mutex_;
+  mutable std::map<std::pair<std::string, float>, std::shared_ptr<MotionSource>> motion_sources_;
   std::vector<std::string> controller_joints_;
   ActionTransitionConfig policy_action_transition_;
   AuthorityConfig authority_config_;
