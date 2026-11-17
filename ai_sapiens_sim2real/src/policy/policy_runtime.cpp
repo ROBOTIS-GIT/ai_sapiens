@@ -19,6 +19,7 @@
 #include <cmath>
 
 #include "ai_sapiens_sim2real/policy/onnx_inference.hpp"
+#include "ai_sapiens_sim2real/policy/policy_diagnostics.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -70,6 +71,7 @@ PolicyRuntime::PolicyRuntime(
   load_onnx_model();
   const size_t observation_size = initialize_observations(sim2real_config, reference_motion);
   initialize_target_command();
+  initialize_diagnostics(controller_joint_names);
 
   log_ready(observation_size);
 }
@@ -94,8 +96,37 @@ void PolicyRuntime::initialize_target_command()
   target_command_.damping = joint_properties_.damping;
 }
 
+void PolicyRuntime::initialize_diagnostics(const std::vector<std::string> & controller_joints)
+{
+  FaultPolicyMetadata metadata;
+  metadata.state = state_name_;
+  metadata.model = model_path_;
+  metadata.config_path = sim2real_config_path_.string();
+
+  metadata.policy_joints = joint_context_.policy_joint_names;
+  metadata.controller_joints = controller_joints;
+  metadata.input_names = inference_->get_input_names();
+  metadata.input_shapes = inference_->get_input_shapes();
+
+  metadata.step_dt = step_dt_;
+  metadata.action_limit = action_safety_limits_.absolute_position_rad;
+  metadata.action_change_limit = action_safety_limits_.delta_rad;
+  metadata.raw_action_boundary = action_safety_limits_.raw_action_boundary;
+
+  metadata.layouts[onnx_input_name_] = obs_manager_->layout();
+
+  diagnostics_ = std::make_unique<PolicyDiagnostics>(
+    std::move(metadata), node_->get_logger());
+}
+
+void PolicyRuntime::set_fault_recorder(std::shared_ptr<ActionFaultRecorder> recorder)
+{
+  diagnostics_->set_recorder(std::move(recorder));
+}
+
 void PolicyRuntime::reset()
 {
+  diagnostics_->reset();
   accumulated_period_ = step_dt_;
   if (obs_manager_) {
     obs_manager_->reset();
@@ -104,6 +135,7 @@ void PolicyRuntime::reset()
 
 void PolicyRuntime::enter()
 {
+  diagnostics_->reset();
   install_joint_properties();
   install_velocity_command_ranges();
   reset_episode_state();
@@ -190,6 +222,8 @@ void PolicyRuntime::advance_clocks()
 
 PolicyUpdateResult PolicyRuntime::update(const rclcpp::Duration & period)
 {
+  diagnostics_->advance(period.seconds());
+
   if (!advance_policy_tick(period)) {
     return PolicyUpdateResult::Skipped;
   }
@@ -198,15 +232,10 @@ PolicyUpdateResult PolicyRuntime::update(const rclcpp::Duration & period)
     return PolicyUpdateResult::TargetUnavailable;
   }
 
+  diagnostics_->begin(policy_->episode_time, shared_data_->sensors);
   const auto action = evaluate_policy_action();
   const auto decision = apply_action(action);
-  if (!action.is_accepted()) {
-    RCLCPP_WARN(node_->get_logger(),
-      "Policy '%s' unusable action (%zu/%zu): %s; %s",
-      state_name_.c_str(), decision.failures, decision.max_failures,
-      action.error.empty() ? "action validation failed" : action.error.c_str(),
-      decision.outcome == PolicyActionOutcome::Damping ? "requesting damping" : "retry next tick");
-  }
+  diagnostics_->finish(action, shared_data_->sensors, decision);
   advance_clocks();
 
   return action.is_accepted() ? PolicyUpdateResult::TargetReady :
@@ -273,7 +302,9 @@ void PolicyRuntime::compute_observation()
 
 std::vector<float> PolicyRuntime::run_policy_inference()
 {
+  diagnostics_->input(obs_buffer_);
   auto output = inference_->run(obs_buffer_);
+  diagnostics_->output(output);
   return output;
 }
 

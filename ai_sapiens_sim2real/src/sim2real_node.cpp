@@ -71,6 +71,9 @@ void Sim2RealNode::declare_node_parameters()
   node_->declare_parameter<bool>("status_log_enabled", false);
   node_->declare_parameter<bool>("detailed_status_log", false);
   node_->declare_parameter<bool>("debug_publish_enabled", false);
+  rcl_interfaces::msg::ParameterDescriptor diagnostics_descriptor;
+  diagnostics_descriptor.read_only = true;
+  node_->declare_parameter<std::string>("action_fault_directory", "", diagnostics_descriptor);
   node_->declare_parameter<double>("debug_publish_rate", 50.0);
   node_->declare_parameter<std::string>(
     "joint_command_topic", "/joint_group_impedance_controller/commands");

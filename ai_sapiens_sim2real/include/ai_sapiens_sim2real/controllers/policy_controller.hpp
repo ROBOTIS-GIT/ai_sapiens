@@ -65,6 +65,8 @@ private:
     ActionTransitionConfig action_transition;
   };
 
+  void initialize_fault_recorder();
+
   // Startup loading: create one runtime per resolved policy behavior.
   void load_policies(SharedControlData * shared_data, const RootConfig & root_config);
   void register_runtime(
@@ -86,6 +88,8 @@ private:
   PolicyState * policy_;
   BehaviorOutput * output_;
   CommandTransition command_transition_;
+
+  std::shared_ptr<ActionFaultRecorder> fault_recorder_;
 
   // Stored by base pointer so mimic policies keep their derived behavior; the
   // active state's policy name selects which runtime drives the act stage.

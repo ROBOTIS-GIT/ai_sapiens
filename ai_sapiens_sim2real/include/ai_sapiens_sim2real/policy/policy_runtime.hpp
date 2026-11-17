@@ -45,6 +45,8 @@ namespace ai_sapiens_sim2real
 {
 
 class OnnxInference;
+class ActionFaultRecorder;
+class PolicyDiagnostics;
 
 /**
  * @brief A policy state: observe, run inference, and produce a validated target
@@ -69,6 +71,8 @@ public:
     SharedControlData * shared_data,
     const MotionReference * reference_motion = nullptr);
   virtual ~PolicyRuntime();
+
+  void set_fault_recorder(std::shared_ptr<ActionFaultRecorder> recorder);
 
   void reset();
   void enter();
@@ -127,6 +131,7 @@ private:
     const Sim2RealConfig & config, const MotionReference * reference_motion);
   void initialize_target_command();
   void log_ready(size_t observation_size) const;
+  void initialize_diagnostics(const std::vector<std::string> & controller_joints);
 
   // Entry steps, each at the same level so enter() reads as one sequence.
   void install_joint_properties() const;
@@ -163,6 +168,7 @@ private:
   std::vector<float> action_reference_;
 
   std::unique_ptr<OnnxInference> inference_;
+  std::unique_ptr<PolicyDiagnostics> diagnostics_;
   std::unique_ptr<ObservationManager> obs_manager_;
   // Set only when this policy declares a gait_phase observation.
   std::optional<GaitClock> gait_clock_;

@@ -136,6 +136,8 @@ TEST(ObservationHistory, RejectedSamplesAreReplacedWithoutRescalingInEitherLayou
       shared.mode.velocity_commands.x() = 2.f;
       ObservationManager manager(config, &shared, joints, nullptr);
       const auto good = manager.compute();
+      const auto layout = manager.layout();
+      ASSERT_EQ(layout.size(), 2u);
 
       for (int failure = 0; failure < 5; ++failure) {
         shared.policy.phase_state.phase = 100.f;
@@ -149,6 +151,23 @@ TEST(ObservationHistory, RejectedSamplesAreReplacedWithoutRescalingInEitherLayou
       shared.mode.velocity_commands.x() = 2.f;
       const auto recovered = manager.compute();
       EXPECT_EQ(recovered, good);
+      std::vector<int> visits(recovered.size(), 0);
+
+      for (const auto & slice : layout) {
+        for (size_t frame = 0; frame < slice.frames; ++frame) {
+          for (size_t channel = 0; channel < slice.width; ++channel) {
+            const auto index = slice.offset + frame * slice.frame_stride +
+              channel * slice.element_stride;
+            ASSERT_LT(index, recovered.size());
+            ++visits[index];
+            const float expected = slice.name == "history_signal" ? 1.f :
+              channel == 0 ? 6.f : 0.f;
+            EXPECT_FLOAT_EQ(recovered[index], expected);
+          }
+        }
+      }
+
+      EXPECT_EQ(visits, std::vector<int>(recovered.size(), 1));
     }
   }
 }

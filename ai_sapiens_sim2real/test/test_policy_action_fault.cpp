@@ -21,12 +21,25 @@
 #include <sstream>
 
 #include "ai_sapiens_sim2real/command_transition.hpp"
+#include "ai_sapiens_sim2real/policy/action_fault_diagnostics.hpp"
+#include "ai_sapiens_sim2real/policy/action_fault_recorder.hpp"
 #include "ai_sapiens_sim2real/policy/policy_runtime.hpp"
 
 using namespace ai_sapiens_sim2real;
 
 namespace
 {
+std::string normalized_whitespace(const std::string & value)
+{
+  std::istringstream input(value);
+  std::string word, result;
+  while (input >> word) {
+    if (!result.empty()) {result += " ";}
+    result += word;
+  }
+  return result;
+}
+
 class PolicyActionFault : public ::testing::Test
 {
 protected:
@@ -156,7 +169,42 @@ TEST_F(PolicyActionFault, RecoversAfterNonfiniteAction)
   }
 }
 
+TEST(ActionFaultDiagnostics, HighlightsJumpsWithPreviousValuesAndUnits)
+{
+  SensorData previous, current;
+  previous.joint_pos = Eigen::VectorXf::Zero(1);
+  previous.joint_vel = Eigen::VectorXf::Zero(1);
+  current = previous;
+  current.joint_pos[0] = 1;
+  current.joint_vel[0] = 10;
+  current.angular_velocity.x() = 10;
+  const auto log = normalized_whitespace(
+    format_action_fault_sensors(current, previous, {"knee"}, .02));
+  EXPECT_NE(log.find("dt=0.020"), std::string::npos);
+  EXPECT_NE(log.find("knee 57.296 0.000 +57.296 [JUMP!]"), std::string::npos);
+  EXPECT_NE(log.find("knee 572.958 0.000 +572.958 [JUMP!]"), std::string::npos);
+  EXPECT_NE(log.find("wx 572.958 0.000 +572.958 [JUMP!]"), std::string::npos);
+  const auto slow = format_action_fault_sensors(current, previous, {"knee"}, .1);
+  EXPECT_EQ(slow.find("[JUMP!]"), std::string::npos);
+}
 
+TEST(ActionFaultDiagnostics, WrapsYawAndHandlesMissingBaselineAndInvalidValues)
+{
+  constexpr float rad = 3.141592653589793f / 180;
+  SensorData previous, current;
+  previous.orientation = Eigen::Quaternionf(Eigen::AngleAxisf(179 * rad, Eigen::Vector3f::UnitZ()));
+  current.orientation = Eigen::Quaternionf(Eigen::AngleAxisf(-179 * rad, Eigen::Vector3f::UnitZ()));
+  const auto wrapped = normalized_whitespace(
+    format_action_fault_sensors(current, previous, {}, .02));
+  EXPECT_NE(wrapped.find("yaw -179.000 179.000 +2.000"), std::string::npos);
+  EXPECT_EQ(wrapped.find("[JUMP!]"), std::string::npos);
+  current.angular_velocity.y() = std::numeric_limits<float>::quiet_NaN();
+  const auto initial = normalized_whitespace(
+    format_action_fault_sensors(current, std::nullopt, {"absent"}, 0));
+  EXPECT_NE(initial.find("n/a n/a"), std::string::npos);
+  EXPECT_NE(initial.find("[NONFINITE]"), std::string::npos);
+  EXPECT_NE(initial.find("absent [MISSING]"), std::string::npos);
+}
 
 namespace
 {
@@ -191,7 +239,81 @@ TEST_F(PolicyHistoryFault, FourRejectedSpikesRecoverOnTheFifthPolicyTick)
   }
 }
 
+TEST_F(MimicActionFault, CapturesRejectedInputBeforeHistoryRepairAndRecoverySeparately)
+{
+  bool has_recorded_pair = false;
+  // The production queue intentionally drops records on lock contention. Retry
+  // the isolated scenario a bounded number of times; persistent loss still fails.
+  for (int trial = 0; trial < 5; ++trial) {
+    runtime->enter();
+    std::string pattern = "/tmp/policy-fault-capture-XXXXXX";
+    ASSERT_NE(::mkdtemp(pattern.data()), nullptr);
+    ActionFaultRecorder::Options options;
+    options.directory = pattern;
+    auto recorder = std::make_shared<ActionFaultRecorder>(options,
+      rclcpp::get_logger("capture_test"));
+    const auto session = recorder->session_directory();
+    runtime->set_fault_recorder(recorder);
+    ASSERT_EQ(tick(0), PolicyUpdateResult::TargetReady);
+    const auto accepted = data.policy.input;
+    data.sensors.joint_pos[0] = 12.f;  // raw exceeds 10, while the target stays inside the absolute limit.
+    ASSERT_EQ(tick(), PolicyUpdateResult::TargetUnavailable);
+    const auto rejected = data.policy.input;
+    data.sensors.joint_pos[0] = .4f;
+    ASSERT_EQ(tick(), PolicyUpdateResult::TargetReady);
+    const auto recovered = data.policy.input;
+    runtime->set_fault_recorder(nullptr);
+    recorder.reset();
+    if (!std::filesystem::exists(session / "incident-1-attempt-1.yaml") ||
+      !std::filesystem::exists(session / "incident-1-attempt-2-recovered.yaml"))
+    {
+      std::filesystem::remove_all(pattern);
+      continue;
+    }
+    const auto failure = YAML::LoadFile((session / "incident-1-attempt-1.yaml").string());
+    const auto recovery = YAML::LoadFile((session /
+        "incident-1-attempt-2-recovered.yaml").string());
+    const auto tensor = [](const YAML::Node & node) {
+        return node["onnx_calls"][0]["inputs"][0]["raw_tensor"].as<std::vector<float>>();
+      };
+    EXPECT_EQ(tensor(failure["previous_accepted_inference"]), accepted);
+    EXPECT_EQ(tensor(failure["current_inference"]), rejected);
+    EXPECT_EQ(tensor(recovery["current_inference"]), recovered);
+    EXPECT_EQ(recovery["current_inference"]["outcome"].as<std::string>(), "ACCEPTED");
+    EXPECT_FALSE(recovery["previous_accepted_inference"]);
+    EXPECT_NE(failure["diagnostics"].as<std::string>().find("[CLIP+DELTA]"), std::string::npos);
+    EXPECT_EQ(failure["current_inference"]["action_reference"].as<std::vector<float>>(),
+      failure["previous_accepted_inference"]["processed_action"].as<std::vector<float>>());
+    EXPECT_NE(failure["diagnostics"].as<std::string>().find("change_limit="), std::string::npos);
+    EXPECT_NE(failure["diagnostics"].as<std::string>().find("[JUMP!]"), std::string::npos);
+    std::filesystem::remove_all(pattern);
+    has_recorded_pair = true;
+    break;
+  }
+  EXPECT_TRUE(has_recorded_pair);
+}
 
+TEST(ActionFaultDiagnostics, ConsoleIncludesOnlyInvalidActionsAndJumpRows)
+{
+  const std::vector<float> values{7.f, 0.f, std::numeric_limits<float>::quiet_NaN()};
+  const auto validation = validate_action(values, values, nullptr, ActionSafetyLimits{});
+  const auto actions = format_action_fault_actions(values,
+      {"limit_joint", "normal_joint", "nan_joint"}, validation, true);
+  EXPECT_NE(actions.find("limit"), std::string::npos);
+  EXPECT_NE(actions.find("nan"), std::string::npos);
+  EXPECT_EQ(actions.find("normal"), std::string::npos);
+  SensorData previous, current;
+  previous.joint_pos = Eigen::VectorXf::Zero(2);
+  previous.joint_vel = Eigen::VectorXf::Zero(2);
+  current = previous;
+  current.joint_pos[0] = 1.f;
+  const auto sensors = format_action_fault_sensors(current, previous,
+      {"jump_joint", "normal_joint"}, .02, true);
+  EXPECT_NE(sensors.find("jump"), std::string::npos);
+  EXPECT_EQ(sensors.find("normal"), std::string::npos);
+  EXPECT_EQ(sensors.find("IMU"), std::string::npos);
+  EXPECT_EQ(sensors.find("Joint velocity"), std::string::npos);
+}
 
 TEST_F(MimicActionFault, RejectsLargeChangeInsideAbsoluteLimitAndRetainsReference)
 {
@@ -244,6 +366,16 @@ TEST_F(MimicActionFault, EntryUsesPublishedCommandAndReentryReseedsIt)
   ASSERT_EQ(tick(0), PolicyUpdateResult::TargetUnavailable);
 }
 
+TEST(ActionFaultDiagnostics, DeltaFaultIsShownEvenInsideAbsoluteLimit)
+{
+  const std::vector<float> values{3.55f, .3f}, reference{.25f, .2f};
+  const auto validation = validate_action({10.f, 0.f}, values, &reference, ActionSafetyLimits{});
+  const auto report = normalized_whitespace(format_action_fault_actions(
+    values, {"left_knee_joint", "right_knee_joint"}, validation, true));
+  EXPECT_NE(report.find("L.knee 3.550 0.250 +3.300 [CLIP+DELTA]"), std::string::npos);
+  EXPECT_EQ(report.find("R.knee"), std::string::npos);
+  EXPECT_EQ(report.find("[LIMIT]"), std::string::npos);
+}
 
 TEST_F(PolicyActionFault, WalkingAcceptsLargeDeltaButStillRejectsAbsoluteLimit)
 {
