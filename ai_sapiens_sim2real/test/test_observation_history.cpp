@@ -28,7 +28,8 @@ YAML::Node history_config()
     [](const ObservationContext & context, const YAML::Node &) {
       return std::vector<float>{context.shared.policy.phase_state.phase};
     });
-  return YAML::Load(R"(
+  return YAML::Load(
+        R"(
 history_signal: {history_length: 2}
 velocity_commands: {history_length: 2}
 )");
@@ -56,7 +57,7 @@ TEST(ObservationHistory, PreservesDefaultAndOptInOrderingAcrossWrapAndReset)
       const float current = static_cast<float>(step);
       const std::vector<float> expected = frame_major ?
         std::vector<float>{previous, previous * 10, 0, 0, current, current * 10, 0, 0} :
-        std::vector<float>{previous, current, previous * 10, 0, 0, current * 10, 0, 0};
+      std::vector<float>{previous, current, previous * 10, 0, 0, current * 10, 0, 0};
       EXPECT_EQ(manager.compute(), expected);
     }
     manager.reset();
@@ -115,5 +116,40 @@ TEST(ObservationHistory, EmptyAndSingleFrameHistoriesAreSupported)
   shared.policy.phase_state.phase = .5f;
   shared.mode.velocity_commands.x() = 2;
   EXPECT_EQ(manager.compute(), (std::vector<float>{.5f, 2, 0, 0}));
+}
+
+TEST(ObservationHistory, RejectedSamplesAreReplacedWithoutRescalingInEitherLayout)
+{
+  for (bool frame_major : {false, true}) {
+    for (int history_length : {1, 4}) {
+      SCOPED_TRACE(frame_major);
+      SCOPED_TRACE(history_length);
+      auto config = history_config();
+      config["use_gym_history"] = frame_major;
+      config["history_signal"]["history_length"] = history_length;
+      config["velocity_commands"]["history_length"] = history_length;
+      config["history_signal"]["scale"] = 2;
+      config["velocity_commands"]["scale"] = 3;
+      SharedControlData shared;
+      PolicyJointContext joints;
+      shared.policy.phase_state.phase = .5f;
+      shared.mode.velocity_commands.x() = 2.f;
+      ObservationManager manager(config, &shared, joints, nullptr);
+      const auto good = manager.compute();
+
+      for (int failure = 0; failure < 5; ++failure) {
+        shared.policy.phase_state.phase = 100.f;
+        shared.mode.velocity_commands.x() = 100.f;
+        const auto failed = manager.compute();
+        EXPECT_NE(failed, good);
+        manager.reject_latest();
+      }
+
+      shared.policy.phase_state.phase = .5f;
+      shared.mode.velocity_commands.x() = 2.f;
+      const auto recovered = manager.compute();
+      EXPECT_EQ(recovered, good);
+    }
+  }
 }
 }  // namespace ai_sapiens_sim2real

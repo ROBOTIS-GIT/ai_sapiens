@@ -71,6 +71,9 @@ public:
    */
   std::vector<float> compute();
 
+  // Replace only the rejected time slot; preserve the failed tensor for diagnostics.
+  void reject_latest();
+
   /**
    * @brief Get total observation size.
    * @return Total number of floats in observation vector

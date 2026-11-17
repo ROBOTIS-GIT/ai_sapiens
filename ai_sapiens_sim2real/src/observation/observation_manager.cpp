@@ -83,6 +83,13 @@ void ObservationManager::assemble_observation()
   }
 }
 
+void ObservationManager::reject_latest()
+{
+  for (auto & term : terms_) {
+    term.reject_latest();
+  }
+}
+
 size_t ObservationManager::get_observation_size() const
 {
   size_t total = 0;
