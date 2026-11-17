@@ -30,52 +30,57 @@ MotionReference::MotionReference(
     throw std::runtime_error("MotionReference fps must be finite and positive");
   }
 
-  dt_ = 1.0f / fps;
+  dt_ = 1.0 / fps;
   auto data = load_motion_csv(motion_file, fallback_joint_order);
   num_frames_ = static_cast<int>(data.size());
   if (num_frames_ <= 0) {
     throw std::runtime_error("Motion CSV contains no frames: " + motion_file);
   }
 
-  duration_ = num_frames_ * dt_;
+  duration_ = (num_frames_ - 1) * dt_;
 
   for (int i = 0; i < num_frames_; ++i) {
-    root_positions_.push_back(Eigen::VectorXf::Map(data[i].data(), 3));
-    root_quaternions_.push_back(
+    frames_->root_positions.push_back(Eigen::VectorXf::Map(data[i].data(), 3));
+    frames_->root_quaternions.push_back(
       Eigen::Quaternionf(data[i][6], data[i][3], data[i][4], data[i][5]));
-    dof_positions_.push_back(Eigen::VectorXf::Map(data[i].data() + 7, data[i].size() - 7));
+    const float norm = frames_->root_quaternions.back().norm();
+    if (!frames_->root_quaternions.back().coeffs().allFinite() ||
+      !std::isfinite(norm) || norm < 1.0e-6f)
+    {
+      throw std::runtime_error("Motion has an invalid root quaternion");
+    }
+    frames_->root_quaternions.back().normalize();
+    frames_->dof_positions.push_back(Eigen::VectorXf::Map(data[i].data() + 7, data[i].size() - 7));
   }
 
-  // TODO(kiwoong): Consider central differences for smoother motion velocity after
-  // policy revalidation.
-  dof_velocities_ = compute_forward_derivative(dof_positions_, dt_);
+  // Match training: central differences inside, one-sided differences at endpoints.
+  frames_->dof_velocities = compute_central_derivative(frames_->dof_positions, dt_);
 
-  for (size_t i = 0; i < joint_order_.size(); ++i) {
-    joint_index_by_name_[joint_order_[i]] = static_cast<Eigen::Index>(i);
+  for (size_t i = 0; i < frames_->joint_order.size(); ++i) {
+    frames_->joint_index_by_name[frames_->joint_order[i]] = static_cast<Eigen::Index>(i);
   }
 
-  seek(0.0f);
+  seek(0.0);
 }
 
-void MotionReference::seek(float time)
+void MotionReference::seek(double time)
 {
-  const float phase = std::clamp(time / duration_, 0.0f, 1.0f);
-  // TODO(kiwoong): Consider switching to floor(frame) + alpha interpolation after
-  // validating motion timing against the already-tested ai_sapiens_rl_inference path.
-  // Note: the current round-index + blend mix can produce a negative blend.
-  index_0_ = static_cast<int>(std::round(phase * (num_frames_ - 1)));
-  index_0_ = std::max(0, std::min(index_0_, num_frames_ - 1));
+  if (!std::isfinite(time)) {
+    throw std::runtime_error("Motion time must be finite");
+  }
+  const double frame = std::clamp(time / dt_, 0.0, static_cast<double>(num_frames_ - 1));
+  // Snap nominal ticks despite decimal configuration and floating-point roundoff.
+  const double nearest = std::round(frame);
+  const double cursor = std::abs(frame - nearest) < 1.0e-3 ? nearest : frame;
+  index_0_ = static_cast<int>(std::floor(cursor));
   index_1_ = std::min(index_0_ + 1, num_frames_ - 1);
-  const bool has_next_frame = num_frames_ > 1;
-  blend_ = has_next_frame ?
-    std::round((time - index_0_ * dt_) / dt_ * 1e5f) / 1e5f :
-    0.0f;
+  blend_ = static_cast<float>(cursor - index_0_);
 }
 
 float MotionReference::joint_pos_for_joint(const std::string & joint_name) const
 {
-  const auto it = joint_index_by_name_.find(joint_name);
-  if (it == joint_index_by_name_.end()) {
+  const auto it = frames_->joint_index_by_name.find(joint_name);
+  if (it == frames_->joint_index_by_name.end()) {
     throw std::runtime_error("Motion CSV is missing joint: " + joint_name);
   }
 
@@ -84,7 +89,7 @@ float MotionReference::joint_pos_for_joint(const std::string & joint_name) const
 
 const std::vector<std::string> & MotionReference::joint_order() const
 {
-  return joint_order_;
+  return frames_->joint_order;
 }
 
 std::string MotionReference::trim(const std::string & value)
@@ -147,7 +152,7 @@ bool MotionReference::parse_numeric_row(
 void MotionReference::validate_joint_order() const
 {
   std::unordered_map<std::string, bool> seen;
-  for (const auto & joint_name : joint_order_) {
+  for (const auto & joint_name : frames_->joint_order) {
     if (joint_name.empty()) {
       throw std::runtime_error("Motion CSV joint header contains an empty joint name");
     }
@@ -188,7 +193,7 @@ std::vector<std::vector<float>> MotionReference::load_motion_csv(
             "Motion CSV header must contain root columns and at least one joint");
         }
 
-        joint_order_.assign(tokens.begin() + 7, tokens.end());
+        frames_->joint_order.assign(tokens.begin() + 7, tokens.end());
         validate_joint_order();
         continue;
       }
@@ -196,15 +201,21 @@ std::vector<std::vector<float>> MotionReference::load_motion_csv(
         throw std::runtime_error("Motion CSV has no header; robot_joint_order is required");
       }
 
-      joint_order_ = fallback_joint_order;
+      frames_->joint_order = fallback_joint_order;
       validate_joint_order();
     } else if (!is_numeric_row) {
       throw std::runtime_error("Motion CSV contains a non-numeric data row: " + line);
     }
 
-    if (row.size() != joint_order_.size() + 7U) {
+    if (row.size() != frames_->joint_order.size() + 7U) {
       throw std::runtime_error(
         "Motion CSV row width does not match root columns plus motion joints");
+    }
+
+    if (!std::all_of(row.begin(), row.end(),
+      [](float value) {return std::isfinite(value);}))
+    {
+      throw std::runtime_error("Motion CSV contains non-finite values");
     }
 
     data.push_back(std::move(row));
@@ -231,6 +242,28 @@ std::vector<Eigen::VectorXf> MotionReference::compute_forward_derivative(
   }
 
   dxs.push_back(dxs.back());
+  return dxs;
+}
+
+
+std::vector<Eigen::VectorXf> MotionReference::compute_central_derivative(
+  const std::vector<Eigen::VectorXf> & xs, float dt)
+{
+  std::vector<Eigen::VectorXf> dxs;
+  dxs.reserve(xs.size());
+  if (xs.empty()) {
+    return dxs;
+  }
+  if (xs.size() == 1U) {
+    dxs.push_back(Eigen::VectorXf::Zero(xs[0].size()));
+    return dxs;
+  }
+
+  dxs.push_back((xs[1] - xs[0]) / dt);
+  for (size_t i = 1; i + 1 < xs.size(); ++i) {
+    dxs.push_back((xs[i + 1] - xs[i - 1]) / (2.0f * dt));
+  }
+  dxs.push_back((xs.back() - xs[xs.size() - 2]) / dt);
   return dxs;
 }
 

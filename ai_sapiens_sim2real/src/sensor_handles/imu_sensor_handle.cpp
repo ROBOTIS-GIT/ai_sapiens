@@ -15,8 +15,10 @@
 // Author: Woojin Wie
 
 #include "ai_sapiens_sim2real/sensor_handles/imu_sensor_handle.hpp"
+#include "ai_sapiens_sim2real/sensor_handles/imu_validation.hpp"
 
 #include <stdexcept>
+#include <cmath>
 
 namespace ai_sapiens_sim2real
 {
@@ -53,24 +55,54 @@ ImuSensorHandle::ImuSensorHandle(
 
 void ImuSensorHandle::update(const rclcpp::Time & /*time*/)
 {
-  // Read from RealtimeBuffer (non-blocking)
-  ImuData * data = buffer_.readFromRT();
+  const ImuData & data = *buffer_.readFromRT();
+  apply_valid_sample(data);
+  update_failsafe(data);
+}
 
-  // Copy to the shared sensor block.
-  sensors_->angular_velocity = data->angular_velocity;
-  sensors_->orientation = data->orientation;
+void ImuSensorHandle::apply_valid_sample(const ImuData & data)
+{
+  // Preserve the last good measurement when the latest sample is invalid.
+  if (!data.is_valid) {
+    return;
+  }
 
-  // Compute projected gravity from orientation
+  sensors_->angular_velocity = data.angular_velocity;
+  sensors_->orientation = data.orientation;
   sensors_->compute_projected_gravity();
+}
 
-  const auto elapsed = std::chrono::steady_clock::now() - data->received_at;
+void ImuSensorHandle::update_failsafe(const ImuData & data)
+{
+  const auto elapsed = std::chrono::steady_clock::now() - data.received_at;
+
   if (elapsed > timeout_) {
     log_stale_once(elapsed);
     stale_latched_ = true;
   }
-  if (stale_latched_) {
+
+  const bool is_invalid_latched = invalid_latched_.load();
+  sensors_->is_imu_usable = data.is_valid && !stale_latched_ && !is_invalid_latched;
+
+  if (is_invalid_latched) {
+    log_invalid_once();
+  }
+
+  if (stale_latched_ || is_invalid_latched) {
     requests_->damping = true;
   }
+}
+
+void ImuSensorHandle::log_invalid_once()
+{
+  if (invalid_logged_) {
+    return;
+  }
+
+  RCLCPP_ERROR(node_->get_logger(),
+    "Damping failsafe latched: invalid IMU orientation/angular velocity (topic=%s); "
+    "restart required after sensor recovery", topic_.c_str());
+  invalid_logged_ = true;
 }
 
 std::string ImuSensorHandle::get_name() const
@@ -95,16 +127,27 @@ void ImuSensorHandle::callback(const sensor_msgs::msg::Imu::SharedPtr msg)
           static_cast<float>(msg->orientation.z)
   );
 
-  // Handle zero quaternion (not initialized)
-  if (data.orientation.coeffs().isZero()) {
-    data.orientation = Eigen::Quaternionf::Identity();
+  data.is_valid = valid_imu_sample(
+    data.orientation, data.angular_velocity, msg->orientation_covariance[0] != -1.0,
+    msg->angular_velocity_covariance[0] != -1.0);
+  if (data.is_valid) {
+    data.orientation.normalize();
+  } else if (received_once_.load()) {
+    // Before the first valid sample, remain in startup wait. Afterwards, use
+    // the same restart-required behavior as the existing timeout watchdog.
+    invalid_latched_.store(true);
+  } else {
+    RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 1000,
+      "Waiting for valid IMU orientation/angular velocity (topic=%s)", topic_.c_str());
   }
 
   data.received_at = std::chrono::steady_clock::now();
 
   // Write to buffer (thread-safe)
   buffer_.writeFromNonRT(data);
-  received_once_.store(true);
+  if (data.is_valid) {
+    received_once_.store(true);
+  }
 }
 
 void ImuSensorHandle::log_stale_once(std::chrono::steady_clock::duration elapsed) const

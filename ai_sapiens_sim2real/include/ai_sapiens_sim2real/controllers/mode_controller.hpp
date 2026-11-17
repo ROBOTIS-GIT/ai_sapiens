@@ -34,6 +34,8 @@
 #include "ai_sapiens_sim2real/mode_runtime/authority_runtime.hpp"
 #include "ai_sapiens_sim2real/mode_runtime/mode_state_machine.hpp"
 #include "ai_sapiens_sim2real/mode_runtime/realtime_request_gate.hpp"
+#include "ai_sapiens_sim2real/mode_runtime/rejected_request_gate.hpp"
+#include "ai_sapiens_sim2real/policy/policy_entry_validator.hpp"
 #include "ai_sapiens_sim2real/teleop_input/teleop_input_command.hpp"
 #include "ai_sapiens_sim2real/shared_control_data.hpp"
 
@@ -187,6 +189,8 @@ private:
   // Startup wiring: load FSM/authority config, enter the initial state.
   void initialize_joint_counts();
   void configure_mode_runtime(const RootConfig & root_config);
+  void update_policy_retry_gate();
+  void log_entry_rejection(const StateRequest & request, const PolicyEntryResult & result) const;
   void enter_initial_state();
 
   bool is_api_request_available() const;
@@ -286,7 +290,7 @@ private:
 
   bool is_mimic_state() const;
   bool is_orientation_unsafe() const;
-  bool is_transition_allowed(const StateRequest & request) const;
+  PolicyEntryResult evaluate_state_entry(const StateRequest & request) const;
   bool is_transition_allowed(BehaviorKind from, BehaviorKind to) const;
 
   // State entry/run paths update SharedControlData without blocking the realtime loop.
@@ -310,6 +314,7 @@ private:
   BehaviorOutput * output_;
 
   ModeStateMachine mode_state_machine_;
+  PolicyEntryValidator entry_validator_;
   AuthorityConfig authority_config_;
   AuthorityRuntime authority_;
   RealtimeRequestGate<StateRequest> service_request_gate_;
@@ -324,6 +329,7 @@ private:
   BehaviorKind current_behavior_kind_{BehaviorKind::Damping};
   std::chrono::steady_clock::time_point state_enter_time_{};
   bool startup_teleop_input_accepted_{false};
+  RejectedRequestGate policy_retry_gate_;
   // API entry fires only on a rising edge of the teleop API request, so entry
   // after boot, a failed attempt, or any manual takeover needs a fresh switch
   // toggle. Starts true so an already-high switch cannot enter API at boot.
