@@ -25,7 +25,8 @@ TwistCommandHandle::TwistCommandHandle(
   rclcpp::Node::SharedPtr node,
   ApiInput * api,
   const AxisRanges * active_velocity_command_ranges,
-  const std::string & topic)
+  const std::string & topic,
+  const rclcpp::SubscriptionOptions & subscription_options)
 : node_(node)
   , api_(api)
   , active_velocity_command_ranges_(active_velocity_command_ranges)
@@ -38,7 +39,7 @@ TwistCommandHandle::TwistCommandHandle(
   subscription_ = node_->create_subscription<geometry_msgs::msg::Twist>(
     topic,
     10,
-    std::bind(&TwistCommandHandle::callback, this, std::placeholders::_1));
+    std::bind(&TwistCommandHandle::callback, this, std::placeholders::_1), subscription_options);
 
   RCLCPP_INFO(node_->get_logger(), "[TwistCommandHandle] subscribed to %s", topic.c_str());
 }

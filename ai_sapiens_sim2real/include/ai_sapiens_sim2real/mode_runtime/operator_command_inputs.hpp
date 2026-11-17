@@ -44,7 +44,8 @@ OperatorCommandInputs add_operator_command_input_handles(
   const std::shared_ptr<ControlLoop> & control_loop,
   const rclcpp::Node::SharedPtr & node,
   SharedControlData * state,
-  const OperatorCommandInputOptions & options);
+  const OperatorCommandInputOptions & options,
+  const rclcpp::SubscriptionOptions & subscription_options = {});
 
 }  // namespace ai_sapiens_sim2real
 

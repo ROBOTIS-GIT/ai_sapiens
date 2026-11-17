@@ -46,7 +46,8 @@ public:
     rclcpp::Node::SharedPtr node,
     ApiInput * api,
     const std::string & topic,
-    double timeout_seconds);
+    double timeout_seconds,
+    const rclcpp::SubscriptionOptions & subscription_options = {});
 
   void update(const rclcpp::Time & /*time*/) override;
 

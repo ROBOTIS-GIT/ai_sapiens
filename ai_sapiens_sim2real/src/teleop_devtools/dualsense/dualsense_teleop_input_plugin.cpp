@@ -127,7 +127,7 @@ void DualSenseTeleopInputPlugin::configure(
     topic_, rclcpp::SensorDataQoS(),
     [this](const sensor_msgs::msg::Joy::SharedPtr msg) {
       handle_raw_message(*msg);
-    });
+    }, subscription_options());
   if (selector_navigation_enabled_ && selector_status_publish_enabled_) {
     auto status_qos = rclcpp::QoS(1);
     status_qos.reliable().transient_local();

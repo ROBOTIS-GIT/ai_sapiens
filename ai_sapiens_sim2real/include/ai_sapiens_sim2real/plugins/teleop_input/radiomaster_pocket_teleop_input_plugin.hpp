@@ -19,6 +19,7 @@
 
 #include <array>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -26,6 +27,7 @@
 #include <ai_sapiens_interfaces/msg/rc_status.hpp>
 
 #include "ai_sapiens_sim2real/teleop_input/teleop_input_plugin_base.hpp"
+#include "ai_sapiens_sim2real/sensor_handles/input_gap_monitor.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -126,6 +128,7 @@ private:
 
   rclcpp::Node::SharedPtr node_;
   std::string topic_;
+  std::unique_ptr<InputGapMonitor> input_gap_monitor_;
   double axis_deadzone_{0.0};
   double switch_match_tolerance_{50.0};
 

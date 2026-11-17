@@ -30,6 +30,7 @@
 #include "ai_sapiens_sim2real/controllers/mode_ros_interface.hpp"
 #include "ai_sapiens_sim2real/config/root_config.hpp"
 #include "ai_sapiens_sim2real/mode_runtime/operator_command_inputs.hpp"
+#include "ai_sapiens_sim2real/mode_runtime/input_executor.hpp"
 #include "ai_sapiens_sim2real/mode_runtime/startup_gate.hpp"
 #include "ai_sapiens_sim2real/shared_control_data.hpp"
 
@@ -43,6 +44,8 @@ struct NodeOptions
   std::string joint_states_topic;
   double imu_timeout{0.5};
   double joint_states_timeout{0.5};
+  double imu_expected_rate_hz{1000.0};
+  double joint_states_expected_rate_hz{1000.0};
   int thread_priority{50};
   bool lock_memory{true};
   double wait_timeout{30.0};
@@ -98,6 +101,7 @@ private:
   void run_control_loop_until_shutdown();
 
   rclcpp::Node::SharedPtr node_;
+  InputExecutor input_executor_;
   NodeOptions options_;
   std::unique_ptr<RootConfig> root_config_;
   RuntimeConfig runtime_config_;
