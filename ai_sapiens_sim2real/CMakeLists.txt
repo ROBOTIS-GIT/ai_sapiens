@@ -89,6 +89,7 @@ add_executable(ai_sapiens_sim2real_node
   src/config/root_config.cpp
   src/sensor_handles/api_heartbeat_handle.cpp
   src/sensor_handles/imu_sensor_handle.cpp
+  src/sensor_handles/joint_states_diagnostics.cpp
   src/sensor_handles/joint_states_sensor_handle.cpp
   src/sensor_handles/teleop_input_handle.cpp
   src/sensor_handles/twist_command_handle.cpp
@@ -289,6 +290,12 @@ if(BUILD_TESTING)
     src/mode_runtime/input_executor.cpp src/mode_runtime/startup_gate.cpp)
   ament_target_dependencies(test_input_executor rclcpp realtime_tools)
   target_link_libraries(test_input_executor Threads::Threads yaml-cpp Eigen3::Eigen input_gap_monitor)
+
+  ament_add_gtest(test_joint_states_sensor_handle test/test_joint_states_sensor_handle.cpp
+    src/sensor_handles/joint_states_diagnostics.cpp
+    src/sensor_handles/joint_states_sensor_handle.cpp)
+  ament_target_dependencies(test_joint_states_sensor_handle rclcpp realtime_tools sensor_msgs)
+  target_link_libraries(test_joint_states_sensor_handle Eigen3::Eigen input_gap_monitor)
 
   # RealtimeRequestGate: accept/consume/discard/busy semantics (header-only).
   ament_add_gtest(test_request_gate test/test_request_gate.cpp)

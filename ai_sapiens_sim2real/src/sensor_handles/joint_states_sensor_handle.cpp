@@ -16,7 +16,10 @@
 
 #include "ai_sapiens_sim2real/sensor_handles/joint_states_sensor_handle.hpp"
 
+#include <algorithm>
+#include <limits>
 #include <stdexcept>
+#include <unordered_map>
 
 namespace ai_sapiens_sim2real
 {
@@ -45,6 +48,9 @@ JointStatesSensorHandle::JointStatesSensorHandle(
     throw std::runtime_error("Joint states sensor watchdog timeout must be positive");
   }
 
+  callback_data_.resize(num_joints_);
+  message_indices_.assign(num_joints_, std::numeric_limits<size_t>::max());
+
   // Start the watchdog after startup.
   JointStatesData initial_data;
   initial_data.resize(num_joints_);
@@ -52,7 +58,10 @@ JointStatesSensorHandle::JointStatesSensorHandle(
   buffer_.initRT(initial_data);
 
   input_gap_monitor_ = std::make_unique<InputGapMonitor>(
-    node_, topic_, expected_rate_hz, subscription_options.callback_group);
+    node_, topic_, expected_rate_hz,
+    subscription_options.callback_group);
+
+  diagnostics_ = std::make_unique<JointStatesDiagnostics>(node_, topic_, joint_names_);
 
   // Create subscription
   subscription_ = node_->create_subscription<sensor_msgs::msg::JointState>(
@@ -100,108 +109,56 @@ std::string JointStatesSensorHandle::get_name() const
 void JointStatesSensorHandle::callback(const sensor_msgs::msg::JointState::SharedPtr msg)
 {
   input_gap_monitor_->received_raw();
-  JointStatesData data;
-  std::vector<std::string> missing_joints;
-  const size_t complete_joints_found =
-    parse_joint_state_message(*msg, &data, &missing_joints);
+  update_joint_mapping(msg->name);
+  const size_t complete_joints_found = parse_joint_state_message(*msg);
 
   if (complete_joints_found != num_joints_) {
-    log_incomplete_joint_state(complete_joints_found, missing_joints);
+    diagnostics_->record_incomplete(*msg, message_indices_, complete_joints_found);
     return;
   }
 
-  data.received_at = std::chrono::steady_clock::now();
-
-  buffer_.writeFromNonRT(data);
+  callback_data_.received_at = std::chrono::steady_clock::now();
+  buffer_.writeFromNonRT(callback_data_);
   input_gap_monitor_->received_accepted();
-  mark_ready_once();
+  received_once_.store(true);
+  diagnostics_->record_ready();
 }
 
-size_t JointStatesSensorHandle::parse_joint_state_message(
-  const sensor_msgs::msg::JointState & msg,
-  JointStatesData * data,
-  std::vector<std::string> * missing_joints) const
+void JointStatesSensorHandle::update_joint_mapping(const std::vector<std::string> & names)
 {
-  data->resize(num_joints_);
-
-  std::unordered_map<std::string, size_t> msg_name_to_idx;
-  for (size_t i = 0; i < msg.name.size(); ++i) {
-    msg_name_to_idx[msg.name[i]] = i;
+  if (names == cached_message_names_) {
+    return;
   }
 
+  cached_message_names_ = names;
+  std::unordered_map<std::string, size_t> name_to_index;
+  name_to_index.reserve(names.size());
+  for (size_t i = 0; i < names.size(); ++i) {
+    name_to_index[names[i]] = i;  // Preserve the existing last-occurrence rule for duplicates.
+  }
+
+  for (size_t i = 0; i < num_joints_; ++i) {
+    const auto found = name_to_index.find(joint_names_[i]);
+    message_indices_[i] = found == name_to_index.end() ?
+      std::numeric_limits<size_t>::max() : found->second;
+  }
+}
+
+size_t JointStatesSensorHandle::parse_joint_state_message(const sensor_msgs::msg::JointState & msg)
+{
   size_t complete_joints_found = 0;
-  for (size_t model_idx = 0; model_idx < joint_names_.size(); ++model_idx) {
-    const auto & joint_name = joint_names_[model_idx];
-
-    const auto it = msg_name_to_idx.find(joint_name);
-    if (it == msg_name_to_idx.end()) {
-      missing_joints->push_back(joint_name);
-      if (!received_once_.load()) {
-        RCLCPP_WARN(
-          node_->get_logger(),
-          "Joint '%s' not found in JointState message",
-          joint_name.c_str());
-      }
+  for (size_t i = 0; i < num_joints_; ++i) {
+    const auto index = message_indices_[i];
+    if (index >= msg.position.size() || index >= msg.velocity.size()) {
       continue;
     }
 
-    const size_t msg_idx = it->second;
-    const bool has_position_and_velocity =
-      msg_idx < msg.position.size() && msg_idx < msg.velocity.size();
-    if (!has_position_and_velocity) {
-      missing_joints->push_back(joint_name + "(missing position/velocity)");
-      if (!received_once_.load()) {
-        RCLCPP_WARN(
-          node_->get_logger(),
-          "Joint '%s' found but position or velocity is missing",
-          joint_name.c_str());
-      }
-      continue;
-    }
-
-    data->position[model_idx] = static_cast<float>(msg.position[msg_idx]);
-    data->velocity[model_idx] = static_cast<float>(msg.velocity[msg_idx]);
-    complete_joints_found++;
+    callback_data_.position[i] = static_cast<float>(msg.position[index]);
+    callback_data_.velocity[i] = static_cast<float>(msg.velocity[index]);
+    ++complete_joints_found;
   }
 
   return complete_joints_found;
-}
-
-void JointStatesSensorHandle::log_incomplete_joint_state(
-  size_t complete_joints_found,
-  const std::vector<std::string> & missing_joints) const
-{
-  const std::string missing_summary = build_missing_joint_summary(missing_joints);
-  RCLCPP_WARN_THROTTLE(
-    node_->get_logger(),
-    *node_->get_clock(),
-    1000,
-    "Ignoring incomplete JointState message on %s: %zu/%zu joints complete. "
-    "Missing/incomplete: %s",
-    topic_.c_str(),
-    complete_joints_found,
-    num_joints_,
-    missing_summary.c_str());
-}
-
-std::string JointStatesSensorHandle::build_missing_joint_summary(
-  const std::vector<std::string> & missing_joints) const
-{
-  std::string missing_summary;
-  constexpr size_t kMaxMissingJointsToLog = 8;
-  const size_t count = std::min(kMaxMissingJointsToLog, missing_joints.size());
-  for (size_t i = 0; i < count; ++i) {
-    if (i > 0) {
-      missing_summary += ", ";
-    }
-
-    missing_summary += missing_joints[i];
-  }
-  if (missing_joints.size() > count) {
-    missing_summary += ", ...";
-  }
-
-  return missing_summary;
 }
 
 void JointStatesSensorHandle::log_stale_once(
@@ -218,18 +175,6 @@ void JointStatesSensorHandle::log_stale_once(
     std::chrono::duration<double>(elapsed).count(),
     timeout_.count(),
     topic_.c_str());
-}
-
-void JointStatesSensorHandle::mark_ready_once()
-{
-  if (!received_once_.load()) {
-    RCLCPP_INFO(
-      node_->get_logger(),
-      "[JointStatesSensorHandle] all %zu joints received",
-      num_joints_);
-  }
-
-  received_once_.store(true);
 }
 
 }  // namespace ai_sapiens_sim2real
