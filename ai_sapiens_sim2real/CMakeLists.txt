@@ -62,6 +62,7 @@ add_executable(ai_sapiens_sim2real_node
   src/controllers/mode_controller.cpp
   src/controllers/mode_ros_interface.cpp
   src/controllers/policy_controller.cpp
+  src/policy/policy_runtime_loader.cpp
   src/main.cpp
   src/sim2real_node.cpp
   src/config/root_sections/selectors_config.cpp
@@ -396,7 +397,26 @@ if(BUILD_TESTING)
 
   ament_add_gtest(test_policy_action_fault test/test_policy_action_fault.cpp
     test/test_policy_observation_flow.cpp
+    test/test_blinkmimic.cpp
+    test/test_supermimic.cpp
+    src/controllers/policy_controller.cpp
+    src/policy/policy_runtime_loader.cpp
+    src/config/root_config.cpp
+    src/config/root_config_validator.cpp
+    src/config/root_sections/selectors_config.cpp
+    src/config/root_sections/state_behaviors_config.cpp
+    src/config/root_sections/state_machine_config.cpp
+    src/config/root_sections/teleop_conditions_config.cpp
     src/policy/mimic/mimic_policy_runtime.cpp
+    src/policy/blinkmimic/blinkmimic_motion.cpp
+    src/policy/blinkmimic/blinkmimic_config.cpp
+    src/observation/configured_observation_group.cpp
+    src/policy/blinkmimic/blinkmimic_observation.cpp
+    src/policy/blinkmimic/blinkmimic_policy_runtime.cpp
+    src/policy/supermimic/supermimic_motion.cpp
+    src/policy/supermimic/supermimic_config.cpp
+    src/policy/supermimic/supermimic_observation.cpp
+    src/policy/supermimic/supermimic_policy_runtime.cpp
     src/policy/policy_runtime.cpp
     src/policy/diagnostics/policy_diagnostics.cpp
     src/policy/diagnostics/policy_fault_capture.cpp
@@ -414,6 +434,8 @@ if(BUILD_TESTING)
   target_link_libraries(test_policy_action_fault yaml-cpp Eigen3::Eigen
     ${ONNXRUNTIME_LIBRARY} Threads::Threads)
   target_compile_definitions(test_policy_action_fault PRIVATE
+    SUPERMIMIC_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/data/supermimic"
+    BLINK_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/data/blinkmimic"
     COMMON_POLICY_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/data/common/two_joint_policy"
     HISTORY_POLICY_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/data/common/four_frame_policy")
 
