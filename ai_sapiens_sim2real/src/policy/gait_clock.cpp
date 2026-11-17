@@ -35,34 +35,6 @@ void GaitClock::advance(PhaseState & state, const SharedControlData & shared) co
 namespace
 {
 
-float next_phase(float phase, float phase_increment)
-{
-  return std::fmod(phase + phase_increment, 1.0f);
-}
-
-GaitClock make_free_running_phase_clock(float increment)
-{
-  return GaitClock([increment](PhaseState state, const SharedControlData &) {
-      state.phase = next_phase(state.phase, increment);
-      return state;
-    });
-}
-
-GaitClock make_command_reset_phase_clock(float increment, float threshold)
-{
-  return GaitClock([increment, threshold](PhaseState state, const SharedControlData & shared) {
-      // The command-reset clock's first observation is at phase zero. This is a rule detail,
-      // not a branch in the common clock.
-      if (state.first_step) {
-        state.first_step = false;
-        return state;
-      }
-      state.phase = shared.mode.velocity_commands.norm() > threshold ?
-        next_phase(state.phase, increment) : 0.0f;
-      return state;
-    });
-}
-
 struct PhaseTiming
 {
   float period;
@@ -110,6 +82,8 @@ struct AdaptivePhaseConfig
   float reset_phase;
   std::optional<PhaseActivationConfig> activation;
 };
+
+// Configuration parsing and validation.
 
 void require_phase_field(bool valid, const char * key, const char * requirement)
 {
@@ -256,23 +230,6 @@ std::optional<PhaseActivationConfig> read_phase_activation(const YAML::Node & pa
   return config;
 }
 
-float smoothstep(float value)
-{
-  value = std::clamp(value, 0.0f, 1.0f);
-  return value * value * (3.0f - 2.0f * value);
-}
-
-float activation_target(const Eigen::Vector3f & command, const PhaseActivationConfig & config)
-{
-  const float planar = command.head<2>().norm();
-  const float yaw = std::abs(command.z());
-  return smoothstep((planar + yaw - config.stand_threshold) / config.moving_fade_width) *
-         smoothstep((config.bounds.planar_max - planar) / config.planar_fade_width) *
-         smoothstep((config.bounds.yaw_max - yaw) / config.yaw_fade_width) *
-         smoothstep((config.bounds.lateral_max - std::abs(command.y())) /
-           config.lateral_fade_width);
-}
-
 AdaptivePhaseConfig parse_adaptive_phase_config(const YAML::Node & params)
 {
   validate_adaptive_phase_export(params);
@@ -290,54 +247,6 @@ AdaptivePhaseConfig parse_adaptive_phase_config(const YAML::Node & params)
   require_phase_field(config.reset_phase >= 0 && config.reset_phase < 1,
     "reset_phase", "must be in [0, 1)");
   return config;
-}
-
-const PhaseTiming & select_phase_timing(
-  const Eigen::Vector3f & command, const AdaptivePhaseConfig & config)
-{
-  if (config.low_speed_region && config.low_speed_region->contains(command)) {
-    return config.timings.front();
-  }
-  std::size_t category = config.low_speed_region ? 1 : 0;
-  for (const auto & boundary : config.boundaries) {
-    category += boundary.crossed_by(command.x());
-  }
-  return config.timings[category];
-}
-
-PhaseState advance_adaptive_phase(
-  PhaseState state, const Eigen::Vector3f & command, const AdaptivePhaseConfig & config,
-  float dt, float alpha)
-{
-  if (state.first_step) {
-    state.first_step = false;
-    return state;
-  }
-  if (config.activation) {
-    const float target = activation_target(command, *config.activation);
-    const float rise_alpha = 1.0f - std::exp(-dt / config.activation->rise_tau);
-    // Fade out immediately to the command envelope; rise gradually on re-entry.
-    state.activation = std::min(
-      state.activation + rise_alpha * (target - state.activation), target);
-  }
-  const auto & target = select_phase_timing(command, config);
-  state.period += alpha * (target.period - state.period);
-  state.swing_ratio += alpha * (target.swing_ratio - state.swing_ratio);
-  state.phase = next_phase(state.phase, dt / state.period);
-  return state;
-}
-
-GaitClock make_adaptive_phase_clock(const YAML::Node & params, double step_dt)
-{
-  const auto config = parse_adaptive_phase_config(params);
-  const auto & first = config.timings.front();
-  const PhaseState initial{config.reset_phase, first.period, first.swing_ratio, true,
-    config.activation ? 0.0f : 1.0f};
-  const float dt = static_cast<float>(step_dt);
-  const float alpha = 1.0f - std::exp(-dt / config.transition_tau);
-  return GaitClock([config, dt, alpha](PhaseState state, const SharedControlData & shared) {
-      return advance_adaptive_phase(state, shared.mode.velocity_commands, config, dt, alpha);
-    }, initial, /*resolve_command_before_update=*/true);
 }
 
 float require_period(const YAML::Node & params)
@@ -389,6 +298,100 @@ void validate_offset(const YAML::Node & params)
   }
 }
 
+// Phase calculation and clock construction.
+
+float next_phase(float phase, float phase_increment)
+{
+  return std::fmod(phase + phase_increment, 1.0f);
+}
+
+GaitClock make_free_running_phase_clock(float increment)
+{
+  return GaitClock([increment](PhaseState state, const SharedControlData &) {
+      state.phase = next_phase(state.phase, increment);
+      return state;
+    });
+}
+
+GaitClock make_command_reset_phase_clock(float increment, float threshold)
+{
+  return GaitClock([increment, threshold](PhaseState state, const SharedControlData & shared) {
+      // The command-reset clock's first observation is at phase zero. This is a rule detail,
+      // not a branch in the common clock.
+      if (state.first_step) {
+        state.first_step = false;
+        return state;
+      }
+      state.phase = shared.mode.velocity_commands.norm() > threshold ?
+        next_phase(state.phase, increment) : 0.0f;
+      return state;
+    });
+}
+
+float smoothstep(float value)
+{
+  value = std::clamp(value, 0.0f, 1.0f);
+  return value * value * (3.0f - 2.0f * value);
+}
+
+float activation_target(const Eigen::Vector3f & command, const PhaseActivationConfig & config)
+{
+  const float planar = command.head<2>().norm();
+  const float yaw = std::abs(command.z());
+  return smoothstep((planar + yaw - config.stand_threshold) / config.moving_fade_width) *
+         smoothstep((config.bounds.planar_max - planar) / config.planar_fade_width) *
+         smoothstep((config.bounds.yaw_max - yaw) / config.yaw_fade_width) *
+         smoothstep((config.bounds.lateral_max - std::abs(command.y())) /
+           config.lateral_fade_width);
+}
+
+const PhaseTiming & select_phase_timing(
+  const Eigen::Vector3f & command, const AdaptivePhaseConfig & config)
+{
+  if (config.low_speed_region && config.low_speed_region->contains(command)) {
+    return config.timings.front();
+  }
+  std::size_t category = config.low_speed_region ? 1 : 0;
+  for (const auto & boundary : config.boundaries) {
+    category += boundary.crossed_by(command.x());
+  }
+  return config.timings[category];
+}
+
+PhaseState advance_adaptive_phase(
+  PhaseState state, const Eigen::Vector3f & command, const AdaptivePhaseConfig & config,
+  float dt, float alpha)
+{
+  if (state.first_step) {
+    state.first_step = false;
+    return state;
+  }
+  if (config.activation) {
+    const float target = activation_target(command, *config.activation);
+    const float rise_alpha = 1.0f - std::exp(-dt / config.activation->rise_tau);
+    // Fade out immediately to the command envelope; rise gradually on re-entry.
+    state.activation = std::min(
+      state.activation + rise_alpha * (target - state.activation), target);
+  }
+  const auto & target = select_phase_timing(command, config);
+  state.period += alpha * (target.period - state.period);
+  state.swing_ratio += alpha * (target.swing_ratio - state.swing_ratio);
+  state.phase = next_phase(state.phase, dt / state.period);
+  return state;
+}
+
+GaitClock make_adaptive_phase_clock(const AdaptivePhaseConfig & config, double step_dt)
+{
+  const auto & first = config.timings.front();
+  const PhaseState initial{config.reset_phase, first.period, first.swing_ratio, true,
+    config.activation ? 0.0f : 1.0f};
+  const float dt = static_cast<float>(step_dt);
+  const float alpha = 1.0f - std::exp(-dt / config.transition_tau);
+  return GaitClock([config, dt, alpha](PhaseState state, const SharedControlData & shared) {
+      return advance_adaptive_phase(state, shared.mode.velocity_commands, config, dt, alpha);
+    }, initial, /*resolve_command_before_update=*/true);
+}
+
 }  // namespace
 
 std::optional<GaitClock> make_gait_clock(const YAML::Node & observations, double step_dt)
@@ -405,7 +408,7 @@ std::optional<GaitClock> make_gait_clock(const YAML::Node & observations, double
   }
   if (!params || !params.IsMap()) {throw std::runtime_error("gait_phase requires params map");}
   if (params["periods"] || params["schema"]) {
-    return make_adaptive_phase_clock(params, step_dt);
+    return make_adaptive_phase_clock(parse_adaptive_phase_config(params), step_dt);
   }
   require_phase_field(!params["activation_region"], "activation_region", "requires periods");
   const float increment = static_cast<float>(step_dt) / require_period(params);
