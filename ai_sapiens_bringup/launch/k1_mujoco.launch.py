@@ -48,7 +48,7 @@ def generate_launch_description():
         ' ',
         PathJoinSubstitution([FindPackageShare('ai_sapiens_description'),
                               'urdf',
-                              'k1_rev1',
+                              model,
                               'k1.urdf.xacro']),
         ' ',
         'use_mock_hardware:=false',

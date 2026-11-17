@@ -1,0 +1,698 @@
+<?xml version='1.0' encoding='utf-8'?>
+<robot name="k1_rev2">
+  <material name="dark">
+    <color rgba="0.2 0.2 0.2 1" />
+  </material>
+  <material name="white">
+    <color rgba="0.7 0.7 0.7 1" />
+  </material>
+  <material name="blue">
+    <color rgba="0.0 0.0 1.0 1" />
+  </material>
+  <mujoco>
+    <compiler discardvisual="true" meshdir="../../meshes/k1_rev2/collision" />
+  </mujoco>
+  <link name="head_link">
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/collision/head_link.stl" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0.0049126626 4.64875e-06 0.099582097" rpy="0 0 0" />
+      <mass value="0.77960479" />
+      <inertia ixx="0.0029476956" iyy="0.0031361665" izz="0.0014421023" ixy="-2.1319037e-07" ixz="-8.1218468e-05" iyz="-8.0933053e-08" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/visual/dae/head_link.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <link name="pelvis">
+    <inertial>
+      <origin xyz="-0.0027339902 5.6957e-07 -0.05127556" rpy="0 0 0" />
+      <mass value="3.6750667" />
+      <inertia ixx="0.012644164" iyy="0.0090262177" izz="0.0074370363" ixy="-1.3856327e-07" ixz="5.7314447e-05" iyz="0" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/visual/dae/pelvis.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <link name="left_hip_pitch_link">
+    <collision>
+      <origin rpy="1.5708 0 0" xyz="0 0.05 -0.02" />
+      <geometry>
+        <cylinder length="0.07" radius="0.04" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0.00016395271 0.079956685 -0.026178346" rpy="0 0 0" />
+      <mass value="1.2266127" />
+      <inertia ixx="0.001616648" iyy="0.001217281" izz="0.0012734665" ixy="8.4316737e-06" ixz="-7.5173023e-06" iyz="0.00015994418" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/visual/dae/left_hip_pitch_link.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="left_hip_pitch_joint" type="revolute">
+    <origin xyz="0 0.04 -0.081" rpy="0 0 0" />
+    <parent link="pelvis" />
+    <child link="left_hip_pitch_link" />
+    <axis xyz="0 1 0" />
+    <limit effort="96.9" lower="-2.4435" upper="2.4435" velocity="11.5" />
+  </joint>
+  <link name="left_hip_roll_link">
+    <inertial>
+      <origin xyz="0.014408336 -4.0179e-07 -0.077150004" rpy="0 0 0" />
+      <mass value="1.5695498" />
+      <inertia ixx="0.0029165502" iyy="0.0033903042" izz="0.0019249588" ixy="9.875528e-08" ixz="-8.4422165e-05" iyz="-2.3138749e-07" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/visual/dae/left_hip_roll_link.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="left_hip_roll_joint" type="revolute">
+    <origin xyz="-0.008 0.085 -0.03" rpy="0 0 0" />
+    <parent link="left_hip_pitch_link" />
+    <child link="left_hip_roll_link" />
+    <axis xyz="1 0 0" />
+    <limit effort="96.9" lower="-0.6109" upper="2.5307" velocity="11.5" />
+  </joint>
+  <link name="left_hip_yaw_link">
+    <collision>
+      <origin rpy="0 0 0" xyz="0.0 0 -0.08" />
+      <geometry>
+        <cylinder length="0.13" radius="0.045" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="-0.0020556649 -0.0072328134 -0.18587888" rpy="0 0 0" />
+      <mass value="1.9150618" />
+      <inertia ixx="0.01105782" iyy="0.011377214" izz="0.0018036332" ixy="-8.7607682e-05" ixz="-0.00044256288" iyz="-0.00077899097" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/visual/dae/left_hip_yaw_link.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="left_hip_yaw_joint" type="revolute">
+    <origin xyz="0.015 0 -0.0905" rpy="0 0 0" />
+    <parent link="left_hip_roll_link" />
+    <child link="left_hip_yaw_link" />
+    <axis xyz="0 0 1" />
+    <limit effort="96.9" lower="-3.1416" upper="3.1416" velocity="11.5" />
+  </joint>
+  <link name="left_knee_link">
+    <inertial>
+      <origin xyz="-0.00088244106 0.0019518731 -0.12838821" rpy="0 0 0" />
+      <mass value="2.6696434" />
+      <inertia ixx="0.013051215" iyy="0.013456671" izz="0.0034412367" ixy="0.00024649697" ixz="-0.00075484495" iyz="-0.00024772988" />
+    </inertial>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.0 0 -0.10" />
+      <geometry>
+        <cylinder length="0.18" radius="0.04" />
+      </geometry>
+    </collision>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/visual/dae/left_knee_link.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="left_knee_joint" type="revolute">
+    <origin xyz="-0.007 0 -0.2365" rpy="0 0 0" />
+    <parent link="left_hip_yaw_link" />
+    <child link="left_knee_link" />
+    <axis xyz="0 1 0" />
+    <limit effort="96.9" lower="0" upper="2.3562" velocity="11.5" />
+  </joint>
+  <link name="left_ankle_pitch_link">
+    <inertial>
+      <origin xyz="0.0044224217 -1.971722e-05 0.0032186404" rpy="0 0 0" />
+      <mass value="0.71106939" />
+      <inertia ixx="0.00038265347" iyy="0.00056798201" izz="0.00057645767" ixy="-7.0656613e-07" ixz="9.1683089e-05" iyz="1.7804126e-07" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/visual/dae/left_ankle_pitch_link.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="left_ankle_pitch_joint" type="revolute">
+    <origin xyz="0 0 -0.294" rpy="0 0 0" />
+    <parent link="left_knee_link" />
+    <child link="left_ankle_pitch_link" />
+    <axis xyz="0 1 0" />
+    <limit effort="96.9" lower="-0.7854" upper="0.7854" velocity="11.5" />
+  </joint>
+  <link name="left_ankle_roll_link">
+    <collision>
+      <origin rpy="0 0 0" xyz="-0.047 0.025 -0.06" />
+      <geometry>
+        <sphere radius="0.005" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="-0.047 -0.025 -0.06" />
+      <geometry>
+        <sphere radius="0.005" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.05 0.038 -0.06" />
+      <geometry>
+        <sphere radius="0.005" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.05 -0.038 -0.06" />
+      <geometry>
+        <sphere radius="0.005" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.112 0.027 -0.06" />
+      <geometry>
+        <sphere radius="0.005" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.122 0.015 -0.05" />
+      <geometry>
+        <sphere radius="0.005" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.125 0 -0.047" />
+      <geometry>
+        <sphere radius="0.005" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.122 -0.015 -0.05" />
+      <geometry>
+        <sphere radius="0.005" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.112 -0.027 -0.06" />
+      <geometry>
+        <sphere radius="0.005" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0.035260257 -2.66241e-06 -0.041492826" rpy="0 0 0" />
+      <mass value="0.62065603" />
+      <inertia ixx="0.00041179845" iyy="0.0015345605" izz="0.0016233838" ixy="-1.9118421e-08" ixz="4.0097186e-05" iyz="-2.6053576e-08" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/visual/dae/left_ankle_roll_link.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="left_ankle_roll_joint" type="revolute">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="left_ankle_pitch_link" />
+    <child link="left_ankle_roll_link" />
+    <axis xyz="1 0 0" />
+    <limit effort="47.3" lower="-0.5236" upper="0.5236" velocity="20.9" />
+  </joint>
+  <link name="right_hip_pitch_link">
+    <collision>
+      <origin rpy="1.5708 0 0" xyz="0 -0.05 -0.02" />
+      <geometry>
+        <cylinder length="0.07" radius="0.04" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0.00016451879 -0.079963661 -0.026169549" rpy="0 0 0" />
+      <mass value="1.2266127" />
+      <inertia ixx="0.0016168359" iyy="0.0012173699" izz="0.0012734944" ixy="-8.8130448e-06" ixz="-7.3681168e-06" iyz="-0.00015999669" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/visual/dae/right_hip_pitch_link.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="right_hip_pitch_joint" type="revolute">
+    <origin xyz="0 -0.04 -0.081" rpy="0 0 0" />
+    <parent link="pelvis" />
+    <child link="right_hip_pitch_link" />
+    <axis xyz="0 1 0" />
+    <limit effort="96.9" lower="-2.4435" upper="2.4435" velocity="11.5" />
+  </joint>
+  <link name="right_hip_roll_link">
+    <inertial>
+      <origin xyz="0.014829626 -4.1773e-07 -0.077150004" rpy="0 0 0" />
+      <mass value="1.5695498" />
+      <inertia ixx="0.0029165502" iyy="0.0033910886" izz="0.0019251914" ixy="9.8493865e-08" ixz="-9.4929554e-05" iyz="2.4671938e-07" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/visual/dae/right_hip_roll_link.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="right_hip_roll_joint" type="revolute">
+    <origin xyz="-0.008 -0.085 -0.03" rpy="0 0 0" />
+    <parent link="right_hip_pitch_link" />
+    <child link="right_hip_roll_link" />
+    <axis xyz="1 0 0" />
+    <limit effort="96.9" lower="-2.5307" upper="0.6109" velocity="11.5" />
+  </joint>
+  <link name="right_hip_yaw_link">
+    <collision>
+      <origin rpy="0 0 0" xyz="0.0 0 -0.08" />
+      <geometry>
+        <cylinder length="0.13" radius="0.045" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="-0.0020546696 0.0072764681 -0.18566753" rpy="0 0 0" />
+      <mass value="1.9181238" />
+      <inertia ixx="0.011114515" iyy="0.011431879" izz="0.0018056401" ixy="8.7549673e-05" ixz="-0.00044289596" iyz="0.0007680342" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/visual/dae/right_hip_yaw_link.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="right_hip_yaw_joint" type="revolute">
+    <origin xyz="0.015 0 -0.0905" rpy="0 0 0" />
+    <parent link="right_hip_roll_link" />
+    <child link="right_hip_yaw_link" />
+    <axis xyz="0 0 1" />
+    <limit effort="96.9" lower="-3.1416" upper="3.1416" velocity="11.5" />
+  </joint>
+  <link name="right_knee_link">
+    <collision>
+      <origin rpy="0 0 0" xyz="0.0 0 -0.10" />
+      <geometry>
+        <cylinder length="0.18" radius="0.04" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="-0.00087402329 -0.0019513807 -0.12835737" rpy="0 0 0" />
+      <mass value="2.6709166" />
+      <inertia ixx="0.013057637" iyy="0.013463686" izz="0.0034427713" ixy="-0.00024626654" ixz="-0.00075518991" iyz="0.00024780848" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/visual/dae/right_knee_link.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="right_knee_joint" type="revolute">
+    <origin xyz="-0.007 0 -0.2365" rpy="0 0 0" />
+    <parent link="right_hip_yaw_link" />
+    <child link="right_knee_link" />
+    <axis xyz="0 1 0" />
+    <limit effort="96.9" lower="0" upper="2.3562" velocity="11.5" />
+  </joint>
+  <link name="right_ankle_pitch_link">
+    <inertial>
+      <origin xyz="0.0044224217 -1.971722e-05 0.0032186404" rpy="0 0 0" />
+      <mass value="0.71106939" />
+      <inertia ixx="0.00038265347" iyy="0.00056798201" izz="0.00057645767" ixy="-7.0656613e-07" ixz="9.1683089e-05" iyz="1.7804126e-07" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/visual/dae/right_ankle_pitch_link.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="right_ankle_pitch_joint" type="revolute">
+    <origin xyz="0 0 -0.294" rpy="0 0 0" />
+    <parent link="right_knee_link" />
+    <child link="right_ankle_pitch_link" />
+    <axis xyz="0 1 0" />
+    <limit effort="96.9" lower="-0.7854" upper="0.7854" velocity="11.5" />
+  </joint>
+  <link name="right_ankle_roll_link">
+    <collision>
+      <origin rpy="0 0 0" xyz="-0.047 0.025 -0.06" />
+      <geometry>
+        <sphere radius="0.005" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="-0.047 -0.025 -0.06" />
+      <geometry>
+        <sphere radius="0.005" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.05 0.038 -0.06" />
+      <geometry>
+        <sphere radius="0.005" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.05 -0.038 -0.06" />
+      <geometry>
+        <sphere radius="0.005" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.112 0.027 -0.06" />
+      <geometry>
+        <sphere radius="0.005" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.122 0.015 -0.05" />
+      <geometry>
+        <sphere radius="0.005" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.125 0 -0.047" />
+      <geometry>
+        <sphere radius="0.005" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.122 -0.015 -0.05" />
+      <geometry>
+        <sphere radius="0.005" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.112 -0.027 -0.06" />
+      <geometry>
+        <sphere radius="0.005" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0.035260257 -2.66241e-06 -0.041492826" rpy="0 0 0" />
+      <mass value="0.62065603" />
+      <inertia ixx="0.00041179845" iyy="0.0015345605" izz="0.0016233838" ixy="-1.9118421e-08" ixz="4.0097186e-05" iyz="-2.6053576e-08" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/visual/dae/right_ankle_roll_link.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="right_ankle_roll_joint" type="revolute">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="right_ankle_pitch_link" />
+    <child link="right_ankle_roll_link" />
+    <axis xyz="1 0 0" />
+    <limit effort="47.3" lower="-0.5236" upper="0.5236" velocity="20.9" />
+  </joint>
+  <joint name="waist_yaw_joint" type="revolute">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="pelvis" />
+    <child link="torso_link" />
+    <axis xyz="0 0 1" />
+    <limit effort="96.9" lower="-6.2832" upper="6.2832" velocity="11.5" />
+  </joint>
+  <link name="torso_link">
+    <collision>
+      <origin rpy="0 0 0" xyz="-0.02 0 0.24" />
+      <geometry>
+        <box size="0.2 0.17 0.17" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="-0.011439839 -0.00060635089 0.22255256" rpy="0 0 0" />
+      <mass value="9.4264906" />
+      <inertia ixx="0.09793207" iyy="0.084595672" izz="0.049584546" ixy="0.00042897748" ixz="0.0065326452" iyz="0.00034932516" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/visual/dae/torso_link.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="head_joint" type="fixed">
+    <origin xyz="-0.02725 0 0.361" rpy="0 0 0" />
+    <parent link="torso_link" />
+    <child link="head_link" />
+  </joint>
+  <link name="left_shoulder_pitch_link">
+    <collision>
+      <origin rpy="0 1.5707963267948966 0" xyz="0 0.075 0.0" />
+      <geometry>
+        <cylinder length="0.05" radius="0.032" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="-0.0064613231 0.075747679 5.9768e-07" rpy="0 0 0" />
+      <mass value="0.61948628" />
+      <inertia ixx="0.00035781281" iyy="0.00034786555" izz="0.00040356419" ixy="2.1669516e-05" ixz="2.9624003e-07" iyz="2.0453879e-08" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/visual/dae/left_shoulder_pitch_link.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="left_shoulder_pitch_joint" type="revolute">
+    <origin xyz="0.0015 0.068 0.319" rpy="0 0 0" />
+    <parent link="torso_link" />
+    <child link="left_shoulder_pitch_link" />
+    <axis xyz="0 1 0" />
+    <limit effort="47.3" lower="-3.1416" upper="3.1416" velocity="20.9" />
+  </joint>
+  <link name="left_shoulder_roll_link">
+    <collision>
+      <origin rpy="0 0 0" xyz="0.0 0.000 -0.13" />
+      <geometry>
+        <cylinder length="0.08" radius="0.035" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0.00047465183 -4.53826e-06 -0.060911941" rpy="0 0 0" />
+      <mass value="0.75727541" />
+      <inertia ixx="0.0006930169" iyy="0.00087669779" izz="0.0005303809" ixy="-7.191862e-08" ixz="-3.9960029e-05" iyz="7.5857118e-08" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/visual/dae/left_shoulder_roll_link.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="left_shoulder_roll_joint" type="revolute">
+    <origin xyz="-0.006 0.079 0" rpy="0 0 0" />
+    <parent link="left_shoulder_pitch_link" />
+    <child link="left_shoulder_roll_link" />
+    <axis xyz="1 0 0" />
+    <limit effort="47.3" lower="0" upper="3.1416" velocity="20.9" />
+  </joint>
+  <link name="left_shoulder_yaw_link">
+    <inertial>
+      <origin xyz="0.010980607 -0.0058206634 -0.10315525" rpy="0 0 0" />
+      <mass value="0.74853508" />
+      <inertia ixx="0.00085862058" iyy="0.00087701364" izz="0.00046420439" ixy="3.6500792e-05" ixz="0.00013500131" iyz="-7.1896275e-05" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/visual/dae/left_shoulder_yaw_link.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="left_shoulder_yaw_joint" type="revolute">
+    <origin xyz="0.001 0 -0.0677" rpy="0 0 0" />
+    <parent link="left_shoulder_roll_link" />
+    <child link="left_shoulder_yaw_link" />
+    <axis xyz="0 0 1" />
+    <limit effort="47.3" lower="-3.1416" upper="3.1416" velocity="20.9" />
+  </joint>
+  <link name="left_elbow_link">
+    <inertial>
+      <origin xyz="0.063039115 0.0056533145 -2.87951e-06" rpy="0 0 0" />
+      <mass value="0.67400112" />
+      <inertia ixx="0.00038064145" iyy="0.00061111713" izz="0.00068215737" ixy="0.00012891558" ixz="-4.6143989e-08" iyz="-6.5524392e-08" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/visual/dae/left_elbow_link.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="left_elbow_joint" type="revolute">
+    <origin xyz="0.016000144 -0.007999684 -0.117300003" rpy="0 0 0" />
+    <parent link="left_shoulder_yaw_link" />
+    <child link="left_elbow_link" />
+    <axis xyz="0 1 0" />
+    <limit effort="47.3" lower="-0.7854" upper="2.1817" velocity="20.9" />
+  </joint>
+  <joint name="left_wrist_roll_joint" type="revolute">
+    <origin xyz="0.06769998 0.001001335 -1.2e-08" rpy="0 0 0" />
+    <axis xyz="1 0 0" />
+    <parent link="left_elbow_link" />
+    <child link="left_wrist_roll_rubber_hand" />
+    <limit effort="47.3" lower="-3.1416" upper="3.1416" velocity="20.9" />
+  </joint>
+  <link name="left_wrist_roll_rubber_hand">
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/collision/left_wrist_roll_rubber_hand.stl" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0.11655705 0.002341845 0.0018203594" rpy="0 0 0" />
+      <mass value="0.30188192" />
+      <inertia ixx="0.00014602436" iyy="0.0013708956" izz="0.0013404897" ixy="2.1797156e-05" ixz="-2.4383968e-05" iyz="6.0046604e-07" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/visual/dae/left_wrist_roll_rubber_hand.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <link name="right_shoulder_pitch_link">
+    <collision>
+      <origin rpy="0 1.5707963267948966 0" xyz="0 -0.075 0.0" />
+      <geometry>
+        <cylinder length="0.05" radius="0.032" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="-0.0063338512 -0.075879829 2.42303e-06" rpy="0 0 0" />
+      <mass value="0.62136476" />
+      <inertia ixx="0.00035987034" iyy="0.00035035769" izz="0.00040190917" ixy="-2.2767894e-05" ixz="-2.4286699e-07" iyz="-1.4359399e-08" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/visual/dae/right_shoulder_pitch_link.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="right_shoulder_pitch_joint" type="revolute">
+    <origin xyz="0.0015 -0.068 0.319" rpy="0 0 0" />
+    <parent link="torso_link" />
+    <child link="right_shoulder_pitch_link" />
+    <axis xyz="0 1 0" />
+    <limit effort="47.3" lower="-3.1416" upper="3.1416" velocity="20.9" />
+  </joint>
+  <link name="right_shoulder_roll_link">
+    <collision>
+      <origin rpy="0 0 0" xyz="0.0 0.000 -0.13" />
+      <geometry>
+        <cylinder length="0.08" radius="0.035" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0.00086418051 -3.75523e-06 -0.060844446" rpy="0 0 0" />
+      <mass value="0.78461564" />
+      <inertia ixx="0.00076300391" iyy="0.00095342606" izz="0.00054973728" ixy="-6.3757223e-08" ixz="-6.0168648e-05" iyz="6.5228094e-08" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/visual/dae/right_shoulder_roll_link.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="right_shoulder_roll_joint" type="revolute">
+    <origin xyz="-0.006 -0.079 0" rpy="0 0 0" />
+    <parent link="right_shoulder_pitch_link" />
+    <child link="right_shoulder_roll_link" />
+    <axis xyz="1 0 0" />
+    <limit effort="47.3" lower="-3.1416" upper="0" velocity="20.9" />
+  </joint>
+  <link name="right_shoulder_yaw_link">
+    <inertial>
+      <origin xyz="0.010955803 0.0057694109 -0.10305359" rpy="0 0 0" />
+      <mass value="0.7565942" />
+      <inertia ixx="0.0008720035" iyy="0.00089022527" izz="0.00046751642" ixy="-3.6899244e-05" ixz="0.00013742791" iyz="7.2898514e-05" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/visual/dae/right_shoulder_yaw_link.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="right_shoulder_yaw_joint" type="revolute">
+    <origin xyz="0.001 0 -0.0677" rpy="0 0 0" />
+    <parent link="right_shoulder_roll_link" />
+    <child link="right_shoulder_yaw_link" />
+    <axis xyz="0 0 1" />
+    <limit effort="47.3" lower="-3.1416" upper="3.1416" velocity="20.9" />
+  </joint>
+  <link name="right_elbow_link">
+    <inertial>
+      <origin xyz="0.063039226 -0.0056520714 2.86797e-06" rpy="0 0 0" />
+      <mass value="0.67400112" />
+      <inertia ixx="0.00038064653" iyy="0.00061111204" izz="0.00068215737" ixy="-0.00012892012" ixz="4.6200486e-08" iyz="-6.5499691e-08" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/visual/dae/right_elbow_link.dae" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="right_elbow_joint" type="revolute">
+    <origin xyz="0.016 0.008 -0.1173" rpy="0 0 0" />
+    <parent link="right_shoulder_yaw_link" />
+    <child link="right_elbow_link" />
+    <axis xyz="0 1 0" />
+    <limit effort="47.3" lower="-0.7854" upper="2.1817" velocity="20.9" />
+  </joint>
+  <joint name="right_wrist_roll_joint" type="revolute">
+    <origin xyz="0.0677 -0.001 0" rpy="0 0 0" />
+    <axis xyz="1 0 0" />
+    <parent link="right_elbow_link" />
+    <child link="right_wrist_roll_rubber_hand" />
+    <limit effort="47.3" lower="-3.1416" upper="3.1416" velocity="20.9" />
+  </joint>
+  <link name="right_wrist_roll_rubber_hand">
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/collision/right_wrist_roll_rubber_hand.stl" />
+      </geometry>
+    </collision>
+    <inertial>
+      <origin xyz="0.11653963 -0.0022997999 0.0016779157" rpy="0 0 0" />
+      <mass value="0.30226836" />
+      <inertia ixx="0.00014591847" iyy="0.0013708692" izz="0.0013405814" ixy="-2.1841485e-05" ixz="-2.145694e-05" iyz="-5.6499164e-07" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/visual/dae/right_wrist_roll_rubber_hand.dae" />
+      </geometry>
+    </visual>
+  </link>
+</robot>

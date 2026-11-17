@@ -42,7 +42,7 @@ def generate_launch_description():
                 [
                     FindPackageShare('ai_sapiens_description'),
                     'urdf',
-                    'k1_rev1',
+                    model,
                     'k1.urdf.xacro'
                 ]
             ),
