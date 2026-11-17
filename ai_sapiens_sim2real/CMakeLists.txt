@@ -348,6 +348,23 @@ if(BUILD_TESTING)
     src/policy/motion_reference.cpp)
   target_link_libraries(test_motion_playback Eigen3::Eigen)
 
+  ament_add_gtest(test_policy_action_fault test/test_policy_action_fault.cpp
+    src/policy/policy_runtime.cpp
+    src/policy/action_pipeline.cpp
+    src/policy/onnx_inference.cpp
+    src/policy/motion_reference.cpp
+    src/policy/gait_clock.cpp
+    src/observation/observation_manager.cpp
+    src/observation/observations.cpp
+    src/config/sim2real_config.cpp
+    src/config/config_utils.cpp)
+  ament_target_dependencies(test_policy_action_fault rclcpp realtime_tools ament_index_cpp)
+  target_link_libraries(test_policy_action_fault yaml-cpp Eigen3::Eigen
+    ${ONNXRUNTIME_LIBRARY})
+  target_compile_definitions(test_policy_action_fault PRIVATE
+    COMMON_POLICY_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/data/common/two_joint_policy"
+    HISTORY_POLICY_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/data/common/four_frame_policy")
+
   # AxisRange: zero-preserving normalize/scale/clamp helpers (header-only).
   ament_add_gtest(test_axis_range test/test_axis_range.cpp)
 

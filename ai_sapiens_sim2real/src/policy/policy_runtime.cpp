@@ -63,22 +63,36 @@ PolicyRuntime::PolicyRuntime(
   , model_path_(std::move(model_path))
   , sim2real_config_path_(sim2real_config.path())
 {
+  is_reference_mimic_ = reference_motion != nullptr;
   load_sim2real_config(sim2real_config, controller_joint_names);
   log_joint_coverage(controller_joint_names);
   log_loading();
   load_onnx_model();
-  const size_t observation_size =
-    create_observation_manager(sim2real_config, shared_data, reference_motion);
-  gait_clock_ = make_gait_clock(sim2real_config.observations(), step_dt_);
-  validate_observation_size(observation_size);
-  obs_buffer_[onnx_input_name_].resize(observation_size);
-  target_command_.resize(joint_context_.policy_joint_names.size());
-  target_command_.stiffness = joint_properties_.stiffness;
-  target_command_.damping = joint_properties_.damping;
+  const size_t observation_size = initialize_observations(sim2real_config, reference_motion);
+  initialize_target_command();
+
   log_ready(observation_size);
 }
 
 PolicyRuntime::~PolicyRuntime() = default;
+
+size_t PolicyRuntime::initialize_observations(
+  const Sim2RealConfig & config, const MotionReference * reference_motion)
+{
+  const size_t observation_size =
+    create_observation_manager(config, shared_data_, reference_motion);
+  gait_clock_ = make_gait_clock(config.observations(), step_dt_);
+  validate_observation_size(observation_size);
+  obs_buffer_[onnx_input_name_].resize(observation_size);
+  return observation_size;
+}
+
+void PolicyRuntime::initialize_target_command()
+{
+  target_command_.resize(joint_context_.policy_joint_names.size());
+  target_command_.stiffness = joint_properties_.stiffness;
+  target_command_.damping = joint_properties_.damping;
+}
 
 void PolicyRuntime::reset()
 {
@@ -93,6 +107,7 @@ void PolicyRuntime::enter()
   install_joint_properties();
   install_velocity_command_ranges();
   reset_episode_state();
+  seed_action_reference();
   on_enter();
   obs_manager_->reset();  // after on_enter(): seeds history from the state it sets
 }
@@ -132,14 +147,23 @@ void PolicyRuntime::install_velocity_command_ranges() const
 void PolicyRuntime::reset_episode_state()
 {
   policy_->episode_time = 0.0f;
-  action_limit_logged_ = false;
   if (policy_->last_action.size() < joint_context_.policy_joint_names.size()) {
     throw std::runtime_error("Policy state '" + state_name_ + "' last_action buffer too small");
   }
 
   std::fill(policy_->last_action.begin(), policy_->last_action.end(), 0.0f);
   accumulated_period_ = step_dt_;
-  consecutive_inference_failures_ = 0;
+  consecutive_action_failures_ = 0;
+}
+
+void PolicyRuntime::seed_action_reference()
+{
+  const auto & source = output_->has_published_command ? output_->last_published : output_->command;
+  action_reference_.resize(joint_context_.policy_to_controller.size());
+
+  for (size_t j = 0; j < action_reference_.size(); ++j) {
+    action_reference_[j] = source.position.at(joint_context_.policy_to_controller[j]);
+  }
 }
 
 void PolicyRuntime::on_enter()
@@ -169,21 +193,38 @@ PolicyUpdateResult PolicyRuntime::update(const rclcpp::Duration & period)
   if (!advance_policy_tick(period)) {
     return PolicyUpdateResult::Skipped;
   }
+
+  if (!prepare_policy_observation()) {
+    return PolicyUpdateResult::TargetUnavailable;
+  }
+
+  const auto action = evaluate_policy_action();
+  const auto decision = apply_action(action);
+  if (!action.is_accepted()) {
+    RCLCPP_WARN(node_->get_logger(),
+      "Policy '%s' unusable action (%zu/%zu): %s; %s",
+      state_name_.c_str(), decision.failures, decision.max_failures,
+      action.error.empty() ? "action validation failed" : action.error.c_str(),
+      decision.outcome == PolicyActionOutcome::Damping ? "requesting damping" : "retry next tick");
+  }
+  advance_clocks();
+
+  return action.is_accepted() ? PolicyUpdateResult::TargetReady :
+         PolicyUpdateResult::TargetUnavailable;
+}
+
+bool PolicyRuntime::prepare_policy_observation()
+{
   const bool command_first = gait_clock_ && gait_clock_->resolve_command_before_update();
   if (command_first) {resolve_active_velocity_command();}
 
   if (!prepare_observation()) {
-    return PolicyUpdateResult::TargetUnavailable;
+    return false;
   }
 
   if (!command_first) {resolve_active_velocity_command();}
   compute_observation();
-  PolicyUpdateResult result = PolicyUpdateResult::TargetUnavailable;
-  if (const auto raw_action = run_policy_inference()) {
-    result = accept_action(*raw_action, action_pipeline_.process(*raw_action));
-  }
-  advance_clocks();
-  return result;
+  return true;
 }
 
 bool PolicyRuntime::advance_policy_tick(const rclcpp::Duration & period)
@@ -230,112 +271,92 @@ void PolicyRuntime::compute_observation()
   policy_->input = obs_buffer_[onnx_input_name_];
 }
 
-// Owns the inference failure policy: reset the streak on success, count and
-// escalate on failure. Returns nullopt when this step produced no action.
-std::optional<std::vector<float>> PolicyRuntime::run_policy_inference()
+std::vector<float> PolicyRuntime::run_policy_inference()
 {
+  auto output = inference_->run(obs_buffer_);
+  return output;
+}
+
+PolicyActionResult PolicyRuntime::evaluate_policy_action()
+{
+  PolicyActionResult result;
+
   try {
-    auto raw_action = inference_->run(obs_buffer_);
-    consecutive_inference_failures_ = 0;
-    return raw_action;
+    result.raw = run_policy_inference();
+    result.processed = action_pipeline_.process(result.raw);
+    validate_action_dimensions(result);
+    result.validation = validate_action(result.raw, result.processed,
+      is_reference_mimic_ ? &action_reference_ : nullptr, action_safety_limits_);
+
+    result.status = result.validation.is_valid() ?
+      PolicyActionStatus::Accepted : PolicyActionStatus::ActionRejected;
   } catch (const std::exception & e) {
-    handle_inference_failure(e.what());
-    return std::nullopt;
+    result.error = e.what();
+    result.status = PolicyActionStatus::InferenceFailed;
+  }
+
+  return result;
+}
+
+PolicyActionDecision PolicyRuntime::apply_action(const PolicyActionResult & action)
+{
+  PolicyActionDecision decision;
+  decision.previous_failures = consecutive_action_failures_;
+  decision.max_failures = kMaxConsecutiveActionFailures;
+
+  if (action.is_accepted()) {
+    commit_action(action);
+    decision.outcome = PolicyActionOutcome::Accepted;
+  } else {
+    decision.outcome = reject_action(action.status);
+  }
+
+  decision.failures = consecutive_action_failures_;
+  return decision;
+}
+
+void PolicyRuntime::validate_action_dimensions(const PolicyActionResult & action) const
+{
+  const size_t count = joint_context_.policy_joint_names.size();
+
+  if (action.raw.size() != count) {
+    throw std::runtime_error(action_size_mismatch_message("Raw", action.raw.size(), count));
+  }
+
+  if (action.processed.size() != count) {
+    throw std::runtime_error(action_size_mismatch_message("Processed", action.processed.size(),
+        count));
   }
 }
 
-// The failed step keeps the previous action, which is benign for one or two
-// policy steps but must not continue indefinitely: a persistent fault would
-// leave the robot running on a frozen action while appearing healthy.
-void PolicyRuntime::handle_inference_failure(const char * reason)
+void PolicyRuntime::commit_action(const PolicyActionResult & action)
 {
-  ++consecutive_inference_failures_;
-  RCLCPP_WARN(
-    node_->get_logger(),
-    "Policy '%s' inference failed (%zu/%zu consecutive): %s",
-    state_name_.c_str(),
-    consecutive_inference_failures_,
-    kMaxConsecutiveInferenceFailures,
-    reason);
+  // Only validated actions may update the target and feedback for the next tick.
+  std::copy(action.processed.begin(), action.processed.end(), target_command_.position.begin());
+  std::copy(action.raw.begin(), action.raw.end(), policy_->last_action.begin());
+  action_reference_ = action.processed;
+  consecutive_action_failures_ = 0;
+}
 
-  if (consecutive_inference_failures_ >= kMaxConsecutiveInferenceFailures &&
-    !requests_->damping)
-  {
-    RCLCPP_ERROR(
-      node_->get_logger(),
-      "Policy '%s' inference keeps failing; requesting damping failsafe",
-      state_name_.c_str());
+PolicyActionOutcome PolicyRuntime::reject_action(PolicyActionStatus status)
+{
+  // Preserve the elapsed time slot without feeding the rejected sample back.
+  obs_manager_->reject_latest();
+
+  // Exceptions and invalid targets share one budget, reset only by acceptance.
+  ++consecutive_action_failures_;
+
+  if (consecutive_action_failures_ < kMaxConsecutiveActionFailures) {
+    return PolicyActionOutcome::Retry;
+  }
+
+  if (status == PolicyActionStatus::ActionRejected) {
+    requests_->action_limit_exceeded = true;
+  } else {
     requests_->damping = true;
   }
-}
 
-PolicyUpdateResult PolicyRuntime::accept_action(
-  const std::vector<float> & raw_action,
-  const std::vector<float> & processed_action)
-{
-  const size_t policy_joint_count = joint_context_.policy_joint_names.size();
-  if (processed_action.size() != policy_joint_count) {
-    throw std::runtime_error(
-      action_size_mismatch_message("Processed", processed_action.size(), policy_joint_count));
-  }
-
-  if (raw_action.size() != policy_joint_count) {
-    throw std::runtime_error(
-      action_size_mismatch_message("Raw", raw_action.size(), policy_joint_count));
-  }
-
-  requests_->action_limit_exceeded = false;
-  for (size_t policy_index = 0; policy_index < policy_joint_count;
-    ++policy_index)
-  {
-    const float value = processed_action[policy_index];
-    if (!std::isfinite(value) || std::abs(value) > kAbsActionLimitRad) {
-      requests_->action_limit_exceeded = true;
-      log_action_limit_once(policy_index, raw_action[policy_index], value);
-      return PolicyUpdateResult::TargetUnavailable;
-    }
-  }
-
-  action_limit_logged_ = false;
-
-  // Only expose fully validated targets to the command output stage.
-  std::copy(processed_action.begin(), processed_action.end(), target_command_.position.begin());
-
-  // The buffer is controller-sized; this policy uses the first joint_names.size() slots.
-  std::copy(raw_action.begin(), raw_action.end(), policy_->last_action.begin());
-  return PolicyUpdateResult::TargetReady;
-}
-
-void PolicyRuntime::log_action_limit_once(
-  size_t policy_index,
-  float raw_value,
-  float processed_value)
-{
-  if (action_limit_logged_) {
-    return;
-  }
-
-  const auto & joint_name = joint_context_.policy_joint_names[policy_index];
-  const auto & properties = action_pipeline_.properties();
-  const auto & clip = properties.clip[policy_index];
-  const float clip_min = clip ? clip->first : 0.0f;
-  const float clip_max = clip ? clip->second : 0.0f;
-  RCLCPP_ERROR(
-    node_->get_logger(),
-    "Policy action limit exceeded: state=%s joint=%s raw=%.6f processed=%.6f rad "
-    "limit=%.6f rad scale=%.6f offset=%.6f clip_enabled=%s clip_min=%.6f "
-    "clip_max=%.6f; rejecting action commit",
-    state_name_.c_str(),
-    joint_name.c_str(),
-    raw_value,
-    processed_value,
-    kAbsActionLimitRad,
-    properties.scale[policy_index],
-    properties.offset[policy_index],
-    clip ? "true" : "false",
-    clip_min,
-    clip_max);
-  action_limit_logged_ = true;
+  return PolicyActionOutcome::Damping;
 }
 
 const std::string & PolicyRuntime::state_name() const
