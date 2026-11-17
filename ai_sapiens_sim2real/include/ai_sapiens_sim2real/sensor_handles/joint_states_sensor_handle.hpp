@@ -74,7 +74,8 @@ public:
     ModeRequests * requests,
     double timeout_seconds,
     const std::vector<std::string> & joint_names,
-    const std::string & topic = "/joint_states");
+    const std::string & topic = "/joint_states",
+    const rclcpp::SubscriptionOptions & subscription_options = {});
 
   void update(const rclcpp::Time & /*time*/) override;
 

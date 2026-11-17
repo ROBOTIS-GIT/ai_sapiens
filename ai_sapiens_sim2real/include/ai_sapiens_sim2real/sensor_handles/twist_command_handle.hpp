@@ -50,7 +50,8 @@ public:
     rclcpp::Node::SharedPtr node,
     ApiInput * api,
     const AxisRanges * active_velocity_command_ranges,
-    const std::string & topic = "/cmd_vel");
+    const std::string & topic = "/cmd_vel",
+    const rclcpp::SubscriptionOptions & subscription_options = {});
 
   void update(const rclcpp::Time & /*time*/) override;
 

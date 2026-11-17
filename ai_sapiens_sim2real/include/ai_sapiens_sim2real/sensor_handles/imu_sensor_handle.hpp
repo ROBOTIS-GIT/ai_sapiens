@@ -63,7 +63,8 @@ public:
     SensorData * sensors,
     ModeRequests * requests,
     double timeout_seconds,
-    const std::string & topic = "/imu_sensor_broadcaster/imu");
+    const std::string & topic = "/imu_sensor_broadcaster/imu",
+    const rclcpp::SubscriptionOptions & subscription_options = {});
 
   void update(const rclcpp::Time & /*time*/) override;
 

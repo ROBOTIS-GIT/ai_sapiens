@@ -109,7 +109,7 @@ void RadiomasterPocketTeleopInputPlugin::configure(
     [this](const RcStatus::SharedPtr msg) {
       warn_if_hardware_error(*msg);
       handle_raw_message(*msg);
-    });
+    }, subscription_options());
 
   RCLCPP_INFO(node_->get_logger(), "[%s] topic(%s)", name().c_str(), topic_.c_str());
 }

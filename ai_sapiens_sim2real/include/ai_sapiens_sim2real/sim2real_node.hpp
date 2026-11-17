@@ -30,6 +30,7 @@
 #include "ai_sapiens_sim2real/controllers/mode_ros_interface.hpp"
 #include "ai_sapiens_sim2real/config/root_config.hpp"
 #include "ai_sapiens_sim2real/mode_runtime/operator_command_inputs.hpp"
+#include "ai_sapiens_sim2real/mode_runtime/input_executor.hpp"
 #include "ai_sapiens_sim2real/mode_runtime/startup_gate.hpp"
 #include "ai_sapiens_sim2real/shared_control_data.hpp"
 
@@ -98,6 +99,7 @@ private:
   void run_control_loop_until_shutdown();
 
   rclcpp::Node::SharedPtr node_;
+  InputExecutor input_executor_;
   NodeOptions options_;
   std::unique_ptr<RootConfig> root_config_;
   RuntimeConfig runtime_config_;

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <future>
+#include "ai_sapiens_sim2real/mode_runtime/input_executor.hpp"
 #include <gtest/gtest.h>
 #include <limits>
 #include <thread>
@@ -37,7 +39,13 @@ TEST(ImuValidation, RejectsUnavailableZeroNonfiniteAndGrossNormErrors)
   }
 }
 
-TEST(ImuSensorHandle, WaitsForValidSampleThenLatchesFaultWithoutReplacingPose)
+class ImuSensorHandleTest : public ::testing::Test
+{
+protected:
+  void TearDown() override {rclcpp::shutdown();}
+};
+
+TEST_F(ImuSensorHandleTest, WaitsForValidSampleThenLatchesFaultWithoutReplacingPose)
 {
   if (!rclcpp::ok()) {
     rclcpp::init(0, nullptr);
@@ -88,4 +96,53 @@ TEST(ImuSensorHandle, WaitsForValidSampleThenLatchesFaultWithoutReplacingPose)
   send(message);
   EXPECT_TRUE(requests.damping);  // Recovery cannot automatically resume policy.
   EXPECT_FALSE(sensors.is_imu_usable);
+}
+
+TEST_F(ImuSensorHandleTest, ReceivesWhileOrdinaryExecutorIsBlocked)
+{
+  if (!rclcpp::ok()) {
+    rclcpp::init(0, nullptr);
+  }
+  auto node = std::make_shared<rclcpp::Node>("isolated_imu_test");
+  InputExecutor inputs(node);
+  const auto & options = inputs.subscription_options();
+  SensorData sensors;
+  ModeRequests requests;
+  ImuSensorHandle handle(node, &sensors, &requests, 10.0, "/isolated_imu_test", options);
+  auto publisher = node->create_publisher<sensor_msgs::msg::Imu>("/isolated_imu_test", 10);
+  rclcpp::executors::SingleThreadedExecutor ordinary;
+  ordinary.add_node(node);
+
+  std::promise<void> entered;
+  auto entered_future = entered.get_future();
+  std::promise<void> release;
+  auto release_future = release.get_future();
+  std::atomic<bool> is_blocked{false};
+  auto timer = node->create_wall_timer(std::chrono::milliseconds(1), [&]() {
+        is_blocked = true;
+        entered.set_value();
+        release_future.wait_for(std::chrono::seconds(3));
+        is_blocked = false;
+        ordinary.cancel();
+    });
+  inputs.start();
+  std::thread worker([&]() {ordinary.spin();});
+  const bool did_enter = entered_future.wait_for(std::chrono::seconds(2)) ==
+    std::future_status::ready;
+  sensor_msgs::msg::Imu msg;
+  msg.orientation.w = 1;
+  msg.angular_velocity.x = 0.75;
+  for (int i = 0; i < 200 && !handle.is_ready(); ++i) {
+    publisher->publish(msg);
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  }
+  const bool received_while_blocked = handle.is_ready() && is_blocked.load();
+  release.set_value();
+  worker.join();
+  inputs.stop();
+  handle.update(node->now());
+  EXPECT_TRUE(did_enter);
+  EXPECT_TRUE(received_while_blocked);
+  EXPECT_NEAR(sensors.angular_velocity.x(), 0.75, 1e-6);
+  EXPECT_FALSE(requests.damping);
 }
