@@ -62,14 +62,16 @@ std::vector<std::string> read_controller_joint_names(const YAML::Node & document
   return joint_names;
 }
 
-ActionTransitionConfig read_action_transition_config(const YAML::Node & transition)
+ActionTransitionConfig resolve_action_transition_config(
+  const YAML::Node & transition,
+  ActionTransitionConfig config = {},
+  const std::string & field = "policy_action_transition")
 {
-  ActionTransitionConfig config;
   if (!transition.IsDefined()) {
     return config;
   }
 
-  require_yaml_map(transition, "policy_action_transition");
+  require_yaml_map(transition, field);
   try {
     if (transition["enabled"].IsDefined()) {
       config.enabled = transition["enabled"].as<bool>();
@@ -79,11 +81,11 @@ ActionTransitionConfig read_action_transition_config(const YAML::Node & transiti
     }
   } catch (const YAML::Exception &) {
     throw std::runtime_error(
-      "policy_action_transition requires boolean enabled and numeric duration");
+      field + " requires boolean enabled and numeric duration");
   }
   if (!std::isfinite(config.duration) || config.duration < 0.0) {
     throw std::runtime_error(
-      "policy_action_transition.duration must be finite and non-negative");
+      field + ".duration must be finite and non-negative");
   }
 
   return config;
@@ -154,7 +156,7 @@ RootConfig::RootConfig(const std::filesystem::path & path)
     [&] {
       require_root_sections(document_);
       policy_action_transition_ =
-      read_action_transition_config(document_["policy_action_transition"]);
+      resolve_action_transition_config(document_["policy_action_transition"]);
 
       controller_joints_ = read_controller_joint_names(document_);
 
@@ -263,6 +265,9 @@ RootConfig::PolicyBehavior RootConfig::read_policy_behavior(
 {
   PolicyBehavior behavior;
   behavior.name = name;
+  behavior.action_transition = resolve_action_transition_config(
+    behavior_node["policy_action_transition"], policy_action_transition_,
+    "state_behaviors." + name + ".policy_action_transition");
   behavior.policy_path = behavior_policy_path(behavior_node, name);
   behavior.sim2real_config_path = behavior_sim2real_config_path(behavior_node, name);
 

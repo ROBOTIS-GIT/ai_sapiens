@@ -31,7 +31,6 @@ PolicyController::PolicyController(
   teleop_(&shared_data->teleop),
   policy_(&shared_data->policy),
   output_(&shared_data->output),
-  transition_config_(root_config.policy_action_transition()),
   command_transition_(shared_data->joint_map.controller_joint_names.size())
 {
   if (shared_data->joint_map.controller_joint_names.empty()) {
@@ -67,8 +66,8 @@ void PolicyController::update(
     return;
   }
 
-  auto * runtime = active_runtime(decision.active_policy_name);
-  if (!runtime) {
+  auto * entry = active_runtime_entry(decision.active_policy_name);
+  if (!entry) {
     RCLCPP_WARN_THROTTLE(
       node_->get_logger(),
       *node_->get_clock(),
@@ -79,21 +78,24 @@ void PolicyController::update(
     return;
   }
 
+  auto & runtime = *entry->runtime;
+
   // The mode controller bumps mode.transition_count on every committed
   // transition; if one happened since our last enter, the active runtime
   // must start a fresh policy episode before it can update.
   if (entered_transition_count_ != decision.transition_count) {
-    enter_policy(*runtime);
+    enter_policy(runtime, entry->action_transition);
     entered_transition_count_ = decision.transition_count;
   }
 
-  update_policy(*runtime, period);
+  update_policy(runtime, period);
 }
 
-void PolicyController::enter_policy(PolicyRuntime & runtime)
+void PolicyController::enter_policy(
+  PolicyRuntime & runtime, const ActionTransitionConfig & transition)
 {
-  const double duration = can_blend_from_previous_ && transition_config_.enabled ?
-    transition_config_.duration : 0.0;
+  const double duration = can_blend_from_previous_ && transition.enabled ?
+    transition.duration : 0.0;
   const auto & source = output_->has_published_command ?
     output_->last_published : output_->command;
   command_transition_.begin(
@@ -110,8 +112,8 @@ void PolicyController::update_policy(PolicyRuntime & runtime, const rclcpp::Dura
 
 void PolicyController::reset()
 {
-  for (auto & [_, runtime] : runtimes_) {
-    runtime->reset();
+  for (auto & [_, entry] : runtimes_) {
+    entry.runtime->reset();
   }
 
   command_transition_.reset();
@@ -170,27 +172,30 @@ void PolicyController::load_policies(
         shared_data);
     }
 
-    register_runtime(shared_data, behavior.name, std::move(runtime));
+    register_runtime(
+      shared_data, behavior.name, std::move(runtime), behavior.action_transition);
   }
 }
 
 void PolicyController::register_runtime(
   SharedControlData * shared_data,
   const std::string & state_name,
-  std::unique_ptr<PolicyRuntime> runtime)
+  std::unique_ptr<PolicyRuntime> runtime,
+  const ActionTransitionConfig & action_transition)
 {
   if (shared_data->policy.input.size() < runtime->observation_size()) {
     shared_data->resize_observation(runtime->observation_size());
   }
 
-  runtimes_.emplace(state_name, std::move(runtime));
+  runtimes_.emplace(state_name, RuntimeEntry{std::move(runtime), action_transition});
 }
 
-PolicyRuntime * PolicyController::active_runtime(const std::string & policy_name)
+PolicyController::RuntimeEntry * PolicyController::active_runtime_entry(
+  const std::string & policy_name)
 {
   const auto it = runtimes_.find(policy_name);
   if (it != runtimes_.end()) {
-    return it->second.get();
+    return &it->second;
   }
 
   return nullptr;

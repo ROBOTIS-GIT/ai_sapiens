@@ -59,17 +59,24 @@ public:
   std::string get_name() const override;
 
 private:
+  struct RuntimeEntry
+  {
+    std::unique_ptr<PolicyRuntime> runtime;
+    ActionTransitionConfig action_transition;
+  };
+
   // Startup loading: create one runtime per resolved policy behavior.
   void load_policies(SharedControlData * shared_data, const RootConfig & root_config);
   void register_runtime(
     SharedControlData * shared_data,
     const std::string & state_name,
-    std::unique_ptr<PolicyRuntime> runtime);
+    std::unique_ptr<PolicyRuntime> runtime,
+    const ActionTransitionConfig & action_transition);
 
   // Runtime lookup follows the active mode's policy name.
-  PolicyRuntime * active_runtime(const std::string & policy_name);
+  RuntimeEntry * active_runtime_entry(const std::string & policy_name);
 
-  void enter_policy(PolicyRuntime & runtime);
+  void enter_policy(PolicyRuntime & runtime, const ActionTransitionConfig & transition);
   void update_policy(PolicyRuntime & runtime, const rclcpp::Duration & period);
 
   rclcpp::Node::SharedPtr node_;
@@ -78,12 +85,11 @@ private:
   const TeleopInput * teleop_;
   PolicyState * policy_;
   BehaviorOutput * output_;
-  const ActionTransitionConfig transition_config_;
   CommandTransition command_transition_;
 
   // Stored by base pointer so mimic policies keep their derived behavior; the
   // active state's policy name selects which runtime drives the act stage.
-  std::unordered_map<std::string, std::unique_ptr<PolicyRuntime>> runtimes_;
+  std::unordered_map<std::string, RuntimeEntry> runtimes_;
   // SharedControlData::mode.transition_count value at our last runtime enter.
   uint64_t entered_transition_count_{0};
   // True after a posture or policy command; false at startup/reset or in damping.
