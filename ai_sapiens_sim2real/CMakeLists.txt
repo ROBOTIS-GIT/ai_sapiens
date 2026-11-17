@@ -281,6 +281,11 @@ if(BUILD_TESTING)
     PHASE_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/data/command_only_phase")
 
 
+  ament_add_gtest(test_observation_history test/test_observation_history.cpp
+    src/observation/observations.cpp src/observation/observation_manager.cpp
+    src/policy/motion_reference.cpp)
+  target_link_libraries(test_observation_history yaml-cpp Eigen3::Eigen)
+
   # StateMachineConfig/RootConfig: config validation and mimic-state detection.
   ament_add_gtest(test_state_machine_config test/test_state_machine_config.cpp
     src/config/config_utils.cpp
