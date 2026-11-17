@@ -113,7 +113,7 @@ void MimicPolicyRuntime::on_enter()
     reference_torso, torso_orientation_in_world(*sensors_, joint_context()));
 }
 
-bool MimicPolicyRuntime::prepare_observation()
+bool MimicPolicyRuntime::update_reference_state()
 {
   // Window ended: hand off to the completion state; false stops this tick's step.
   const auto motion_time = playback_.seek_time(policy_->episode_time);

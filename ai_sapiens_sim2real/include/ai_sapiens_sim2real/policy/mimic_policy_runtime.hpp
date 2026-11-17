@@ -67,7 +67,7 @@ public:
 
 protected:
   void on_enter() override;
-  bool prepare_observation() override;
+  bool update_reference_state() override;
 
 private:
   // Loads the reference motion and clamps the playback window to its duration.

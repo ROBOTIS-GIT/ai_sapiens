@@ -54,7 +54,7 @@ class PolicyDiagnostics;
  *
  * This base is the whole behavior for a plain `kind: policy` state. The
  * per-tick flow lives here once (enter/update are template methods);
- * MimicPolicyRuntime extends it through the on_enter()/prepare_observation() hooks to play
+ * MimicPolicyRuntime extends it through the on_enter()/update_reference_state() hooks to play
  * a reference motion. The base knows nothing about motion beyond handing the
  * observation manager an optional reference motion, since some observation
  * terms read one.
@@ -93,13 +93,14 @@ public:
   }
 
 protected:
-  // Per-tick hooks split around inference. prepare_observation() runs before it:
-  // the base advances the gait phase, mimic seeks the motion (returning false to
-  // skip inference once the window ends). advance_clocks() runs after, advancing
-  // episode_time so the next tick infers one step later. on_enter() handles
-  // per-kind entry.
   virtual void on_enter();
-  virtual bool prepare_observation();
+
+  // Update the reference consumed by observation terms: gait phase in the base,
+  // motion cursor in Mimic. Does not compute observations or append history.
+  // False means the reference has ended; skip observation, inference, and clock advance.
+  virtual bool update_reference_state();
+
+  // Advance episode_time after an inference attempt, including rejected actions.
   virtual void advance_clocks();
 
   // State the hooks read; writes still go only through the owned output block,
@@ -143,8 +144,10 @@ private:
   bool advance_policy_tick(const rclcpp::Duration & period);
   // Applies the active policy's velocity-command range before observation.
   void resolve_active_velocity_command();
+  // Resolve commands and update the reference in the order required by the clock.
+  bool update_observation_sources();
+  // Build the scaled/clipped observation and append its history after sources are ready.
   void compute_observation();
-  bool prepare_policy_observation();
   std::vector<float> run_policy_inference();
   PolicyActionResult evaluate_policy_action();
   PolicyActionDecision apply_action(const PolicyActionResult & action);
