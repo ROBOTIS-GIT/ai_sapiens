@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "ai_sapiens_sim2real/config/root_config.hpp"
+#include "ai_sapiens_sim2real/config/config_utils.hpp"
 #include "ai_sapiens_sim2real/config/root_config_validator.hpp"
 #include "ai_sapiens_sim2real/config/root_sections/state_machine_config.hpp"
 #include "ai_sapiens_sim2real/mode_runtime/mode_state_machine.hpp"
@@ -583,4 +584,45 @@ TEST(RootConfig, RejectsInvalidActionTransitionOptions)
     EXPECT_THROW(RootConfig(write_temp_config(base +
       "\npolicy_action_transition: " + value + "\n")), std::runtime_error);
   }
+}
+
+TEST(RootConfig, MissingAssetReportsFieldLineAndEachCandidate)
+{
+  const auto yaml = root_config_with_teleop_timeouts("") +
+    "\npolicy_asset_roots: [missing_assets_a, missing_assets_b]\n";
+  const auto path = write_temp_config(yaml);
+  const RootConfig config(path);
+  try {
+    config.policy_behaviors();
+    FAIL() << "Expected missing asset error";
+  } catch (const ai_sapiens_sim2real::YamlConfigError & e) {
+    const std::string message = e.what();
+    EXPECT_NE(message.find("Configuration error (root config)"), std::string::npos);
+    EXPECT_NE(message.find("File: " + path.string()), std::string::npos);
+    EXPECT_NE(message.find("Field: state_behaviors.velocity_policy.asset (line "),
+      std::string::npos);
+    EXPECT_NE(message.find("Asset directory not found: test/velocity"), std::string::npos);
+    for (const auto * root : {"missing_assets_a", "missing_assets_b"}) {
+      EXPECT_NE(message.find("\n    - " +
+        (path.parent_path() / root / "test/velocity").string()), std::string::npos);
+    }
+  }
+  std::filesystem::remove(path);
+}
+
+TEST(RootConfig, NestedYamlErrorKeepsTheOriginalFileAndParserLocation)
+{
+  const auto path = write_temp_config("broken: [\n");
+  try {
+    ai_sapiens_sim2real::with_yaml_file_context("outer.yaml", "outer", [&] {
+        return ai_sapiens_sim2real::load_yaml_file(path, "policy config");
+    });
+    FAIL() << "Expected YAML syntax error";
+  } catch (const ai_sapiens_sim2real::YamlConfigError & e) {
+    const std::string message = e.what();
+    EXPECT_NE(message.find("File: " + path.string()), std::string::npos);
+    EXPECT_NE(message.find("line"), std::string::npos);
+    EXPECT_EQ(message.find("outer.yaml"), std::string::npos);
+  }
+  std::filesystem::remove(path);
 }

@@ -101,9 +101,10 @@ private:
   NodeOptions options_;
   std::unique_ptr<RootConfig> root_config_;
   RuntimeConfig runtime_config_;
+  // Destroy the control loop's plugin-owning handles before the plugin loader.
+  OperatorCommandInputs operator_command_inputs_;
   std::shared_ptr<ControlLoop> control_loop_;
   SharedControlData * shared_data_{nullptr};
-  OperatorCommandInputs operator_command_inputs_;
   std::shared_ptr<ModeController> mode_controller_;
   std::unique_ptr<ModeRosInterface> mode_ros_interface_;
 };

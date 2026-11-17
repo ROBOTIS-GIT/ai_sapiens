@@ -45,6 +45,29 @@ std::filesystem::path asset_relative_path(const std::string & path)
   return std::filesystem::path(normalized);
 }
 
+std::string missing_asset_message(
+  const YAML::Node & asset_node,
+  const std::string & field_path,
+  const std::vector<std::filesystem::path> & roots)
+{
+  const auto asset = asset_relative_path(asset_node.as<std::string>());
+  const auto mark = asset_node.Mark();
+  std::string message = "Field: " + field_path;
+
+  if (!mark.is_null()) {
+    message += " (line " + std::to_string(mark.line + 1) + ")";
+  }
+  message += "\n  Asset directory not found: " + asset.generic_string();
+  message += "\n  Searched:";
+
+  for (const auto & root : roots) {
+    message += "\n    - " + (root / asset).lexically_normal().string();
+  }
+
+  message += "\n  Check the asset spelling, policy_asset_roots, and installed asset directories.";
+  return message;
+}
+
 void require_root_sections(const YAML::Node & document)
 {
   require_yaml_map(document["authority"], "authority");
@@ -430,8 +453,7 @@ std::filesystem::path RootConfig::behavior_asset_path(
   }
 
   throw std::runtime_error(
-    "state_behaviors." + name + ".asset '" + asset.string() +
-    "' was not found under policy_asset_roots: " + make_path_list_string(roots));
+    missing_asset_message(behavior_node["asset"], "state_behaviors." + name + ".asset", roots));
 }
 
 std::filesystem::path RootConfig::behavior_policy_path(
