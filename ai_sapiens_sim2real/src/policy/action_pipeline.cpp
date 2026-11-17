@@ -16,6 +16,8 @@
 
 #include "ai_sapiens_sim2real/policy/action_pipeline.hpp"
 
+#include <cmath>
+
 namespace ai_sapiens_sim2real
 {
 
@@ -48,7 +50,7 @@ const std::vector<float> & ActionPipeline::process(const std::vector<float> & ra
 
   for (size_t i = 0; i < raw_action.size(); ++i) {
     float value = raw_action[i] * properties_.scale[i] + properties_.offset[i];
-    if (properties_.clip[i]) {
+    if (properties_.clip[i] && std::isfinite(value)) {
       value = std::clamp(value, properties_.clip[i]->first, properties_.clip[i]->second);
     }
 

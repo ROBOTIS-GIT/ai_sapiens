@@ -26,6 +26,7 @@
 #include <yaml-cpp/yaml.h>  // NOLINT(build/include_order)
 
 #include "ai_sapiens_sim2real/observation/observation_term_cfg.hpp"
+#include "ai_sapiens_sim2real/observation/observation_layout.hpp"
 #include "ai_sapiens_sim2real/observation/observations.hpp"
 #include "ai_sapiens_sim2real/shared_control_data.hpp"
 
@@ -70,6 +71,10 @@ public:
    * @return Concatenated observation vector
    */
   std::vector<float> compute();
+
+  // Replace only the rejected time slot; preserve the failed tensor for diagnostics.
+  void reject_latest();
+  std::vector<ObservationSlice> layout() const;
 
   /**
    * @brief Get total observation size.
