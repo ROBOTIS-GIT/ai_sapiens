@@ -24,51 +24,47 @@
 
 namespace ai_sapiens_sim2real
 {
-
 struct SharedControlData;
 
-/**
- * @brief The complete per-policy-step gait-phase rule.
- *
- * Given the current phase and the robot/command state, returns the next phase.
- * Rules stay pure -- they read the state passed to them and capture only their
- * own config -- while the clock supplies the state, so a new behaviour
- * (free-running, freezing on a standing command, resetting to zero,
- * stability-gated, anything not yet imagined) is just one of these, added
- * without touching GaitClock.
- */
-using GaitPhaseUpdate = std::function<float(float phase, const SharedControlData & shared)>;
+// Raw per-episode state, owned by PolicyState rather than the clock/rule.
+// Observations encode these values; the clock never produces an observation vector.
+struct PhaseState
+{
+  float phase{0.0f};
+  float period{0.0f};
+  float swing_ratio{0.0f};
+  bool first_step{true};
+  float activation{1.0f};  // Optional command envelope; legacy clocks stay fully active.
+};
 
-/**
- * @brief Bounded gait-phase clock.
- *
- * The phase value lives in shared policy state so the gait_phase observation
- * stays a pure read; this owns only the update rule. The state the rule reads is
- * passed in per step rather than held, so the dependency is explicit and the
- * clock is not a state owner. Phase stays in [0, 1).
- */
+// Same rule injection as main. The scalar phase is extended to raw state so a
+// stateful rule can remain pure: config is captured, next state is returned.
+using PhaseUpdate =
+  std::function<PhaseState(PhaseState, const SharedControlData &)>;
+
 class GaitClock
 {
 public:
-  explicit GaitClock(GaitPhaseUpdate update)
-  : update_(std::move(update)) {}
+  explicit GaitClock(
+    PhaseUpdate update, PhaseState initial_state = {},
+    bool resolve_command_before_update = false)
+  : update_(std::move(update)), initial_state_(initial_state),
+    resolve_command_before_update_(resolve_command_before_update) {}
 
-  /// Reset @p phase to its episode-start value.
-  void reset(float & phase) const {phase = 0.0f;}
+  void reset(PhaseState & state) const {state = initial_state_;}
+  void advance(PhaseState & state, const SharedControlData & shared) const;
 
-  /// Advance @p phase by one policy step, given the current robot state.
-  void advance(float & phase, const SharedControlData & shared) const;
+  // Some exports require the current resolved command before clock update and
+  // entry-history seeding. Others retain the original runtime ordering.
+  bool resolve_command_before_update() const {return resolve_command_before_update_;}
 
 private:
-  GaitPhaseUpdate update_;
+  PhaseUpdate update_;
+  PhaseState initial_state_;
+  bool resolve_command_before_update_;
 };
 
-/**
- * @brief Build a clock from the policy's observation config.
- *
- * Owns the gait_phase param schema. Returns nullopt when the policy has no
- * gait_phase observation. Throws if gait_phase is present but misconfigured.
- */
+// Config dispatch is the only place that selects a clock implementation.
 std::optional<GaitClock> make_gait_clock(const YAML::Node & observations, double step_dt);
 
 }  // namespace ai_sapiens_sim2real

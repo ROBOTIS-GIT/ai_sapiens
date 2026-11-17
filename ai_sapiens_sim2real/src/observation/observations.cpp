@@ -168,15 +168,65 @@ std::vector<float> obs_last_action(
     last_action.begin() + static_cast<std::ptrdiff_t>(context.joints.policy_joint_names.size())};
 }
 
-// gait_phase: Periodic locomotion clock produced by GaitClock (policy-side).
-// Pure read of the phase in shared state; returns [sin(2*pi*phi), cos(2*pi*phi)].
-std::vector<float> obs_gait_phase(
-  const ObservationContext & context,
-  const YAML::Node & /*params*/)
+// Observation encoders read raw policy state; they do not advance clocks.
+std::vector<float> obs_bilateral_phase_with_swing(
+  const ObservationContext & context, const YAML::Node & params)
 {
   constexpr float kTwoPi = 2.0f * 3.14159265f;
-  const float phase = context.shared.policy.gait_phase;
-  return std::vector<float>{std::sin(kTwoPi * phase), std::cos(kTwoPi * phase)};
+  // Adaptive command-only observation. The clock keeps running while this output
+  // is masked at stand; fixed bilateral output has a different order and stand value.
+  const auto & cmd = context.shared.mode.velocity_commands;
+  if (!(std::hypot(cmd.x(), cmd.y()) + std::abs(cmd.z()) >
+    params["stand_command_norm_plus_yaw_threshold"].as<float>())) {
+    return std::vector<float>(6, 0.0f);
+  }
+  const float phase = context.shared.policy.phase_state.phase;
+  const float left = std::fmod(phase + params["offsets"][0].as<float>(), 1.0f);
+  const float right = std::fmod(phase + params["offsets"][1].as<float>(), 1.0f);
+  const float swing = context.shared.policy.phase_state.swing_ratio;
+  const float weight = context.shared.policy.phase_state.activation;
+  return {weight * std::sin(kTwoPi * left), weight * std::cos(kTwoPi * left),
+    weight * std::sin(kTwoPi * right), weight * std::cos(kTwoPi * right),
+    weight * swing, weight * swing};
+}
+
+// Keep the existing fixed-period observation layouts, including its stand values.
+std::vector<float> obs_fixed_phase(
+  const ObservationContext & context, const YAML::Node & params)
+{
+  constexpr float kTwoPi = 2.0f * 3.14159265f;
+  constexpr float kLegacyStandThreshold = 0.1f;
+  const float command_norm = context.shared.mode.velocity_commands.norm();
+  const auto threshold_node = params["command_threshold"];
+  const bool command_gated = threshold_node && !threshold_node.IsNull();
+  if (!command_gated && command_norm < kLegacyStandThreshold) {
+    return std::vector<float>{0.0f, 0.0f};
+  }
+
+  const float threshold = command_gated ? threshold_node.as<float>() : 0.0f;
+  const bool active = !command_gated || command_norm > threshold;
+  const float left_phase = active ? context.shared.policy.phase_state.phase : 0.0f;
+
+  const auto offset_node = params["offset"];
+  if (!offset_node || offset_node.IsNull()) {
+    return std::vector<float>{
+      std::sin(kTwoPi * left_phase), std::cos(kTwoPi * left_phase)};
+  }
+
+  const float right_phase = active ?
+    std::fmod(left_phase + offset_node.as<float>(), 1.0f) : 0.0f;
+  return std::vector<float>{
+    std::sin(kTwoPi * left_phase), std::sin(kTwoPi * right_phase),
+    std::cos(kTwoPi * left_phase), std::cos(kTwoPi * right_phase)};
+}
+
+std::vector<float> obs_gait_phase(
+  const ObservationContext & context, const YAML::Node & params)
+{
+  if (params["periods"] || params["schema"]) {
+    return obs_bilateral_phase_with_swing(context, params);
+  }
+  return obs_fixed_phase(context, params);
 }
 
 std::vector<float> obs_motion_joint_pos(

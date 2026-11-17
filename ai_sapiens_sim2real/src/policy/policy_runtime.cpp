@@ -145,14 +145,15 @@ void PolicyRuntime::reset_episode_state()
 void PolicyRuntime::on_enter()
 {
   if (gait_clock_) {
-    gait_clock_->reset(policy_->gait_phase);
+    gait_clock_->reset(policy_->phase_state);
+    if (gait_clock_->resolve_command_before_update()) {resolve_active_velocity_command();}
   }
 }
 
 bool PolicyRuntime::prepare_observation()
 {
   if (gait_clock_) {
-    gait_clock_->advance(policy_->gait_phase, *shared_data_);
+    gait_clock_->advance(policy_->phase_state, *shared_data_);
   }
 
   return true;
@@ -168,11 +169,14 @@ PolicyUpdateResult PolicyRuntime::update(const rclcpp::Duration & period)
   if (!advance_policy_tick(period)) {
     return PolicyUpdateResult::Skipped;
   }
+  const bool command_first = gait_clock_ && gait_clock_->resolve_command_before_update();
+  if (command_first) {resolve_active_velocity_command();}
+
   if (!prepare_observation()) {
     return PolicyUpdateResult::TargetUnavailable;
   }
 
-  resolve_active_velocity_command();
+  if (!command_first) {resolve_active_velocity_command();}
   compute_observation();
   PolicyUpdateResult result = PolicyUpdateResult::TargetUnavailable;
   if (const auto raw_action = run_policy_inference()) {
