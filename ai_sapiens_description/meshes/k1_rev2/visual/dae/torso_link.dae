@@ -30,7 +30,7 @@
         <technique sid="common">
           <phong>
             <diffuse>
-              <color>0.6012433969 0.6097116265 0.6180314265 1</color>
+              <color>0.8196078431 0.8274509804 0.8352941176 1</color>
             </diffuse>
             <ambient>
               <color>0.1 0.1 0.1 1</color>

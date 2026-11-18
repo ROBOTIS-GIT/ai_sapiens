@@ -21,9 +21,8 @@
   </default>
   <asset>
     <material name="mat_00" rgba="0.05070871398 0.05070871398 0.05070871398 1" specular="0.08" shininess="0.44999998807907104" reflectance="0.0" emission="0.0" />
-    <material name="mat_01" rgba="0.6012433969 0.6097116265 0.6180314265 1" specular="0.08" shininess="0.5200000107288361" reflectance="0.0" emission="0.0" />
+    <material name="mat_01" rgba="0.8196078431 0.8274509804 0.8352941176 1" specular="0.08" shininess="0.5200000107288361" reflectance="0.0" emission="0.0" />
     <material name="mat_02" rgba="0.7611121936 0.7673756655 0.773573053 1" specular="0.6750000166893004" shininess="0.7400000095367432" reflectance="0.10200000286102294" emission="0.0" />
-    <material name="mat_03" rgba="0.8703449434 0.8703449434 0.859695971 1" specular="0.08" shininess="0.6899999976158142" reflectance="0.0" emission="0.0" />
     <material name="mat_04" rgba="0.07016478246 0.09320180648 0.11207494 1" specular="0.1639999981224537" shininess="0.9149999991059303" reflectance="0.014399999678134918" emission="0.0" />
     <material name="mat_05" rgba="0.8322835706 0.8036309953 0.7220273482 1" specular="0.6750000166893004" shininess="0.7699999958276749" reflectance="0.10200000286102294" emission="0.0" />
     <material name="mat_06" rgba="0.11207494 0.1231581989 0.1333515193 1" specular="0.5349999833106994" shininess="0.7199999988079071" reflectance="0.07799999713897705" emission="0.0" />
@@ -288,7 +287,7 @@
           <geom class="collision" type="mesh" mesh="head_link_collision" name="head_link_collision_0" pos="0 0 0" />
           <geom class="visual" type="mesh" mesh="head_link_mat_01" material="mat_01" />
           <geom class="visual" type="mesh" mesh="head_link_mat_02" material="mat_02" />
-          <geom class="visual" type="mesh" mesh="head_link_mat_03" material="mat_03" />
+          <geom class="visual" type="mesh" mesh="head_link_mat_03" material="mat_01" />
           <geom class="visual" type="mesh" mesh="head_link_mat_04" material="mat_04" />
         </body>
         <body name="left_shoulder_pitch_link" pos="0.0015 0.068 0.319">

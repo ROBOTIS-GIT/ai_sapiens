@@ -10,7 +10,7 @@
         <technique sid="common">
           <phong>
             <diffuse>
-              <color>0.6012433969 0.6097116265 0.6180314265 1</color>
+              <color>0.8196078431 0.8274509804 0.8352941176 1</color>
             </diffuse>
             <ambient>
               <color>0.1 0.1 0.1 1</color>
@@ -45,26 +45,6 @@
         </technique>
       </profile_COMMON>
     </effect>
-    <effect id="head_link_mat_03_fx">
-      <profile_COMMON>
-        <technique sid="common">
-          <phong>
-            <diffuse>
-              <color>0.8703449434 0.8703449434 0.859695971 1</color>
-            </diffuse>
-            <ambient>
-              <color>0.1 0.1 0.1 1</color>
-            </ambient>
-            <specular>
-              <color>0.08 0.08 0.08 1</color>
-            </specular>
-            <shininess>
-              <float>18.811654206413245</float>
-            </shininess>
-          </phong>
-        </technique>
-      </profile_COMMON>
-    </effect>
     <effect id="head_link_mat_04_fx">
       <profile_COMMON>
         <technique sid="common">
@@ -92,9 +72,6 @@
     </material>
     <material id="head_link_mat_02_mat" name="mat_02">
       <instance_effect url="#head_link_mat_02_fx" />
-    </material>
-    <material id="head_link_mat_03_mat" name="mat_03">
-      <instance_effect url="#head_link_mat_03_fx" />
     </material>
     <material id="head_link_mat_04_mat" name="mat_04">
       <instance_effect url="#head_link_mat_04_fx" />
@@ -250,7 +227,7 @@
         <instance_geometry url="#head_link_mat_03_geom">
           <bind_material>
             <technique_common>
-              <instance_material symbol="head_link_mat_03_binding" target="#head_link_mat_03_mat" />
+              <instance_material symbol="head_link_mat_03_binding" target="#head_link_mat_01_mat" />
             </technique_common>
           </bind_material>
         </instance_geometry>
