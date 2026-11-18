@@ -52,58 +52,71 @@ set_target_properties(input_gap_monitor PROPERTIES POSITION_INDEPENDENT_CODE ON)
 ament_target_dependencies(input_gap_monitor rclcpp)
 
 # ============================================================================
-# Executable
+# Runtime library and executable
 # ============================================================================
-add_executable(ai_sapiens_sim2real_node
-  src/policy/action_pipeline.cpp
-  src/command_publishers/joint_command_publisher.cpp
+add_library(sim2real_core STATIC
   src/config/config_utils.cpp
-  src/control_loop.cpp
-  src/controllers/mode_controller.cpp
-  src/controllers/mode_ros_interface.cpp
-  src/controllers/policy_controller.cpp
-  src/policy/policy_runtime_loader.cpp
-  src/main.cpp
-  src/sim2real_node.cpp
+  src/config/root_config.cpp
+  src/config/root_config_validator.cpp
   src/config/root_sections/selectors_config.cpp
   src/config/root_sections/state_behaviors_config.cpp
   src/config/root_sections/state_machine_config.cpp
   src/config/root_sections/teleop_conditions_config.cpp
-  src/config/root_config_validator.cpp
+  src/config/sim2real_config.cpp
+  src/controllers/mode_controller.cpp
+  src/controllers/policy_controller.cpp
   src/mode_runtime/authority_runtime.cpp
-  src/mode_runtime/mode_state_machine.cpp
-  src/mode_runtime/operator_command_inputs.cpp
-  src/mode_runtime/startup_gate.cpp
   src/mode_runtime/input_executor.cpp
-  src/policy/gait_clock.cpp
-  src/policy/mimic/motion_reference.cpp
-  src/policy/policy_entry_validator.cpp
-  src/policy/mimic/mimic_policy_runtime.cpp
-  src/policy/blinkmimic/blinkmimic_motion.cpp
-  src/policy/blinkmimic/blinkmimic_config.cpp
+  src/mode_runtime/mode_state_machine.cpp
+  src/mode_runtime/startup_gate.cpp
   src/observation/configured_observation_group.cpp
-  src/policy/blinkmimic/blinkmimic_observation.cpp
-  src/policy/blinkmimic/blinkmimic_policy_runtime.cpp
-  src/policy/supermimic/supermimic_motion.cpp
-  src/policy/supermimic/supermimic_config.cpp
-  src/policy/supermimic/supermimic_observation.cpp
-  src/policy/supermimic/supermimic_policy_runtime.cpp
   src/observation/observation_manager.cpp
   src/observation/observations.cpp
-  src/policy/onnx_inference.cpp
-  src/policy/policy_runtime.cpp
-  src/policy/diagnostics/policy_diagnostics.cpp
-  src/policy/diagnostics/policy_fault_capture.cpp
+  src/policy/action_pipeline.cpp
+  src/policy/blinkmimic/blinkmimic_config.cpp
+  src/policy/blinkmimic/blinkmimic_motion.cpp
+  src/policy/blinkmimic/blinkmimic_observation.cpp
+  src/policy/blinkmimic/blinkmimic_policy_runtime.cpp
   src/policy/diagnostics/action_fault_diagnostics.cpp
   src/policy/diagnostics/action_fault_recorder.cpp
-  src/config/root_config.cpp
-  src/sensor_handles/api_heartbeat_handle.cpp
+  src/policy/diagnostics/policy_diagnostics.cpp
+  src/policy/diagnostics/policy_fault_capture.cpp
+  src/policy/gait_clock.cpp
+  src/policy/mimic/mimic_policy_runtime.cpp
+  src/policy/mimic/motion_reference.cpp
+  src/policy/onnx_inference.cpp
+  src/policy/policy_entry_validator.cpp
+  src/policy/policy_runtime.cpp
+  src/policy/policy_runtime_loader.cpp
+  src/policy/supermimic/supermimic_config.cpp
+  src/policy/supermimic/supermimic_motion.cpp
+  src/policy/supermimic/supermimic_observation.cpp
+  src/policy/supermimic/supermimic_policy_runtime.cpp
   src/sensor_handles/imu_sensor_handle.cpp
   src/sensor_handles/joint_states_diagnostics.cpp
   src/sensor_handles/joint_states_sensor_handle.cpp
   src/sensor_handles/teleop_input_handle.cpp
+)
+
+ament_target_dependencies(sim2real_core
+  rclcpp realtime_tools sensor_msgs std_msgs ament_index_cpp)
+target_link_libraries(sim2real_core
+  input_gap_monitor
+  yaml-cpp
+  Eigen3::Eigen
+  ${ONNXRUNTIME_LIBRARY}
+  Threads::Threads
+)
+
+add_executable(ai_sapiens_sim2real_node
+  src/command_publishers/joint_command_publisher.cpp
+  src/control_loop.cpp
+  src/controllers/mode_ros_interface.cpp
+  src/main.cpp
+  src/sim2real_node.cpp
+  src/mode_runtime/operator_command_inputs.cpp
+  src/sensor_handles/api_heartbeat_handle.cpp
   src/sensor_handles/twist_command_handle.cpp
-  src/config/sim2real_config.cpp
 )
 
 ament_target_dependencies(ai_sapiens_sim2real_node
@@ -117,13 +130,7 @@ ament_target_dependencies(ai_sapiens_sim2real_node
   pluginlib
 )
 
-target_link_libraries(ai_sapiens_sim2real_node
-  input_gap_monitor
-  yaml-cpp
-  Eigen3::Eigen
-  ${ONNXRUNTIME_LIBRARY}
-  Threads::Threads
-)
+target_link_libraries(ai_sapiens_sim2real_node sim2real_core)
 
 # ============================================================================
 # teleop input plugins
@@ -296,80 +303,42 @@ if(BUILD_TESTING)
   ament_target_dependencies(test_input_gap_monitor rclcpp)
   target_link_libraries(test_input_gap_monitor input_gap_monitor)
 
-  ament_add_gtest(test_input_executor test/test_input_executor.cpp
-    src/mode_runtime/input_executor.cpp src/mode_runtime/startup_gate.cpp)
-  ament_target_dependencies(test_input_executor rclcpp realtime_tools)
-  target_link_libraries(test_input_executor Threads::Threads yaml-cpp Eigen3::Eigen input_gap_monitor)
+  ament_add_gtest(test_input_executor test/test_input_executor.cpp)
+  target_link_libraries(test_input_executor sim2real_core)
 
-  ament_add_gtest(test_joint_states_sensor_handle test/test_joint_states_sensor_handle.cpp
-    src/sensor_handles/joint_states_diagnostics.cpp
-    src/sensor_handles/joint_states_sensor_handle.cpp)
-  ament_target_dependencies(test_joint_states_sensor_handle rclcpp realtime_tools sensor_msgs)
-  target_link_libraries(test_joint_states_sensor_handle Eigen3::Eigen input_gap_monitor)
+  ament_add_gtest(test_joint_states_sensor_handle test/test_joint_states_sensor_handle.cpp)
+  target_link_libraries(test_joint_states_sensor_handle sim2real_core)
 
   # RealtimeRequestGate: accept/consume/discard/busy semantics (header-only).
   ament_add_gtest(test_request_gate test/test_request_gate.cpp)
   ament_target_dependencies(test_request_gate realtime_tools)
 
   # GaitClock: free-running phase advance/wrap/reset and config parsing.
-  ament_add_gtest(test_gait_clock test/test_gait_clock.cpp src/policy/gait_clock.cpp)
-  target_link_libraries(test_gait_clock yaml-cpp Eigen3::Eigen)
+  ament_add_gtest(test_gait_clock test/test_gait_clock.cpp)
+  target_link_libraries(test_gait_clock sim2real_core)
   target_compile_definitions(test_gait_clock PRIVATE
     PHASE_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/data/command_only_phase")
-  ament_add_gtest(test_gait_phase_observation test/test_gait_phase_observation.cpp
-    src/observation/observations.cpp src/observation/observation_manager.cpp
-    src/policy/mimic/motion_reference.cpp src/policy/gait_clock.cpp)
-  target_link_libraries(test_gait_phase_observation yaml-cpp Eigen3::Eigen)
+  ament_add_gtest(test_gait_phase_observation test/test_gait_phase_observation.cpp)
+  target_link_libraries(test_gait_phase_observation sim2real_core)
   target_compile_definitions(test_gait_phase_observation PRIVATE
     PHASE_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/data/command_only_phase")
 
-
-  ament_add_gtest(test_observation_history test/test_observation_history.cpp
-    src/observation/observations.cpp src/observation/observation_manager.cpp
-    src/policy/mimic/motion_reference.cpp)
-  target_link_libraries(test_observation_history yaml-cpp Eigen3::Eigen)
+  ament_add_gtest(test_observation_history test/test_observation_history.cpp)
+  target_link_libraries(test_observation_history sim2real_core)
 
   # StateMachineConfig/RootConfig: config validation and mimic-state detection.
-  ament_add_gtest(test_state_machine_config test/test_state_machine_config.cpp
-    src/config/config_utils.cpp
-    src/config/root_sections/selectors_config.cpp
-    src/config/root_sections/state_behaviors_config.cpp
-    src/config/root_sections/state_machine_config.cpp
-    src/config/root_sections/teleop_conditions_config.cpp
-    src/config/root_config_validator.cpp
-    src/config/root_config.cpp
-    src/mode_runtime/mode_state_machine.cpp)
-  target_link_libraries(test_state_machine_config yaml-cpp Eigen3::Eigen)
+  ament_add_gtest(test_state_machine_config test/test_state_machine_config.cpp)
+  target_link_libraries(test_state_machine_config sim2real_core)
 
   # Startup teleop gate: only Damping/ReadyPose positions release the gate, and
   # an unavailable input never does.
-  ament_add_gtest(test_startup_gate test/test_startup_gate.cpp
-    src/config/config_utils.cpp
-    src/mode_runtime/mode_state_machine.cpp
-    src/config/root_sections/selectors_config.cpp
-    src/config/root_sections/state_behaviors_config.cpp
-    src/config/root_sections/state_machine_config.cpp
-    src/config/root_sections/teleop_conditions_config.cpp
-    src/config/root_config_validator.cpp)
-  target_link_libraries(test_startup_gate yaml-cpp Eigen3::Eigen)
+  ament_add_gtest(test_startup_gate test/test_startup_gate.cpp)
+  target_link_libraries(test_startup_gate sim2real_core)
 
   # ModeController: exercise the actual decide/apply path for startup, teleop
   # transitions, and failsafes.
-  ament_add_gtest(test_mode_controller test/test_mode_controller.cpp
-    src/config/config_utils.cpp
-    src/config/root_config.cpp
-    src/config/root_config_validator.cpp
-    src/config/root_sections/selectors_config.cpp
-    src/config/root_sections/state_behaviors_config.cpp
-    src/config/root_sections/state_machine_config.cpp
-    src/config/root_sections/teleop_conditions_config.cpp
-    src/controllers/mode_controller.cpp
-    src/policy/mimic/motion_reference.cpp
-    src/policy/policy_entry_validator.cpp
-    src/mode_runtime/authority_runtime.cpp
-    src/mode_runtime/mode_state_machine.cpp)
-  ament_target_dependencies(test_mode_controller rclcpp realtime_tools)
-  target_link_libraries(test_mode_controller yaml-cpp Eigen3::Eigen)
+  ament_add_gtest(test_mode_controller test/test_mode_controller.cpp)
+  target_link_libraries(test_mode_controller sim2real_core)
 
   # MotionPlayback: absolute-motion-time seek/completion window.
   ament_add_gtest(test_action_transition test/test_action_transition.cpp)
@@ -380,59 +349,20 @@ if(BUILD_TESTING)
   target_link_libraries(test_mimic_entry_guard Eigen3::Eigen)
   ament_add_gtest(test_policy_entry_validator test/test_policy_entry_validator.cpp)
   target_link_libraries(test_policy_entry_validator Eigen3::Eigen yaml-cpp)
-  ament_add_gtest(test_imu_validation test/test_imu_validation.cpp
-    src/sensor_handles/imu_sensor_handle.cpp src/mode_runtime/input_executor.cpp)
-  ament_target_dependencies(test_imu_validation rclcpp realtime_tools sensor_msgs)
-  target_link_libraries(test_imu_validation Eigen3::Eigen input_gap_monitor)
+  ament_add_gtest(test_imu_validation test/test_imu_validation.cpp)
+  target_link_libraries(test_imu_validation sim2real_core)
 
-  ament_add_gtest(test_motion_playback
-    test/test_motion_playback.cpp
-    src/policy/mimic/motion_reference.cpp)
-  target_link_libraries(test_motion_playback Eigen3::Eigen)
+  ament_add_gtest(test_motion_playback test/test_motion_playback.cpp)
+  target_link_libraries(test_motion_playback sim2real_core)
 
-  ament_add_gtest(test_action_fault_recorder test/test_action_fault_recorder.cpp
-    src/policy/diagnostics/action_fault_recorder.cpp src/policy/diagnostics/action_fault_diagnostics.cpp)
-  ament_target_dependencies(test_action_fault_recorder rclcpp realtime_tools)
-  target_link_libraries(test_action_fault_recorder yaml-cpp Eigen3::Eigen Threads::Threads)
+  ament_add_gtest(test_action_fault_recorder test/test_action_fault_recorder.cpp)
+  target_link_libraries(test_action_fault_recorder sim2real_core)
 
   ament_add_gtest(test_policy_action_fault test/test_policy_action_fault.cpp
     test/test_policy_observation_flow.cpp
     test/test_blinkmimic.cpp
-    test/test_supermimic.cpp
-    src/controllers/policy_controller.cpp
-    src/policy/policy_runtime_loader.cpp
-    src/config/root_config.cpp
-    src/config/root_config_validator.cpp
-    src/config/root_sections/selectors_config.cpp
-    src/config/root_sections/state_behaviors_config.cpp
-    src/config/root_sections/state_machine_config.cpp
-    src/config/root_sections/teleop_conditions_config.cpp
-    src/policy/mimic/mimic_policy_runtime.cpp
-    src/policy/blinkmimic/blinkmimic_motion.cpp
-    src/policy/blinkmimic/blinkmimic_config.cpp
-    src/observation/configured_observation_group.cpp
-    src/policy/blinkmimic/blinkmimic_observation.cpp
-    src/policy/blinkmimic/blinkmimic_policy_runtime.cpp
-    src/policy/supermimic/supermimic_motion.cpp
-    src/policy/supermimic/supermimic_config.cpp
-    src/policy/supermimic/supermimic_observation.cpp
-    src/policy/supermimic/supermimic_policy_runtime.cpp
-    src/policy/policy_runtime.cpp
-    src/policy/diagnostics/policy_diagnostics.cpp
-    src/policy/diagnostics/policy_fault_capture.cpp
-    src/policy/diagnostics/action_fault_diagnostics.cpp
-    src/policy/diagnostics/action_fault_recorder.cpp
-    src/policy/action_pipeline.cpp
-    src/policy/onnx_inference.cpp
-    src/policy/mimic/motion_reference.cpp
-    src/policy/gait_clock.cpp
-    src/observation/observation_manager.cpp
-    src/observation/observations.cpp
-    src/config/sim2real_config.cpp
-    src/config/config_utils.cpp)
-  ament_target_dependencies(test_policy_action_fault rclcpp realtime_tools ament_index_cpp)
-  target_link_libraries(test_policy_action_fault yaml-cpp Eigen3::Eigen
-    ${ONNXRUNTIME_LIBRARY} Threads::Threads)
+    test/test_supermimic.cpp)
+  target_link_libraries(test_policy_action_fault sim2real_core)
   target_compile_definitions(test_policy_action_fault PRIVATE
     SUPERMIMIC_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/data/supermimic"
     BLINK_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/data/blinkmimic"
@@ -443,11 +373,8 @@ if(BUILD_TESTING)
   ament_add_gtest(test_axis_range test/test_axis_range.cpp)
 
   # TeleopInputHandle: zero stale velocity before the full input-loss failsafe.
-  ament_add_gtest(test_teleop_input_handle
-    test/test_teleop_input_handle.cpp
-    src/sensor_handles/teleop_input_handle.cpp)
-  ament_target_dependencies(test_teleop_input_handle rclcpp realtime_tools)
-  target_link_libraries(test_teleop_input_handle Eigen3::Eigen)
+  ament_add_gtest(test_teleop_input_handle test/test_teleop_input_handle.cpp)
+  target_link_libraries(test_teleop_input_handle sim2real_core)
 
   ament_add_gtest(
     test_dualsense_teleop_input_plugin
