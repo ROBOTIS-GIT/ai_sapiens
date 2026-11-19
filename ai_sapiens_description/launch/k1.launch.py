@@ -70,7 +70,7 @@ def generate_launch_description():
 
         DeclareLaunchArgument(
             'model',
-            default_value='k1_rev1',
+            default_value='k1_rev2',
             description='URDF model name to load'),
 
         Node(

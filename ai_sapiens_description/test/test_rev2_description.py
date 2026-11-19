@@ -79,8 +79,13 @@ class Rev2DescriptionTests(unittest.TestCase):
             self.assertIsNone(link.find('visual/material'))
             self.assertTrue(link.find('visual/geometry/mesh').get('filename').endswith('.dae'))
         for mesh in self.urdf.findall('.//mesh'):
-            relative = mesh.get('filename').removeprefix('package://ai_sapiens_description/')
-            self.assertTrue((PACKAGE / relative).is_file(), relative)
+            filename = mesh.get('filename')
+            package_prefix = 'package://ai_sapiens_description/'
+            if filename.startswith(package_prefix):
+                path = PACKAGE / filename.removeprefix(package_prefix)
+            else:
+                path = PACKAGE / 'urdf/k1_rev2' / filename
+            self.assertTrue(path.is_file(), filename)
 
     def test_mass_frames_and_mjcf_match(self):
         """Keep URDF and MJCF inertials in the same center-of-mass frames."""
@@ -106,6 +111,37 @@ class Rev2DescriptionTests(unittest.TestCase):
                 self.assertEqual(values(joints[name].find('origin').get('xyz')),
                                  values(b.get('pos')))
         self.assertAlmostEqual(total, 37.55070742, places=8)
+
+    def test_collision_coverage(self):
+        """Match collision meshes and keep shoulder and ankle pitch links collision-free."""
+        for link in self.urdf.findall('link'):
+            name = link.get('name')
+            with self.subTest(link=name):
+                collisions = link.findall('collision')
+                geoms = self.mjcf.findall(
+                    f".//body[@name='{name}']/geom[@class='collision']")
+                if name.endswith(('_ankle_pitch_link', '_shoulder_pitch_link')):
+                    self.assertFalse(collisions)
+                    self.assertFalse(geoms)
+                    continue
+                geometry, = link.findall('collision/geometry/mesh')
+                geom, = [g for g in geoms if g.get('type') == 'mesh']
+                asset = self.mjcf.find(f"asset/mesh[@name='{geom.get('mesh')}']")
+                relative = geometry.get('filename').split('/meshes/k1_rev2/', 1)[1]
+                self.assertEqual(asset.get('file'), relative)
+                if name == 'torso_link':
+                    self.assertEqual(len(collisions), 2)
+                    self.assertEqual(len(geoms), 2)
+                    neck = link.find("collision[@name='torso_neck_collision']")
+                    box, = [g for g in geoms if g.get('type') == 'box']
+                    self.assertEqual(box.get('name'), neck.get('name'))
+                    self.assertEqual(values(box.get('pos')),
+                                     values(neck.find('origin').get('xyz')))
+                    self.assertEqual(tuple(2 * x for x in values(box.get('size'))),
+                                     values(neck.find('geometry/box').get('size')))
+                else:
+                    self.assertEqual(len(collisions), 1)
+                    self.assertEqual(len(geoms), 1)
 
     def test_runtime_xacro_variants(self):
         """Expand mock, MuJoCo and RC variants with local package resolution."""
@@ -134,6 +170,16 @@ class Rev2DescriptionTests(unittest.TestCase):
                     for tag in ('mass', 'origin', 'inertia'):
                         self.assertEqual(link.find(f'inertial/{tag}').attrib,
                                          source.find(f'inertial/{tag}').attrib)
+                    actual = [Path(mesh.get('filename')).name
+                              for mesh in link.findall('collision/geometry/mesh')]
+                    expected = [Path(mesh.get('filename')).name
+                                for mesh in source.findall('collision/geometry/mesh')]
+                    self.assertEqual(actual, expected)
+                    if link.get('name') == 'torso_link':
+                        neck_xpath = "collision[@name='torso_neck_collision']"
+                        for tag in ('origin', 'geometry/box'):
+                            self.assertEqual(link.find(f'{neck_xpath}/{tag}').attrib,
+                                             source.find(f'{neck_xpath}/{tag}').attrib)
                 if scene:
                     expected = PACKAGE / 'mujoco/k1_rev2' / scene
                     self.assertEqual(root.find(".//param[@name='scene_file']").text,
@@ -173,6 +219,22 @@ class Rev2DescriptionTests(unittest.TestCase):
                 relative_error = np.linalg.norm(compiled - tensor) / np.linalg.norm(tensor)
                 self.assertLess(relative_error, 1e-6, link.get('name'))
             d = mujoco.MjData(m)
+            mujoco.mj_forward(m, d)
+            for contact in d.contact:
+                if contact.dist < 0:
+                    bodies = m.geom_bodyid[[contact.geom1, contact.geom2]]
+                    self.assertIn(0, bodies, 'Neutral pose has a self-collision')
+            if scene == 'scene.xml':
+                d.qpos[2] -= 0.001
+                mujoco.mj_forward(m, d)
+                floor = m.geom('floor').id
+                touching = {index for contact in d.contact if contact.dist <= 0
+                            for index in (contact.geom1, contact.geom2)
+                            if floor in (contact.geom1, contact.geom2) and index != floor}
+                feet = {m.geom(f'{side}_ankle_roll_link_collision_0').id
+                        for side in ('left', 'right')}
+                self.assertEqual(touching, feet)
+                mujoco.mj_resetData(m, d)
             for _ in range(1000):
                 mujoco.mj_step(m, d)
             self.assertTrue(np.isfinite(d.qpos).all())

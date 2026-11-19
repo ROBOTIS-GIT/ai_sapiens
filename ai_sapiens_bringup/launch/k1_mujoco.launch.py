@@ -29,7 +29,7 @@ def generate_launch_description():
     declared_arguments = [
         DeclareLaunchArgument('start_rviz', default_value='false',
                               description='Whether to execute rviz2'),
-        DeclareLaunchArgument('model', default_value='k1_rev1',
+        DeclareLaunchArgument('model', default_value='k1_rev2',
                               description='Model name.'),
         DeclareLaunchArgument('mujoco_viewer', default_value='true',
                               description='Show the MuJoCo viewer window.'),

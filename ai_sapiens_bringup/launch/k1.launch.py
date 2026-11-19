@@ -33,7 +33,7 @@ def generate_launch_description():
                               description='Use mock hardware mirroring command.'),
         DeclareLaunchArgument('mock_sensor_commands', default_value='false',
                               description='Enable mock sensor commands.'),
-        DeclareLaunchArgument('model', default_value='k1_rev1',
+        DeclareLaunchArgument('model', default_value='k1_rev2',
                               description='Model name.'),
     ]
 

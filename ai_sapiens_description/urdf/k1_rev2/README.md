@@ -1,9 +1,8 @@
 # K1 rev2 description
 
 This model uses the October 26, 2026 K1 coordinate and mass-property documents
-and the corresponding STEP-derived assembly. `k1_rev1` remains unchanged and
-is still the launch default. This package contains the derived simulation
-description and meshes; original engineering and production files are not included.
+and the corresponding STEP-derived assembly. `k1_rev2` is the launch default.
+This package contains the derived simulation description and meshes.
 
 The original STEP, PDFs, production Blender scene and reference photos remain
 outside this repository.
@@ -33,9 +32,9 @@ or `scene_gantry.xml`. It loads the OBJ assets rather than the DAE files.
   applied a second time to the COM tensor.
 - The 25 link masses sum to **37.55070742 kg**. The PDF's whole assembly is
   **37.626662 kg**: a **75.95458 g** source discrepancy remains unallocated.
-- Primitive collision proxies are inherited from rev1. Head and hand mesh
-  collision proxies are the previously reviewed convex envelopes, shared between
-  URDF and MJCF. Visual-only simplification does not regenerate these colliders.
+- URDF and MJCF share the collision meshes. Ankle and shoulder pitch links
+  omit collision geometry. MuJoCo uses the convex hulls of mesh colliders
+  for contact.
 - Mechanical travel, hardware encoder zero, transmission losses and training
   performance have not been established by these CAD/file checks.
 
@@ -92,8 +91,7 @@ previous 1,069,465-triangle export. DAE and OBJ/MTL assets together occupy about
 - Remove 1,431 individually identified screw, bolt, nut and washer visuals.
   Structural standoffs, supports, locating pins and lifting eyes remain.
 - Omit the cap, including its brim, seams, embroidery, strap and buckle; retain
-  the original head geometry. The head collision envelope and inertial data
-  remain unchanged.
+  the original head geometry and inertial data.
 - Replace all 23 motor output assemblies with simple black annular flanges.
   Preserve their measured outer diameters, axial seating, center bores and
   existing link ownership. Omit long internal hollow tubes and the embedded
