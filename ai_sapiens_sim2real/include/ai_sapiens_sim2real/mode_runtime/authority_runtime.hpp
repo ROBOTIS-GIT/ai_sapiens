@@ -57,7 +57,7 @@ public:
 
 private:
   bool require_api_heartbeat_{true};
-  static constexpr double kDefaultWarmupSeconds = 3.0;
+  static constexpr double kDefaultWarmupSeconds = 1.0;
   std::chrono::duration<double> warmup_duration_{kDefaultWarmupSeconds};
   float switch_velocity_threshold_{0.05f};
 };
