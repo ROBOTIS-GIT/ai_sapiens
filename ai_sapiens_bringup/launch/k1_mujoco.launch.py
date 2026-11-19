@@ -29,7 +29,7 @@ def generate_launch_description():
     declared_arguments = [
         DeclareLaunchArgument('start_rviz', default_value='false',
                               description='Whether to execute rviz2'),
-        DeclareLaunchArgument('model', default_value='k1_rev1',
+        DeclareLaunchArgument('model', default_value='k1_rev2',
                               description='Model name.'),
         DeclareLaunchArgument('mujoco_viewer', default_value='true',
                               description='Show the MuJoCo viewer window.'),
@@ -48,7 +48,7 @@ def generate_launch_description():
         ' ',
         PathJoinSubstitution([FindPackageShare('ai_sapiens_description'),
                               'urdf',
-                              'k1_rev1',
+                              model,
                               'k1.urdf.xacro']),
         ' ',
         'use_mock_hardware:=false',

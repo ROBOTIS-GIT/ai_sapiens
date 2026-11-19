@@ -49,6 +49,9 @@ if(BUILD_TESTING)
   ament_add_pytest_test(description_models test/test_description.py
     TIMEOUT 90
   )
+  ament_add_pytest_test(rev2_description_models test/test_rev2_description.py
+    TIMEOUT 90
+  )
 endif()
 
 ament_package()

@@ -2,6 +2,12 @@
 Changelog for package ai_sapiens
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.4.0 (2026-11-19)
+------------------
+* Added the K1 rev2 model for ROS 2 and MuJoCo. Use ``model:=k1_rev2``
+  to select it. K1 rev1 remains the default.
+* Contributors: Woojin Wie, Wonho Yun
+
 0.3.0 (2026-10-07)
 ------------------
 * Added configurable interpolation of joint targets and PD gains when entering

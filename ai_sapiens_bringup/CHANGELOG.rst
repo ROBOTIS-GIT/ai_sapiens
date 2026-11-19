@@ -2,6 +2,12 @@
 Changelog for package ai_sapiens_bringup
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.4.0 (2026-11-19)
+------------------
+* Added ``model:=k1_rev2`` selection to the hardware and MuJoCo K1
+  launch files. K1 rev1 remains the default.
+* Contributors: Woojin Wie
+
 0.3.0 (2026-10-07)
 ------------------
 * None
