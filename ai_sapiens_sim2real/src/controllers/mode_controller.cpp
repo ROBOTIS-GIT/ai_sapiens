@@ -438,6 +438,18 @@ const char * ModeController::transition_reason_name(TransitionReason reason)
   return "unknown";
 }
 
+const char * ModeController::transition_source_suffix(TransitionReason reason)
+{
+  switch (reason) {
+    case TransitionReason::ApiAuthorityReleased:
+      return " source(teleop_input)";
+    case TransitionReason::ApiAuthorityLost:
+      return " source(heartbeat)";
+    default:
+      return "";
+  }
+}
+
 bool ModeController::is_failsafe_transition_reason(TransitionReason reason)
 {
   switch (reason) {
@@ -560,9 +572,10 @@ void ModeController::flush_transition_log()
 
   RCLCPP_INFO(
     node_->get_logger(),
-    "[ModeController] %s reason(%s)",
+    "[ModeController] %s reason(%s)%s",
     state->name.c_str(),
-    reason_name);
+    reason_name,
+    transition_source_suffix(reason));
 }
 
 ModeController::ModeStatusSnapshot ModeController::status_snapshot() const
@@ -908,10 +921,11 @@ void ModeController::set_authority(Authority mode, TransitionReason reason)
 
   RCLCPP_INFO(
     node_->get_logger(),
-    "[ModeController] authority %s -> %s reason(%s)",
+    "[ModeController] authority %s -> %s reason(%s)%s",
     authority_name(authority_.current()),
     authority_name(mode),
-    transition_reason_name(reason));
+    transition_reason_name(reason),
+    transition_source_suffix(reason));
   authority_.set_current(mode, *mode_);
   record_transition_reason(reason);
 }

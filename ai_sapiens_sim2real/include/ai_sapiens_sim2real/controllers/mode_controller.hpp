@@ -184,6 +184,7 @@ private:
   void apply_state_request(const StateRequest & requested);
   void run_active_mode();
   static const char * transition_reason_name(TransitionReason reason);
+  static const char * transition_source_suffix(TransitionReason reason);
   static bool is_failsafe_transition_reason(TransitionReason reason);
 
   // Startup wiring: load FSM/authority config, enter the initial state.
