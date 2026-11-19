@@ -4,12 +4,39 @@ name: CI
 # Specifies the events that trigger the workflow
 on:
   push:
-    branches: [ jazzy, main ]
+    branches: [ jazzy, main, verify/onnxruntime-nuget-20261119 ]
   pull_request:
     branches: [ jazzy, main ]
 
 # Defines a set of jobs to be run as part of the workflow
 jobs:
+  Docker_Build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build AI Sapiens image
+        run: docker build --progress=plain --tag ai-sapiens-nuget --file docker/Dockerfile .
+      - name: Check installed ONNX Runtime and Sim2Real linkage
+        run: |
+          docker run --rm --entrypoint bash ai-sapiens-nuget -e -o pipefail -c '
+            source /root/ros2_ws/install/setup.bash
+            node="$(ros2 pkg prefix ai_sapiens_sim2real)/lib/ai_sapiens_sim2real/ai_sapiens_sim2real_node"
+            ldd "$node" | tee /tmp/linked-libs
+            if grep -F "not found" /tmp/linked-libs; then exit 1; fi
+            grep -E "libonnxruntime.so.1 => /usr/local/lib/" /tmp/linked-libs
+            printf "%s\n" "#include <onnxruntime_cxx_api.h>" "#include <iostream>" "int main() { Ort::Env env(ORT_LOGGING_LEVEL_WARNING, \"nuget-smoke\"); std::cout << Ort::GetVersionString(); }" > /tmp/version.cpp
+            g++ -std=c++17 -I/usr/local/include/onnxruntime /tmp/version.cpp -lonnxruntime -o /tmp/ort-version
+            test "$(/tmp/ort-version)" = 1.23.2
+          '
+
   # The name of the job
   ROS_CI:
     runs-on: ubuntu-24.04
