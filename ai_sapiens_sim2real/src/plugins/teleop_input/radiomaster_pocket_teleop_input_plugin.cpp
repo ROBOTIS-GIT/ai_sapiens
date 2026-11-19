@@ -16,6 +16,8 @@
 
 #include "ai_sapiens_sim2real/plugins/teleop_input/radiomaster_pocket_teleop_input_plugin.hpp"
 
+#include "ai_sapiens_sim2real/exception_diagnostics.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -110,6 +112,7 @@ void RadiomasterPocketTeleopInputPlugin::configure(
     topic_,
     10,
     [this](const RcStatus::SharedPtr msg) {
+      const CallbackLocation location("RadioMaster RC status", __FILE__, __LINE__);
       input_gap_monitor_->received_raw();
       warn_if_hardware_error(*msg);
       handle_raw_message(*msg);

@@ -198,7 +198,9 @@ private:
     const ModeDecision & decision,
     const rclcpp::Time & current_time,
     const rclcpp::Duration & measured_period);
-  void command(const rclcpp::Time & current_time);
+  void command(
+    const rclcpp::Time & current_time, CommandPublishMode mode = CommandPublishMode::Control);
+  void abort_control_loop(int iteration, const char * error);
   void publish_emergency_damping();
   void publish_debug_topics_if_needed(
     int iteration,
@@ -301,6 +303,7 @@ private:
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr processed_action_publisher_;
 
   // Worker thread control.
+  const char * rt_stage_{"startup"};
   std::thread rt_thread_;
   std::atomic<bool> running_{false};
   std::atomic<bool> faulted_{false};

@@ -83,7 +83,6 @@ private:
   void callback(const sensor_msgs::msg::Imu::SharedPtr msg);
   void apply_valid_sample(const ImuData & data);
   void update_failsafe(const ImuData & data);
-  void log_invalid_once();
   void log_stale_once(std::chrono::steady_clock::duration elapsed) const;
 
   rclcpp::Node::SharedPtr node_;
@@ -96,9 +95,6 @@ private:
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr subscription_;
   realtime_tools::RealtimeBuffer<ImuData> buffer_;
   std::atomic<bool> received_once_{false};
-  // Callback latch preserves even a bad packet followed immediately by a good one.
-  std::atomic<bool> invalid_latched_{false};
-  bool invalid_logged_{false};
   // Stale feedback latches damping until restart.
   std::chrono::duration<double> timeout_;
   bool stale_latched_{false};

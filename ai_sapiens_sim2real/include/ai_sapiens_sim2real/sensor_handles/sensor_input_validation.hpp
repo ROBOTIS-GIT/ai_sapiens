@@ -14,27 +14,35 @@
 
 // Author: Kiwoong Park
 
-#ifndef AI_SAPIENS_SIM2REAL__SENSOR_HANDLES__IMU_VALIDATION_HPP_
-#define AI_SAPIENS_SIM2REAL__SENSOR_HANDLES__IMU_VALIDATION_HPP_
+#ifndef AI_SAPIENS_SIM2REAL__SENSOR_HANDLES__SENSOR_INPUT_VALIDATION_HPP_
+#define AI_SAPIENS_SIM2REAL__SENSOR_HANDLES__SENSOR_INPUT_VALIDATION_HPP_
 
 #include <Eigen/Geometry>
 
 #include <cmath>
+#include <limits>
 
 namespace ai_sapiens_sim2real
 {
+inline bool fits_finite_float(double value)
+{
+  return std::abs(value) <= std::numeric_limits<float>::max();
+}
+
 // Allow modest unit-length drift, not arbitrary vectors disguised as rotations.
+template<typename Scalar>
 inline bool valid_imu_sample(
-  const Eigen::Quaternionf & orientation, const Eigen::Vector3f & angular_velocity,
+  const Eigen::Quaternion<Scalar> & orientation,
+  const Eigen::Matrix<Scalar, 3, 1> & angular_velocity,
   bool orientation_available, bool angular_velocity_available)
 {
   if (!orientation_available || !angular_velocity_available || !orientation.coeffs().allFinite() ||
-    !angular_velocity.allFinite())
+    !(angular_velocity.array().abs() <= std::numeric_limits<float>::max()).all())
   {
     return false;
   }
-  const float norm = orientation.norm();
-  return std::isfinite(norm) && norm >= 0.9f && norm <= 1.1f;
+  const auto norm = orientation.norm();
+  return std::isfinite(norm) && norm >= Scalar(0.9) && norm <= Scalar(1.1);
 }
 }  // namespace ai_sapiens_sim2real
-#endif  // AI_SAPIENS_SIM2REAL__SENSOR_HANDLES__IMU_VALIDATION_HPP_
+#endif  // AI_SAPIENS_SIM2REAL__SENSOR_HANDLES__SENSOR_INPUT_VALIDATION_HPP_

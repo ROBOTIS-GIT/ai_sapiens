@@ -28,10 +28,11 @@
 #include <vector>
 
 #include <rclcpp/rclcpp.hpp>
-#include <sensor_msgs/msg/joint_state.hpp>
 
 namespace ai_sapiens_sim2real
 {
+
+enum class JointSampleStatus {Valid, MissingJoint, MissingValues, InvalidValues};
 
 // The serial input callback records snapshots; the node executor formats and logs them.
 class JointStatesDiagnostics
@@ -42,7 +43,7 @@ public:
     const std::vector<std::string> & joint_names);
 
   void record_incomplete(
-    const sensor_msgs::msg::JointState & msg, const std::vector<size_t> & message_indices,
+    const std::vector<JointSampleStatus> & joint_status,
     size_t complete_joints);
   void record_ready();
 
@@ -53,7 +54,7 @@ private:
   struct MissingJoint
   {
     size_t joint_index{0};
-    bool is_missing_values{false};
+    JointSampleStatus status{JointSampleStatus::MissingJoint};
   };
 
   struct IncompleteSample
@@ -67,7 +68,7 @@ private:
   };
 
   IncompleteSample capture_incomplete_sample(
-    const sensor_msgs::msg::JointState & msg, const std::vector<size_t> & message_indices,
+    const std::vector<JointSampleStatus> & joint_status,
     size_t complete_joints, Clock::time_point now) const;
   bool store_pending_warning(const IncompleteSample & sample);
   std::optional<IncompleteSample> take_pending_warning();

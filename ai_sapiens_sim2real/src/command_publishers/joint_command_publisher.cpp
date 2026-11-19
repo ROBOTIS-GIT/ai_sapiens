@@ -19,6 +19,8 @@
 #include <algorithm>
 #include <stdexcept>
 
+#include <rclcpp/exceptions/exceptions.hpp>
+
 namespace ai_sapiens_sim2real
 {
 
@@ -82,7 +84,7 @@ JointCommandPublisher::JointCommandPublisher(
   }
 }
 
-void JointCommandPublisher::publish(const rclcpp::Time & time)
+void JointCommandPublisher::publish(const rclcpp::Time & time, CommandPublishMode mode)
 {
   if (!enabled_ || !publisher_) {
     return;
@@ -108,20 +110,47 @@ void JointCommandPublisher::publish(const rclcpp::Time & time)
       static_cast<double>(output_->feedforward[controller_index]);
     msg_.kp[controller_index] = static_cast<double>(output_->command.stiffness[controller_index]);
     msg_.kd[controller_index] = static_cast<double>(output_->command.damping[controller_index]);
+  }
 
-    const bool can_store_published_command = controller_index <
-      output_->last_published.position.size();
-    if (can_store_published_command) {
-      output_->last_published.position[controller_index] = val;
-      output_->last_published.stiffness[controller_index] =
-        output_->command.stiffness[controller_index];
-      output_->last_published.damping[controller_index] =
-        output_->command.damping[controller_index];
+  try {
+    publisher_->publish(msg_);
+  } catch (const rclcpp::exceptions::RCLErrorBase & error) {
+    if (mode == CommandPublishMode::EmergencyDamping) {
+      RCLCPP_ERROR(
+        node_->get_logger(), "Emergency Damping publish failed (topic=%s, rcl=%d): %s",
+        topic_.c_str(), error.ret, error.formatted_message.c_str());
+    } else {
+      record_publish_failure(error.message.c_str(), error.ret);
+    }
+    return;
+  }
+
+  consecutive_failures_ = 0;
+  auto & published = output_->last_published;
+  published.position.assign(msg_.positions.begin(), msg_.positions.end());
+  published.stiffness.assign(msg_.kp.begin(), msg_.kp.end());
+  published.damping.assign(msg_.kd.begin(), msg_.kd.end());
+  output_->has_published_command = true;
+}
+
+void JointCommandPublisher::record_publish_failure(const char * message, int error_code)
+{
+  constexpr unsigned int kMaxToleratedFailures = 10;
+  if (!output_->is_command_publish_fault_latched) {
+    ++consecutive_failures_;
+    if (consecutive_failures_ > kMaxToleratedFailures) {
+      output_->is_command_publish_fault_latched = true;
+      RCLCPP_ERROR(
+        node_->get_logger(),
+        "Damping latched after %u consecutive joint command publish failures (topic=%s, rcl=%d): %s",
+        consecutive_failures_, topic_.c_str(), error_code, message);
+      return;
     }
   }
 
-  publisher_->publish(msg_);
-  output_->has_published_command = true;
+  RCLCPP_WARN_THROTTLE(
+    node_->get_logger(), *node_->get_clock(), 1000,
+    "Joint command publish failed (topic=%s, rcl=%d): %s", topic_.c_str(), error_code, message);
 }
 
 std::string JointCommandPublisher::get_name() const

@@ -16,7 +16,11 @@
 
 #include "ai_sapiens_sim2real/sensor_handles/twist_command_handle.hpp"
 
+#include "ai_sapiens_sim2real/exception_diagnostics.hpp"
+
 #include <algorithm>
+
+#include "ai_sapiens_sim2real/sensor_handles/sensor_input_validation.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -74,6 +78,16 @@ float TwistCommandHandle::clamp_axis(double value, const AxisRange & range)
 
 void TwistCommandHandle::callback(const geometry_msgs::msg::Twist::SharedPtr msg)
 {
+  const CallbackLocation location(__func__, __FILE__, __LINE__);
+  if (!fits_finite_float(msg->linear.x) || !fits_finite_float(msg->linear.y) ||
+    !fits_finite_float(msg->angular.z))
+  {
+    RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 1000,
+      "Ignoring velocity command outside finite float range (topic=%s vx=%g vy=%g wz=%g)",
+      subscription_->get_topic_name(), msg->linear.x, msg->linear.y, msg->angular.z);
+    return;
+  }
+
   // Buffer the raw command; update() clamps it to the active range.
   Eigen::Vector3f cmd;
   cmd.x() = static_cast<float>(msg->linear.x);

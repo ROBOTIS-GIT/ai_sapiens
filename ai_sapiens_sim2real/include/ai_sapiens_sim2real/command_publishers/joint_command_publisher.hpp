@@ -55,7 +55,7 @@ public:
     bool enforce_position_limits = false,
     bool enabled = true);
 
-  void publish(const rclcpp::Time & time) override;
+  void publish(const rclcpp::Time & time, CommandPublishMode mode) override;
   std::string get_name() const override;
   bool is_enabled() const override
   {
@@ -69,6 +69,9 @@ public:
   void set_enabled(bool enabled);
 
 private:
+  void record_publish_failure(const char * message, int error_code);
+
+  unsigned int consecutive_failures_{0};
   rclcpp::Node::SharedPtr node_;
   BehaviorOutput * output_;
 

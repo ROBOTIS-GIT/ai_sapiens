@@ -16,6 +16,8 @@
 
 #include "ai_sapiens_sim2real/sensor_handles/api_heartbeat_handle.hpp"
 
+#include "ai_sapiens_sim2real/exception_diagnostics.hpp"
+
 #include <stdexcept>
 
 namespace ai_sapiens_sim2real
@@ -43,6 +45,7 @@ ApiHeartbeatHandle::ApiHeartbeatHandle(
     topic_,
     10,
     [this](const ai_sapiens_interfaces::msg::ApiHeartbeat::SharedPtr msg) {
+      const CallbackLocation location("API heartbeat", __FILE__, __LINE__);
       ApiHeartbeatSnapshot snapshot;
       snapshot.sequence = msg->sequence;
       snapshot.received_at = std::chrono::steady_clock::now();

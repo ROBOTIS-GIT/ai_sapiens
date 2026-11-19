@@ -16,13 +16,36 @@
 
 #include "ai_sapiens_sim2real/sensor_handles/joint_states_sensor_handle.hpp"
 
+#include "ai_sapiens_sim2real/exception_diagnostics.hpp"
+
 #include <algorithm>
 #include <limits>
 #include <stdexcept>
 #include <unordered_map>
 
+#include "ai_sapiens_sim2real/sensor_handles/sensor_input_validation.hpp"
+
 namespace ai_sapiens_sim2real
 {
+
+namespace
+{
+constexpr size_t kMissingJoint = std::numeric_limits<size_t>::max();
+
+JointSampleStatus joint_sample_status(const sensor_msgs::msg::JointState & msg, size_t index)
+{
+  if (index == kMissingJoint) {
+    return JointSampleStatus::MissingJoint;
+  }
+  if (index >= msg.position.size() || index >= msg.velocity.size()) {
+    return JointSampleStatus::MissingValues;
+  }
+  if (!fits_finite_float(msg.position[index]) || !fits_finite_float(msg.velocity[index])) {
+    return JointSampleStatus::InvalidValues;
+  }
+  return JointSampleStatus::Valid;
+}
+}  // namespace
 
 JointStatesSensorHandle::JointStatesSensorHandle(
   rclcpp::Node::SharedPtr node,
@@ -49,7 +72,8 @@ JointStatesSensorHandle::JointStatesSensorHandle(
   }
 
   callback_data_.resize(num_joints_);
-  message_indices_.assign(num_joints_, std::numeric_limits<size_t>::max());
+  joint_status_.resize(num_joints_);
+  message_indices_.assign(num_joints_, kMissingJoint);
 
   // Start the watchdog after startup.
   JointStatesData initial_data;
@@ -108,12 +132,13 @@ std::string JointStatesSensorHandle::get_name() const
 
 void JointStatesSensorHandle::callback(const sensor_msgs::msg::JointState::SharedPtr msg)
 {
+  const CallbackLocation location(__func__, __FILE__, __LINE__);
   input_gap_monitor_->received_raw();
   update_joint_mapping(msg->name);
   const size_t complete_joints_found = parse_joint_state_message(*msg);
 
   if (complete_joints_found != num_joints_) {
-    diagnostics_->record_incomplete(*msg, message_indices_, complete_joints_found);
+    diagnostics_->record_incomplete(joint_status_, complete_joints_found);
     return;
   }
 
@@ -140,7 +165,7 @@ void JointStatesSensorHandle::update_joint_mapping(const std::vector<std::string
   for (size_t i = 0; i < num_joints_; ++i) {
     const auto found = name_to_index.find(joint_names_[i]);
     message_indices_[i] = found == name_to_index.end() ?
-      std::numeric_limits<size_t>::max() : found->second;
+      kMissingJoint : found->second;
   }
 }
 
@@ -149,7 +174,8 @@ size_t JointStatesSensorHandle::parse_joint_state_message(const sensor_msgs::msg
   size_t complete_joints_found = 0;
   for (size_t i = 0; i < num_joints_; ++i) {
     const auto index = message_indices_[i];
-    if (index >= msg.position.size() || index >= msg.velocity.size()) {
+    joint_status_[i] = joint_sample_status(msg, index);
+    if (joint_status_[i] != JointSampleStatus::Valid) {
       continue;
     }
 
@@ -170,7 +196,7 @@ void JointStatesSensorHandle::log_stale_once(
 
   RCLCPP_ERROR(
     node_->get_logger(),
-    "Damping failsafe latched: no joint states message for %.3fs; exceeded %.3fs timeout "
+    "Damping failsafe latched: no valid joint states message for %.3fs; exceeded %.3fs timeout "
     "(topic=%s)",
     std::chrono::duration<double>(elapsed).count(),
     timeout_.count(),

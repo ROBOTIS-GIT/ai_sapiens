@@ -16,6 +16,8 @@
 
 #include "ai_sapiens_sim2real/control_loop.hpp"
 
+#include <rclcpp/exceptions/exceptions.hpp>
+
 namespace ai_sapiens_sim2real
 {
 
@@ -227,8 +229,11 @@ std::string ControlLoop::make_waiting_for_message(const std::vector<std::string>
 void ControlLoop::rt_thread_func()
 {
   // Fatal boundary for unexpected RT-thread failures.
+  int iteration = 0;
   try {
+    rt_stage_ = "realtime setup";
     prepare_realtime_thread();
+    rt_stage_ = "sensor and controller initialization";
     if (!initialize_controllers_after_sensor_ready()) {
       faulted_ = true;
       rclcpp::shutdown();
@@ -239,7 +244,6 @@ void ControlLoop::rt_thread_func()
       static_cast<int64_t>(1'000'000'000.0 / command_publish_rate_));
     auto next_time = std::chrono::steady_clock::now();
     auto previous_time = node_->get_clock()->now();
-    int iteration = 0;
     const int observation_publish_interval =
       std::max(1, static_cast<int>(command_publish_rate_ / debug_publish_rate_));
 
@@ -247,30 +251,38 @@ void ControlLoop::rt_thread_func()
     RCLCPP_INFO(node_->get_logger(), "Starting RT loop at %.1f Hz", command_publish_rate_);
 
     while (running_ && rclcpp::ok()) {
+      rt_stage_ = "clock";
       auto current_time = node_->get_clock()->now();
       auto measured_period = current_time - previous_time;
       previous_time = current_time;
 
       run_control_step(current_time, measured_period, iteration, observation_publish_interval);
+      rt_stage_ = "status log";
       log_status_if_needed(iteration);
+      rt_stage_ = "wait for next tick";
       iteration++;
       sleep_until_next_tick(next_time, command_period);
     }
 
     RCLCPP_INFO(node_->get_logger(), "RT thread exiting after %d iterations", iteration);
   } catch (const std::exception & e) {
-    running_ = false;
-    faulted_ = true;
-    RCLCPP_FATAL(node_->get_logger(), "RT loop aborted: %s; stopping control", e.what());
-    publish_emergency_damping();
-    rclcpp::shutdown();
+    abort_control_loop(iteration, e.what());
   } catch (...) {
-    running_ = false;
-    faulted_ = true;
-    RCLCPP_FATAL(node_->get_logger(), "RT loop aborted by unknown exception; stopping control");
-    publish_emergency_damping();
-    rclcpp::shutdown();
+    abort_control_loop(iteration, "unknown exception");
   }
+}
+
+void ControlLoop::abort_control_loop(int iteration, const char * error)
+{
+  running_ = false;
+  faulted_ = true;
+  const auto & mode = shared_data_.mode;
+  RCLCPP_FATAL(
+    node_->get_logger(), "RT loop aborted (stage=%s, tick=%d, mode=%s, policy=%s): %s",
+    rt_stage_, iteration, mode.active_state_name.c_str(),
+    mode.active_policy_name.empty() ? "none" : mode.active_policy_name.c_str(), error);
+  publish_emergency_damping();
+  rclcpp::shutdown();
 }
 
 // Last-gasp for the fatal path: without this, consumers keep applying the
@@ -278,11 +290,16 @@ void ControlLoop::rt_thread_func()
 void ControlLoop::publish_emergency_damping()
 {
   try {
-    if (mode_controller_) {
-      mode_controller_->apply_emergency_damping();
+    if (!mode_controller_) {
+      RCLCPP_ERROR(node_->get_logger(), "Cannot publish emergency Damping: no mode controller");
+      return;
     }
-    command(node_->get_clock()->now());
+    mode_controller_->apply_emergency_damping();
+    command(node_->get_clock()->now(), CommandPublishMode::EmergencyDamping);
+  } catch (const std::exception & e) {
+    RCLCPP_ERROR(node_->get_logger(), "Emergency Damping failed: %s", e.what());
   } catch (...) {
+    RCLCPP_ERROR(node_->get_logger(), "Emergency Damping failed with an unknown exception");
   }
 }
 
@@ -339,18 +356,24 @@ void ControlLoop::run_control_step(
   int observation_publish_interval)
 {
   // Readiness comes from sensor callbacks, not sense(), so gate before sensing.
+  rt_stage_ = "sensor readiness";
   if (!all_sensors_ready()) {
     warn_sensors_not_ready();
     return;
   }
 
+  rt_stage_ = "sensor update";
   sense(current_time);
 
   // decide() runs before act() so a transition into a policy enters and
   // infers on the same tick.
+  rt_stage_ = "mode decision";
   const auto & decision = decide(current_time, measured_period);
+  rt_stage_ = "policy update";
   act(decision, current_time, measured_period);
+  rt_stage_ = "command publish";
   command(current_time);
+  rt_stage_ = "debug publish";
   publish_debug_topics_if_needed(iteration, observation_publish_interval);
 }
 
@@ -376,11 +399,11 @@ void ControlLoop::act(
   policy_controller_->update(decision, current_time, measured_period);
 }
 
-void ControlLoop::command(const rclcpp::Time & current_time)
+void ControlLoop::command(const rclcpp::Time & current_time, CommandPublishMode mode)
 {
   for (auto & publisher : command_publishers_) {
     if (publisher->is_enabled()) {
-      publisher->publish(current_time);
+      publisher->publish(current_time, mode);
     }
   }
 }
@@ -597,7 +620,13 @@ void ControlLoop::publish_raw_debug_topics()
     obs_msg.data.push_back(static_cast<double>(value));
   }
 
-  raw_observation_publisher_->publish(obs_msg);
+  try {
+    raw_observation_publisher_->publish(obs_msg);
+  } catch (const rclcpp::exceptions::RCLErrorBase & error) {
+    RCLCPP_WARN_THROTTLE(
+      node_->get_logger(), *node_->get_clock(), 1000,
+      "Failed to publish raw observation: %s", error.message.c_str());
+  }
 
   std_msgs::msg::Float64MultiArray action_msg;
   action_msg.data.reserve(shared_data_.output.command.position.size());
@@ -605,7 +634,13 @@ void ControlLoop::publish_raw_debug_topics()
     action_msg.data.push_back(static_cast<double>(value));
   }
 
-  processed_action_publisher_->publish(action_msg);
+  try {
+    processed_action_publisher_->publish(action_msg);
+  } catch (const rclcpp::exceptions::RCLErrorBase & error) {
+    RCLCPP_WARN_THROTTLE(
+      node_->get_logger(), *node_->get_clock(), 1000,
+      "Failed to publish processed action: %s", error.message.c_str());
+  }
 }
 
 

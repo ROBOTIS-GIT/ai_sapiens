@@ -120,6 +120,7 @@ private:
     RequestedState,
     TeleopInputTimeout,
     TeleopInputDamping,
+    CommandPublishFault,
     DampingRequest,
     ActionLimit,
     BadOrientation,
@@ -205,7 +206,6 @@ private:
   }
 
   std::vector<float> make_controller_ordered_joint_positions() const;
-  void copy_controller_positions_to_output(const std::vector<float> & controller_values);
 
   const StateBehavior & behavior_for_state(const std::string & state_name) const;
   std::string policy_for_state(const std::string & state_name) const;
@@ -345,7 +345,6 @@ private:
   std::chrono::steady_clock::time_point posture_start_time_{};
   std::vector<float> posture_start_controller_;
   std::vector<float> active_posture_target_;
-  std::vector<float> posture_target_;
 };
 
 }  // namespace ai_sapiens_sim2real

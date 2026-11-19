@@ -16,8 +16,9 @@
 
 #include "ai_sapiens_sim2real/sensor_handles/joint_states_diagnostics.hpp"
 
+#include "ai_sapiens_sim2real/exception_diagnostics.hpp"
+
 #include <cinttypes>
-#include <limits>
 #include <utility>
 
 namespace ai_sapiens_sim2real
@@ -37,7 +38,7 @@ void JointStatesDiagnostics::record_ready()
 }
 
 void JointStatesDiagnostics::record_incomplete(
-  const sensor_msgs::msg::JointState & msg, const std::vector<size_t> & message_indices,
+  const std::vector<JointSampleStatus> & joint_status,
   size_t complete_joints)
 {
   const auto now = Clock::now();
@@ -46,7 +47,7 @@ void JointStatesDiagnostics::record_incomplete(
     return;
   }
 
-  const auto sample = capture_incomplete_sample(msg, message_indices, complete_joints, now);
+  const auto sample = capture_incomplete_sample(joint_status, complete_joints, now);
 
   if (store_pending_warning(sample)) {
     next_warning_at_ = now + std::chrono::seconds(1);
@@ -54,7 +55,7 @@ void JointStatesDiagnostics::record_incomplete(
 }
 
 JointStatesDiagnostics::IncompleteSample JointStatesDiagnostics::capture_incomplete_sample(
-  const sensor_msgs::msg::JointState & msg, const std::vector<size_t> & message_indices,
+  const std::vector<JointSampleStatus> & joint_status,
   size_t complete_joints, Clock::time_point now) const
 {
   IncompleteSample sample;
@@ -63,10 +64,8 @@ JointStatesDiagnostics::IncompleteSample JointStatesDiagnostics::capture_incompl
   sample.unix_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
     std::chrono::system_clock::now().time_since_epoch()).count();
 
-  for (size_t i = 0; i < message_indices.size(); ++i) {
-    const auto index = message_indices[i];
-
-    if (index < msg.position.size() && index < msg.velocity.size()) {
+  for (size_t i = 0; i < joint_status.size(); ++i) {
+    if (joint_status[i] == JointSampleStatus::Valid) {
       continue;
     }
 
@@ -75,8 +74,7 @@ JointStatesDiagnostics::IncompleteSample JointStatesDiagnostics::capture_incompl
       break;
     }
 
-    sample.missing_joints[sample.missing_count++] =
-    {i, index != std::numeric_limits<size_t>::max()};
+    sample.missing_joints[sample.missing_count++] = {i, joint_status[i]};
   }
 
   return sample;
@@ -120,8 +118,10 @@ std::string JointStatesDiagnostics::build_missing_joint_summary(
     const auto & missing = sample.missing_joints[i];
     summary += joint_names_[missing.joint_index];
 
-    if (missing.is_missing_values) {
+    if (missing.status == JointSampleStatus::MissingValues) {
       summary += "(missing position/velocity)";
+    } else if (missing.status == JointSampleStatus::InvalidValues) {
+      summary += "(invalid position/velocity)";
     }
   }
 
@@ -147,6 +147,7 @@ void JointStatesDiagnostics::report_incomplete(const IncompleteSample & sample)
 
 void JointStatesDiagnostics::flush()
 {
+  const CallbackLocation location(__func__, __FILE__, __LINE__);
   const auto sample = take_pending_warning();
 
   if (sample) {

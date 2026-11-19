@@ -16,8 +16,12 @@
 
 #include "ai_sapiens_sim2real/controllers/mode_ros_interface.hpp"
 
+#include "ai_sapiens_sim2real/exception_diagnostics.hpp"
+
 #include <chrono>
 #include <memory>
+
+#include <rclcpp/exceptions/exceptions.hpp>
 
 namespace ai_sapiens_sim2real
 {
@@ -73,6 +77,7 @@ void ModeRosInterface::handle_set_mode(
   const ai_sapiens_interfaces::srv::SetModeByName::Request & request,
   ai_sapiens_interfaces::srv::SetModeByName::Response & response)
 {
+  const CallbackLocation location(__func__, __FILE__, __LINE__);
   const auto result = mode_controller_->set_mode_by_name(request.mode_name);
   response.success = result.success;
   response.message = result.message;
@@ -82,6 +87,7 @@ void ModeRosInterface::handle_set_mode(
 void ModeRosInterface::fill_mode_list(
   ai_sapiens_interfaces::srv::ListModes::Response & response) const
 {
+  const CallbackLocation location(__func__, __FILE__, __LINE__);
   response.success = true;
   response.modes = mode_controller_->concrete_state_names();
   response.available_modes = mode_controller_->available_service_state_names();
@@ -90,6 +96,7 @@ void ModeRosInterface::fill_mode_list(
 
 void ModeRosInterface::publish_status()
 {
+  const CallbackLocation location(__func__, __FILE__, __LINE__);
   mode_controller_->flush_transition_log();
 
   const auto snapshot = mode_controller_->status_snapshot();
@@ -102,7 +109,13 @@ void ModeRosInterface::publish_status()
   msg.api_request_available = snapshot.api_request_available;
   msg.last_transition_reason = snapshot.last_transition_reason;
 
-  mode_status_pub_->publish(msg);
+  try {
+    mode_status_pub_->publish(msg);
+  } catch (const rclcpp::exceptions::RCLErrorBase & error) {
+    RCLCPP_WARN_THROTTLE(
+      node_->get_logger(), *node_->get_clock(), 1000,
+      "Failed to publish mode status: %s", error.message.c_str());
+  }
 }
 
 }  // namespace ai_sapiens_sim2real

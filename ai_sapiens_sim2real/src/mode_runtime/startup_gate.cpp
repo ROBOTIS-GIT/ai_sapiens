@@ -20,6 +20,8 @@
 #include <string>
 #include <thread>
 
+#include "ai_sapiens_sim2real/exception_diagnostics.hpp"
+
 namespace ai_sapiens_sim2real
 {
 
@@ -38,7 +40,12 @@ bool wait_for_teleop_input_sample(
   while (rclcpp::ok() && !plugin->is_ready()) {
     input_executor.spin_some();
     // The input callback group is explicitly assigned to input_executor, not the node executor.
-    node_executor.spin_some();
+    try {
+      node_executor.spin_some();
+    } catch (...) {
+      log_executor_exception(node->get_logger(), "Startup node executor");
+      throw;
+    }
 
     const auto elapsed = std::chrono::steady_clock::now() - start;
     const double elapsed_seconds = std::chrono::duration<double>(elapsed).count();

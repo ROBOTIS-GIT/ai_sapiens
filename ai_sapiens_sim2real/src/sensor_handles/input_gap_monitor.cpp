@@ -16,6 +16,8 @@
 
 #include "ai_sapiens_sim2real/sensor_handles/input_gap_monitor.hpp"
 
+#include "ai_sapiens_sim2real/exception_diagnostics.hpp"
+
 #include <cinttypes>
 
 namespace ai_sapiens_sim2real
@@ -39,6 +41,7 @@ void InputGapMonitor::received_accepted() {receive(accepted_, Stream::Accepted);
 
 void InputGapMonitor::check_gaps()
 {
+  const CallbackLocation location(__func__, __FILE__, __LINE__);
   std::lock_guard<std::mutex> lock(mutex_);
   const auto now = InputGapState::Clock::now();
   enqueue(Stream::Raw, raw_.check_gap(now), now);
@@ -97,6 +100,7 @@ std::optional<InputGapMonitor::PendingEvents> InputGapMonitor::take_pending_even
 
 void InputGapMonitor::flush_logs()
 {
+  const CallbackLocation location(__func__, __FILE__, __LINE__);
   const auto batch = take_pending_events();
 
   if (!batch) {

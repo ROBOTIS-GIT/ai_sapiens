@@ -18,6 +18,8 @@
 
 #include <stdexcept>
 
+#include "ai_sapiens_sim2real/exception_diagnostics.hpp"
+
 namespace ai_sapiens_sim2real
 {
 namespace
@@ -52,7 +54,12 @@ const rclcpp::SubscriptionOptions & InputExecutor::subscription_options() const
 
 void InputExecutor::spin_some()
 {
-  executor_.spin_some();
+  try {
+    executor_.spin_some();
+  } catch (...) {
+    log_executor_exception(logger_, "Startup input executor");
+    throw;
+  }
 }
 
 void InputExecutor::start()
@@ -91,13 +98,9 @@ void InputExecutor::run()
 {
   try {
     executor_.spin();
-  } catch (const std::exception & e) {
-    has_failed_ = true;
-    RCLCPP_FATAL(logger_, "Input executor failed: %s", e.what());
-    rclcpp::shutdown(context_);
   } catch (...) {
     has_failed_ = true;
-    RCLCPP_FATAL(logger_, "Input executor failed with an unknown exception");
+    log_executor_exception(logger_, "Input executor");
     rclcpp::shutdown(context_);
   }
 
