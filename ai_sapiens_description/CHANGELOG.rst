@@ -2,6 +2,24 @@
 Changelog for package ai_sapiens_description
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.4.0 (2026-11-19)
+------------------
+* Remove the rev2 cap visuals from both URDF DAE and MuJoCo OBJ assets;
+  preserve the head visuals and inertial properties.
+
+* Added a separate K1 rev2 description with the October 26 joint frames and
+  link inertias, colored DAE visuals, and material-separated MuJoCo OBJ assets.
+* Made rev2 the launch default. Select rev1 with ``model:=k1_rev1``.
+* Refined the rev2 collision meshes.
+* Preserved the 23-actuator training topology without linkage mimic joints
+  or additional closed-loop constraints.
+* Reduced rev2 visual triangles by 25.9% by omitting fasteners and internal
+  actuator tubes, simplifying output flanges, and retaining only the battery
+  exterior. Kept joint, inertial, actuator, sensor and collision data unchanged.
+
+* Configured DYNAMIXEL homing offsets for the rev2 ankle-pitch actuators.
+* Contributors: Woojin Wie, Wonho Yun
+
 0.3.0 (2026-10-07)
 ------------------
 * None

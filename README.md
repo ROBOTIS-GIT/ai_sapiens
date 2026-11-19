@@ -20,3 +20,21 @@ To access datasets and pre-trained models for ROBOTIS open-source platforms, see
 
 To use the Docker image for running ROS packages and Physical AI tools, visit:
   - [Docker Images](https://hub.docker.com/r/robotis/ros/tags)
+
+## K1 model revisions
+
+`k1_rev2` is the default model, with revised joint coordinates and link
+inertias, colored DAE visuals, and matching MuJoCo OBJ assets. The rev2
+meshes omit separate fasteners, internal actuator tubes, battery internals,
+and the cap. Visual simplification preserves joint and inertial data.
+
+```sh
+ros2 launch ai_sapiens_description k1.launch.py
+ros2 launch ai_sapiens_bringup k1_mujoco.launch.py
+```
+
+Pass `model:=k1_rev1` to select the rev1 model.
+
+See the [rev2 model notes](ai_sapiens_description/urdf/k1_rev2/README.md)
+for source provenance, material support, linkage simplification and validation
+limits. The revision does not add extra controlled joints or linkage constraints.
