@@ -171,7 +171,7 @@ TEST(GaitClock, AdaptiveClockRejectsIncompatibleContracts)
   config["gait_phase"]["params"]["schema"] = "unknown_clock";
   EXPECT_THROW(make_gait_clock(config, .02), std::runtime_error);
   for (const auto key : {"min_height", "min_upright", "recovery_delay_mask",
-    "deployment_walk_period_scale"})
+      "deployment_walk_period_scale"})
   {
     config = YAML::Clone(original);
     config["gait_phase"]["params"][key] = 1;
@@ -181,7 +181,8 @@ TEST(GaitClock, AdaptiveClockRejectsIncompatibleContracts)
   config["gait_phase"]["params"]["periods"][0] = 0;
   EXPECT_THROW(make_gait_clock(config, .02), std::runtime_error);
   EXPECT_THROW(make_gait_clock(original, 0), std::runtime_error);
-  EXPECT_THROW(make_gait_clock(original, std::numeric_limits<double>::quiet_NaN()), std::runtime_error);
+  EXPECT_THROW(make_gait_clock(original, std::numeric_limits<double>::quiet_NaN()),
+    std::runtime_error);
 }
 
 // Frozen command-reset update semantics. Exercise command boundaries,
@@ -302,7 +303,9 @@ TEST(GaitClock, AdaptiveUsesYamlParametersWithoutSchema)
     EXPECT_FLOAT_EQ(state.swing_ratio, .3f + alpha * (swings[i] - .3f));
     EXPECT_FLOAT_EQ(state.phase, .125f + .02f / period);
   }
-  for (const auto * schema : {"k1_settle_march_phase_v1", "k1_settle_march_phase_v1_command_only"}) {
+  for (const auto * schema : {"k1_settle_march_phase_v1",
+      "k1_settle_march_phase_v1_command_only"})
+  {
     params["schema"] = schema;
     EXPECT_NO_THROW(make_gait_clock(config, .02));
   }
@@ -312,13 +315,13 @@ TEST(GaitClock, AdaptiveRejectsInvalidYamlParameters)
 {
   const auto original = YAML::LoadFile(std::string(PHASE_TEST_DATA_DIR) + "/phase_contract.yaml");
   for (const auto * invalid : {
-      "{periods: [1, 0.8]}", "{periods: [1, -1, 0.5]}",
-      "{periods: [1, .nan, 0.5]}", "{forward_thresholds: [2, 1]}",
-      "{forward_thresholds: [1, 1]}", "{swing_ratios: [0.3, 1, 0.5]}",
-      "{transition_tau: 0}", "{transition_tau: .inf}",
-      "{reset_phase: 1}", "{offsets: [0, -0.5]}",
-      "{stand_command_norm_plus_yaw_threshold: -1}",
-      "{observation_order: [sin_left]}", "{update: unknown}"})
+    "{periods: [1, 0.8]}", "{periods: [1, -1, 0.5]}",
+    "{periods: [1, .nan, 0.5]}", "{forward_thresholds: [2, 1]}",
+    "{forward_thresholds: [1, 1]}", "{swing_ratios: [0.3, 1, 0.5]}",
+    "{transition_tau: 0}", "{transition_tau: .inf}",
+    "{reset_phase: 1}", "{offsets: [0, -0.5]}",
+    "{stand_command_norm_plus_yaw_threshold: -1}",
+    "{observation_order: [sin_left]}", "{update: unknown}"})
   {
     SCOPED_TRACE(invalid);
     auto config = YAML::Clone(original);
@@ -471,11 +474,11 @@ TEST(GaitClock, AdaptiveRejectsInvalidRangeShapesAndLowBounds)
   const auto original = YAML::LoadFile(std::string(PHASE_TEST_DATA_DIR) +
     "/../adaptive_phase/phase_contract.yaml");
   for (const auto * invalid : {
-      "{periods: []}", "{periods: [0.8, 1.16, 0.8]}",
-      "{swing_ratios: [0.4]}", "{forward_threshold_inclusive: [true]}",
-      "{forward_thresholds: [.nan, 2.4]}", "{range_order: [low]}",
-      "{low_planar_max_inclusive: 0}", "{low_yaw_max_inclusive: -.1}",
-      "{low_lateral_max_exclusive: .inf}", "{low_speed_priority: false}"})
+    "{periods: []}", "{periods: [0.8, 1.16, 0.8]}",
+    "{swing_ratios: [0.4]}", "{forward_threshold_inclusive: [true]}",
+    "{forward_thresholds: [.nan, 2.4]}", "{range_order: [low]}",
+    "{low_planar_max_inclusive: 0}", "{low_yaw_max_inclusive: -.1}",
+    "{low_lateral_max_exclusive: .inf}", "{low_speed_priority: false}"})
   {
     SCOPED_TRACE(invalid);
     auto config = YAML::Clone(original);
@@ -485,7 +488,7 @@ TEST(GaitClock, AdaptiveRejectsInvalidRangeShapesAndLowBounds)
     EXPECT_THROW(make_gait_clock(config, .02), std::runtime_error);
   }
   for (const auto key : {"low_planar_max_inclusive", "low_yaw_max_inclusive",
-    "low_lateral_max_exclusive"})
+      "low_lateral_max_exclusive"})
   {
     auto config = YAML::Clone(original);
     config["gait_phase"]["params"].remove(key);

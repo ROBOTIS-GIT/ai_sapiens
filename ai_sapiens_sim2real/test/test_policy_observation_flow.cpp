@@ -23,7 +23,16 @@
 
 #include "ai_sapiens_sim2real/policy/mimic/mimic_policy_runtime.hpp"
 
-using namespace ai_sapiens_sim2real;
+using ai_sapiens_sim2real::MimicPolicyRuntime;
+using ai_sapiens_sim2real::MotionPlayback;
+using ai_sapiens_sim2real::MotionReference;
+using ai_sapiens_sim2real::ObservationContext;
+using ai_sapiens_sim2real::ObservationRegistry;
+using ai_sapiens_sim2real::PolicyRuntime;
+using ai_sapiens_sim2real::PolicyUpdateResult;
+using ai_sapiens_sim2real::SharedControlData;
+using ai_sapiens_sim2real::Sim2RealConfig;
+using ai_sapiens_sim2real::VelocitySource;
 
 namespace
 {

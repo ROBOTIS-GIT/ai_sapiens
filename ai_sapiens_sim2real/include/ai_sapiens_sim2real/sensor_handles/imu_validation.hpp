@@ -17,8 +17,9 @@
 #ifndef AI_SAPIENS_SIM2REAL__SENSOR_HANDLES__IMU_VALIDATION_HPP_
 #define AI_SAPIENS_SIM2REAL__SENSOR_HANDLES__IMU_VALIDATION_HPP_
 
-#include <cmath>
 #include <Eigen/Geometry>
+
+#include <cmath>
 
 namespace ai_sapiens_sim2real
 {
@@ -36,4 +37,4 @@ inline bool valid_imu_sample(
   return std::isfinite(norm) && norm >= 0.9f && norm <= 1.1f;
 }
 }  // namespace ai_sapiens_sim2real
-#endif
+#endif  // AI_SAPIENS_SIM2REAL__SENSOR_HANDLES__IMU_VALIDATION_HPP_

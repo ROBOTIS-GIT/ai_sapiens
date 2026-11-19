@@ -177,7 +177,8 @@ std::vector<float> obs_bilateral_phase_with_swing(
   // is masked at stand; fixed bilateral output has a different order and stand value.
   const auto & cmd = context.shared.mode.velocity_commands;
   if (!(std::hypot(cmd.x(), cmd.y()) + std::abs(cmd.z()) >
-    params["stand_command_norm_plus_yaw_threshold"].as<float>())) {
+    params["stand_command_norm_plus_yaw_threshold"].as<float>()))
+  {
     return std::vector<float>(6, 0.0f);
   }
   const float phase = context.shared.policy.phase_state.phase;

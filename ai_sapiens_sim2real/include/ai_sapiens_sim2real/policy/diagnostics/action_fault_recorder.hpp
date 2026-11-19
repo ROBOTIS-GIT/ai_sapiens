@@ -21,6 +21,7 @@
 #include <condition_variable>
 #include <deque>
 #include <mutex>
+#include <string>
 #include <thread>
 
 #include <rclcpp/logger.hpp>

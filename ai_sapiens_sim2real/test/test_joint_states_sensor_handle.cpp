@@ -13,15 +13,18 @@
 // limitations under the License.
 //
 
+#include <gtest/gtest.h>
+
 #include <chrono>
 #include <limits>
 #include <thread>
 
-#include <gtest/gtest.h>
-
 #include "ai_sapiens_sim2real/sensor_handles/joint_states_sensor_handle.hpp"
 
-using namespace ai_sapiens_sim2real;
+using ai_sapiens_sim2real::JointStatesDiagnostics;
+using ai_sapiens_sim2real::JointStatesSensorHandle;
+using ai_sapiens_sim2real::ModeRequests;
+using ai_sapiens_sim2real::SensorData;
 using namespace std::chrono_literals;
 
 class JointStatesSensorHandleTest : public ::testing::Test

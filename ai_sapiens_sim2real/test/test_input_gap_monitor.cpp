@@ -13,17 +13,18 @@
 // limitations under the License.
 //
 
+#include <gtest/gtest.h>
+
 #include <chrono>
 #include <limits>
 #include <string>
 #include <thread>
 
-#include <gtest/gtest.h>
-
 #include "ai_sapiens_sim2real/sensor_handles/input_gap_monitor.hpp"
 
-namespace ai_sapiens_sim2real
-{
+using ai_sapiens_sim2real::InputGapMonitor;
+using ai_sapiens_sim2real::InputGapState;
+
 using namespace std::chrono_literals;
 
 TEST(InputGapState, WarnsOnceAndReportsFullGapOnRecovery)
@@ -180,4 +181,3 @@ TEST(InputGapState, RejectsInvalidExpectedRates)
   EXPECT_THROW(InputGapState(std::numeric_limits<double>::infinity()), std::invalid_argument);
   EXPECT_THROW(InputGapState(std::numeric_limits<double>::quiet_NaN()), std::invalid_argument);
 }
-}  // namespace ai_sapiens_sim2real

@@ -183,7 +183,9 @@ TEST(GaitObservation, AdaptiveMatchesTrainingFixtureAcrossLowAndForwardRanges)
   int rows = 0;
   while (fixture >> x >> y >> yaw) {
     std::vector<float> expected(6);
-    for (float & value : expected) {ASSERT_TRUE(static_cast<bool>(fixture >> value));}
+    for (float & value : expected) {
+      ASSERT_TRUE(static_cast<bool>(fixture >> value));
+    }
     shared.mode.velocity_commands = Eigen::Vector3f(x, y, yaw);
     clock->advance(shared.policy.phase_state, shared);
     const auto actual = observe(context, config["gait_phase"]["params"]);
@@ -208,7 +210,9 @@ YAML::Node low_only_phase_config()
   params["forward_thresholds"] = YAML::Load("[]");
   params.remove("forward_threshold_inclusive");
   params["stand_command_norm_plus_yaw_threshold"] = .05;
-  params["activation_region"] = YAML::Load(R"(
+  params["activation_region"] =
+    YAML::Load(
+      R"(
 kind: low_only_smoothstep
 planar_max: 0.4
 yaw_max: 0.4
@@ -270,7 +274,9 @@ TEST(GaitObservation, LowOnlyEnvelopeMatchesTrainingRiseExitAndReset)
       weight * std::sin(two_pi * right), weight * std::cos(two_pi * right),
       weight * .4f, weight * .4f};
     ASSERT_EQ(actual.size(), expected.size());
-    for (std::size_t i = 0; i < actual.size(); ++i) {EXPECT_NEAR(actual[i], expected[i], 2e-6f);}
+    for (std::size_t i = 0; i < actual.size(); ++i) {
+      EXPECT_NEAR(actual[i], expected[i], 2e-6f);
+    }
   }
 }
 

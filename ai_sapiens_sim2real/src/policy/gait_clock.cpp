@@ -134,27 +134,40 @@ void validate_adaptive_phase_export(const YAML::Node & params)
       schema == "k1_settle_march_phase_v1" || schema == "k1_sharedlow_four_range_phase_v1",
       "schema", "is unsupported");
   }
+
   for (const auto key : {"min_height", "min_upright", "recovery_delay_mask",
-    "deployment_walk_period_scale"})
+      "deployment_walk_period_scale"})
   {
     require_phase_field(!params[key], key, "is unsupported");
   }
-  require_phase_field(read_phase_value<std::string>(params, "update") == "integrated_free_running",
-    "update", "must be integrated_free_running");
-  require_phase_field(read_phase_value<bool>(params, "stand_mode_priority"),
-    "stand_mode_priority", "must be true");
+
+  require_phase_field(
+    read_phase_value<std::string>(params, "update") == "integrated_free_running",
+    "update",
+    "must be integrated_free_running");
+  require_phase_field(
+    read_phase_value<bool>(params, "stand_mode_priority"),
+    "stand_mode_priority",
+    "must be true");
   const std::vector<std::string> order = {
     "sin_left", "cos_left", "sin_right", "cos_right", "swing_left", "swing_right"};
-  require_phase_field(read_phase_value<std::vector<std::string>>(params, "observation_order") == order,
-    "observation_order", "must be [sin_left, cos_left, sin_right, cos_right, swing_left, swing_right]");
+  require_phase_field(
+    read_phase_value<std::vector<std::string>>(params, "observation_order") == order,
+    "observation_order",
+    "must be [sin_left, cos_left, sin_right, cos_right, swing_left, swing_right]");
+
   // Only validate the contract here; observations encode raw state outside the clock.
   const auto offsets = read_phase_vector(params, "offsets");
   require_phase_field(offsets.size() == 2, "offsets", "must contain two values");
+
   for (float offset : offsets) {
     require_phase_field(offset >= 0 && offset < 1, "offsets", "must be in [0, 1)");
   }
-  require_phase_field(read_phase_scalar(params, "stand_command_norm_plus_yaw_threshold") >= 0,
-    "stand_command_norm_plus_yaw_threshold", "must be nonnegative");
+
+  require_phase_field(
+    read_phase_scalar(params, "stand_command_norm_plus_yaw_threshold") >= 0,
+    "stand_command_norm_plus_yaw_threshold",
+    "must be nonnegative");
 }
 
 std::vector<PhaseTiming> read_phase_timings(const YAML::Node & params)
@@ -162,7 +175,10 @@ std::vector<PhaseTiming> read_phase_timings(const YAML::Node & params)
   const auto periods = read_phase_vector(params, "periods");
   const auto swings = read_phase_vector(params, "swing_ratios");
   require_phase_field(!periods.empty(), "periods", "must not be empty");
-  require_phase_field(swings.size() == periods.size(), "swing_ratios", "must match gait_phase.periods");
+  require_phase_field(
+    swings.size() == periods.size(),
+    "swing_ratios",
+    "must match gait_phase.periods");
   std::vector<PhaseTiming> timings;
   for (std::size_t i = 0; i < periods.size(); ++i) {
     require_phase_field(periods[i] > 0, "periods", "must be positive");
@@ -199,7 +215,7 @@ std::optional<LowSpeedRegion> read_low_speed_region(const YAML::Node & params)
       read_positive_phase_scalar(params, "low_lateral_max_exclusive")};
   }
   for (const auto key : {"low_planar_max_inclusive", "low_yaw_max_inclusive",
-    "low_lateral_max_exclusive"})
+      "low_lateral_max_exclusive"})
   {
     require_phase_field(!params[key], key, "requires low_speed_priority");
   }
@@ -308,8 +324,8 @@ float next_phase(float phase, float phase_increment)
 GaitClock make_free_running_phase_clock(float increment)
 {
   return GaitClock([increment](PhaseState state, const SharedControlData &) {
-      state.phase = next_phase(state.phase, increment);
-      return state;
+             state.phase = next_phase(state.phase, increment);
+             return state;
     });
 }
 
@@ -318,13 +334,13 @@ GaitClock make_command_reset_phase_clock(float increment, float threshold)
   return GaitClock([increment, threshold](PhaseState state, const SharedControlData & shared) {
       // The command-reset clock's first observation is at phase zero. This is a rule detail,
       // not a branch in the common clock.
-      if (state.first_step) {
-        state.first_step = false;
-        return state;
-      }
-      state.phase = shared.mode.velocity_commands.norm() > threshold ?
-        next_phase(state.phase, increment) : 0.0f;
-      return state;
+             if (state.first_step) {
+               state.first_step = false;
+               return state;
+             }
+             state.phase = shared.mode.velocity_commands.norm() > threshold ?
+             next_phase(state.phase, increment) : 0.0f;
+             return state;
     });
 }
 
@@ -388,7 +404,7 @@ GaitClock make_adaptive_phase_clock(const AdaptivePhaseConfig & config, double s
   const float dt = static_cast<float>(step_dt);
   const float alpha = 1.0f - std::exp(-dt / config.transition_tau);
   return GaitClock([config, dt, alpha](PhaseState state, const SharedControlData & shared) {
-      return advance_adaptive_phase(state, shared.mode.velocity_commands, config, dt, alpha);
+             return advance_adaptive_phase(state, shared.mode.velocity_commands, config, dt, alpha);
     }, initial, /*resolve_command_before_update=*/true);
 }
 

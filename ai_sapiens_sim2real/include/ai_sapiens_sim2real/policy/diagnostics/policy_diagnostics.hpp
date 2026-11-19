@@ -17,6 +17,11 @@
 #ifndef AI_SAPIENS_SIM2REAL__POLICY__DIAGNOSTICS__POLICY_DIAGNOSTICS_HPP_
 #define AI_SAPIENS_SIM2REAL__POLICY__DIAGNOSTICS__POLICY_DIAGNOSTICS_HPP_
 
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 #include "ai_sapiens_sim2real/policy/diagnostics/policy_fault_capture.hpp"
 #include "ai_sapiens_sim2real/policy/policy_action_result.hpp"
 

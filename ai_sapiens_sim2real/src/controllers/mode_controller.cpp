@@ -519,7 +519,8 @@ ModeController::ModeRequestResult ModeController::set_mode_by_name(
     authority_.heartbeat_allows_api(*state_);
   if (!can_accept_service_request) {
     result.message =
-      "service requests require active API authority, a held API switch, and the configured heartbeat condition";
+      "service requests require active API authority, a held API switch, "
+      "and the configured heartbeat condition";
     return result;
   }
 

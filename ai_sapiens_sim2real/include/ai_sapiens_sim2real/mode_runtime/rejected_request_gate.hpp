@@ -43,4 +43,4 @@ private:
 };
 
 }  // namespace ai_sapiens_sim2real
-#endif
+#endif  // AI_SAPIENS_SIM2REAL__MODE_RUNTIME__REJECTED_REQUEST_GATE_HPP_

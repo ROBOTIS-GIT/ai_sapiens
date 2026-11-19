@@ -25,7 +25,22 @@
 #include "ai_sapiens_sim2real/policy/diagnostics/action_fault_recorder.hpp"
 #include "ai_sapiens_sim2real/policy/policy_runtime.hpp"
 
-using namespace ai_sapiens_sim2real;
+using ai_sapiens_sim2real::ActionFaultRecorder;
+using ai_sapiens_sim2real::ActionPipeline;
+using ai_sapiens_sim2real::ActionProperties;
+using ai_sapiens_sim2real::ActionRejection;
+using ai_sapiens_sim2real::ActionSafetyLimits;
+using ai_sapiens_sim2real::BoundaryCheckState;
+using ai_sapiens_sim2real::CommandTransition;
+using ai_sapiens_sim2real::MotionReference;
+using ai_sapiens_sim2real::PolicyRuntime;
+using ai_sapiens_sim2real::PolicyUpdateResult;
+using ai_sapiens_sim2real::SensorData;
+using ai_sapiens_sim2real::SharedControlData;
+using ai_sapiens_sim2real::Sim2RealConfig;
+using ai_sapiens_sim2real::format_action_fault_actions;
+using ai_sapiens_sim2real::format_action_fault_sensors;
+using ai_sapiens_sim2real::validate_action;
 
 namespace
 {
@@ -256,7 +271,8 @@ TEST_F(MimicActionFault, CapturesRejectedInputBeforeHistoryRepairAndRecoverySepa
     runtime->set_fault_recorder(recorder);
     ASSERT_EQ(tick(0), PolicyUpdateResult::TargetReady);
     const auto accepted = data.policy.input;
-    data.sensors.joint_pos[0] = 12.f;  // raw exceeds 10, while the target stays inside the absolute limit.
+    // Raw action exceeds 10 while the target stays inside the absolute limit.
+    data.sensors.joint_pos[0] = 12.f;
     ASSERT_EQ(tick(), PolicyUpdateResult::TargetUnavailable);
     const auto rejected = data.policy.input;
     data.sensors.joint_pos[0] = .4f;

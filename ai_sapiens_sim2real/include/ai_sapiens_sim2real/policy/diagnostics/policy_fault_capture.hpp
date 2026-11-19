@@ -17,6 +17,11 @@
 #ifndef AI_SAPIENS_SIM2REAL__POLICY__DIAGNOSTICS__POLICY_FAULT_CAPTURE_HPP_
 #define AI_SAPIENS_SIM2REAL__POLICY__DIAGNOSTICS__POLICY_FAULT_CAPTURE_HPP_
 
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 #include <rclcpp/clock.hpp>
 #include <rclcpp/logger.hpp>
 

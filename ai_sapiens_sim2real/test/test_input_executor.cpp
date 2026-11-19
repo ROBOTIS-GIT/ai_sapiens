@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <gtest/gtest.h>
+
 #include <atomic>
 #include <chrono>
 #include <stdexcept>
 #include <thread>
-
-#include <gtest/gtest.h>
 
 #include "ai_sapiens_sim2real/mode_runtime/input_executor.hpp"
 #include "ai_sapiens_sim2real/mode_runtime/startup_gate.hpp"

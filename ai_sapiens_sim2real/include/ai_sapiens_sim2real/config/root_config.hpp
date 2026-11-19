@@ -19,9 +19,11 @@
 
 #include <filesystem>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <yaml-cpp/yaml.h>  // NOLINT(build/include_order)
