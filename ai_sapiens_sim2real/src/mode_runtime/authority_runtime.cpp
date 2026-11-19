@@ -32,9 +32,11 @@ std::chrono::duration<double> AuthorityPolicy::warmup_duration() const
   return warmup_duration_;
 }
 
-bool AuthorityPolicy::can_accept_api_velocity(Authority mode) const
+bool AuthorityPolicy::has_fresh_api_velocity(const ApiInput & api) const
 {
-  return mode == Authority::Api;
+  constexpr std::chrono::seconds kCmdVelTimeout{1};
+  return api.velocity_received_at != std::chrono::steady_clock::time_point{} &&
+         std::chrono::steady_clock::now() - api.velocity_received_at <= kCmdVelTimeout;
 }
 
 bool AuthorityPolicy::is_api_heartbeat_valid(const SharedControlData & shared_data) const
@@ -56,7 +58,9 @@ const char * AuthorityPolicy::api_entry_rejection_reason(
   if (!is_command_below_switch_threshold(shared_data.teleop.velocity_commands)) {
     return "teleop velocity command is not neutral";
   }
-  if (!is_command_below_switch_threshold(shared_data.api.velocity_commands)) {
+  if (has_fresh_api_velocity(shared_data.api) &&
+    !is_command_below_switch_threshold(shared_data.api.velocity_commands))
+  {
     return "api velocity command is not neutral";
   }
 
@@ -75,6 +79,23 @@ void AuthorityRuntime::configure(const AuthorityConfig & config, bool require_ap
   policy_.configure(config, require_api_heartbeat);
 }
 
+VelocitySource AuthorityRuntime::velocity_source(
+  Authority next,
+  const SharedControlData & data) const
+{
+  if (next == Authority::ApiWarmup) {
+    return VelocitySource::Zero;
+  }
+  if (next == Authority::Manual) {
+    return VelocitySource::Teleop;
+  }
+  const bool is_current_session_command = data.api.velocity_received_at >= session_started_at_;
+  if (is_current_session_command && policy_.has_fresh_api_velocity(data.api)) {
+    return VelocitySource::Api;
+  }
+  return VelocitySource::Zero;
+}
+
 Authority AuthorityRuntime::read_snapshot() const
 {
   return static_cast<Authority>(snapshot_.load(std::memory_order_acquire));
@@ -89,7 +110,8 @@ void AuthorityRuntime::set_current(Authority mode, ModeDecision & decision)
 
 void AuthorityRuntime::begin_warmup()
 {
-  warmup_deadline_ = std::chrono::steady_clock::now() +
+  session_started_at_ = std::chrono::steady_clock::now();
+  warmup_deadline_ = session_started_at_ +
     std::chrono::duration_cast<std::chrono::steady_clock::duration>(policy_.warmup_duration());
 }
 

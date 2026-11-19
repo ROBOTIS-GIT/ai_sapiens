@@ -514,6 +514,49 @@ TEST(ModeController, OptionalHeartbeatAllowsServiceWithNoHeartbeat)
   EXPECT_TRUE(fixture.controller_->set_mode_by_name("MimicSquat").success);
 }
 
+TEST(ModeController, FreshNonNeutralApiCommandBlocksEntryButExpiredCommandDoesNot)
+{
+  ModeControllerFixture fixture;
+  fixture.release_startup_gate();
+  fixture.set_api_heartbeat_valid(true);
+  auto & data = fixture.shared_data_;
+  data.api.velocity_commands.x() = 0.3F;
+  data.api.velocity_received_at = std::chrono::steady_clock::now() - std::chrono::milliseconds(650);
+  data.teleop.api_mode_requested = true;
+  fixture.update_controller();
+  EXPECT_STREQ(fixture.controller_->status_snapshot().authority, "MANUAL");
+
+  data.teleop.api_mode_requested = false;
+  fixture.update_controller();
+  data.api.velocity_received_at -= std::chrono::seconds(2);
+  data.teleop.api_mode_requested = true;
+  fixture.update_controller();
+  fixture.update_controller();
+  EXPECT_STREQ(fixture.controller_->status_snapshot().authority, "API");
+  EXPECT_TRUE(data.mode.velocity_commands.isZero());
+}
+
+TEST(ModeController, FreshCommandFromPreviousSessionCannotDriveAfterReentry)
+{
+  ModeControllerFixture fixture;
+  ASSERT_TRUE(fixture.enter_api());
+  auto & data = fixture.shared_data_;
+  data.api.velocity_commands.x() = 0.03F;
+  data.api.velocity_received_at = std::chrono::steady_clock::now();
+  fixture.update_controller();
+  ASSERT_FLOAT_EQ(data.mode.velocity_commands.x(), 0.03F);
+
+  data.teleop.api_mode_requested = false;
+  fixture.update_controller();
+  ASSERT_STREQ(fixture.controller_->status_snapshot().authority, "MANUAL");
+  ASSERT_TRUE(fixture.enter_api());
+  EXPECT_TRUE(data.mode.velocity_commands.isZero());
+
+  data.api.velocity_received_at = std::chrono::steady_clock::now();
+  fixture.update_controller();
+  EXPECT_FLOAT_EQ(data.mode.velocity_commands.x(), 0.03F);
+}
+
 TEST(ModeController, ApiAcceptsMimicServiceRequest)
 {
   ModeControllerFixture fixture;

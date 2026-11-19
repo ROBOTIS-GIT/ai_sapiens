@@ -37,7 +37,8 @@ public:
   std::chrono::duration<double> warmup_duration() const;
 
   // Pure policy checks; no mutable runtime state.
-  bool can_accept_api_velocity(Authority mode) const;
+  bool is_command_below_switch_threshold(const Eigen::Vector3f & command) const;
+  bool has_fresh_api_velocity(const ApiInput & api) const;
   bool heartbeat_allows_api(const SharedControlData & data) const
   {
     return !require_api_heartbeat_ || is_api_heartbeat_valid(data);
@@ -55,8 +56,6 @@ public:
     bool current_state_can_enter_api) const;
 
 private:
-  bool is_command_below_switch_threshold(const Eigen::Vector3f & command) const;
-
   bool require_api_heartbeat_{true};
   static constexpr double kDefaultWarmupSeconds = 3.0;
   std::chrono::duration<double> warmup_duration_{kDefaultWarmupSeconds};
@@ -80,13 +79,7 @@ public:
   void begin_warmup();
   bool is_warmup_finished() const;
 
-  // Same check for a hypothetical authority value, so a tick can decide using
-  // the authority it is about to transition to rather than the committed one.
-  bool can_accept_api_velocity(Authority mode) const
-  {
-    return policy_.can_accept_api_velocity(mode);
-  }
-
+  VelocitySource velocity_source(Authority next, const SharedControlData & data) const;
   bool heartbeat_allows_api(const SharedControlData & data) const
   {
     return policy_.heartbeat_allows_api(data);
@@ -107,6 +100,7 @@ private:
   std::atomic<int> snapshot_{static_cast<int>(Authority::Manual)};
 
   std::chrono::steady_clock::time_point warmup_deadline_{};
+  std::chrono::steady_clock::time_point session_started_at_{};
   AuthorityPolicy policy_;
 };
 

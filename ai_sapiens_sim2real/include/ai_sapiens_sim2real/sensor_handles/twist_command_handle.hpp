@@ -70,7 +70,12 @@ private:
 
   // Subscription callback writes buffer_; update() selects it when API mode owns velocity.
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr subscription_;
-  realtime_tools::RealtimeBuffer<Eigen::Vector3f> buffer_;
+  struct ReceivedCmdVel
+  {
+    Eigen::Vector3f velocity{Eigen::Vector3f::Zero()};
+    std::chrono::steady_clock::time_point received_at{};
+  };
+  realtime_tools::RealtimeBuffer<ReceivedCmdVel> buffer_;
 };
 
 }  // namespace ai_sapiens_sim2real

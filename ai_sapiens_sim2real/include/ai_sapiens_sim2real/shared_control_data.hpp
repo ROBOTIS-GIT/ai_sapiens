@@ -96,6 +96,7 @@ struct ApiInput
   Eigen::Vector3f velocity_commands{Eigen::Vector3f::Zero()};
   // Raw command, reclamped to the active policy range at inference time.
   Eigen::Vector3f velocity_command_raw{Eigen::Vector3f::Zero()};
+  std::chrono::steady_clock::time_point velocity_received_at{};
   uint32_t heartbeat_sequence{0};
   std::atomic<bool> heartbeat_received{false};
   std::atomic<bool> heartbeat_stale{true};

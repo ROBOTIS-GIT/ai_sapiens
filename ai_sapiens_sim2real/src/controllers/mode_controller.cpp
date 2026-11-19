@@ -375,18 +375,10 @@ void ModeController::clear_pending_service_request()
   service_request_gate_.discard();
 }
 
-// Select the velocity command owner for this tick. Manual uses teleop, full API
-// uses /cmd_vel, and API warmup holds zero. zero_velocity suppresses the
-// operator stick for one tick when API control is lost.
 VelocitySource ModeController::select_velocity_source(
   Authority authority, bool zero_velocity) const
 {
-  if (zero_velocity || authority == Authority::ApiWarmup) {
-    return VelocitySource::Zero;
-  }
-
-  return authority_.can_accept_api_velocity(authority) ?
-         VelocitySource::Api : VelocitySource::Teleop;
+  return zero_velocity ? VelocitySource::Zero : authority_.velocity_source(authority, *state_);
 }
 
 void ModeController::apply_velocity_source(VelocitySource source)

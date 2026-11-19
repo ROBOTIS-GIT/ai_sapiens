@@ -94,13 +94,16 @@ states can provide inherited transitions but cannot become active.
 | `API_WARMUP` | Zero velocity | Holds the current state |
 | `API` | `/cmd_vel` | Mode request service |
 
+When using `/cmd_vel`, velocity stays zero until a command received during or
+after warmup is available. Each command expires one second after receipt.
+
 API entry requires all of the following:
 
 - a fresh rising edge of the configured API switch;
 - a valid, advancing API heartbeat when `require_api_heartbeat` is true (default);
 - an active state listed in `authority.api_entry.allowed_from_states`;
 - teleop velocity within `velocity_neutral_threshold`;
-- commanded API velocity within `velocity_neutral_threshold`;
+- the latest `/cmd_vel` is absent, has expired, or commands zero velocity (within the configured tolerance);
 - completion of the configured warmup duration.
 
 Holding the switch high after a rejected entry does not retry. Toggle it off
