@@ -19,14 +19,12 @@
 namespace ai_sapiens_sim2real
 {
 
-void AuthorityPolicy::set_warmup_duration(double seconds)
+void AuthorityPolicy::configure(const AuthorityConfig & config, bool require_api_heartbeat)
 {
-  warmup_duration_ = std::chrono::duration<double>(seconds);
-}
-
-void AuthorityPolicy::set_switch_velocity_threshold(float threshold)
-{
-  switch_velocity_threshold_ = threshold;
+  warmup_duration_ = std::chrono::duration<double>(
+    config.api_entry_warmup_duration.value_or(kDefaultWarmupSeconds));
+  switch_velocity_threshold_ = config.api_entry_velocity_neutral_threshold.value_or(0.05f);
+  require_api_heartbeat_ = require_api_heartbeat;
 }
 
 std::chrono::duration<double> AuthorityPolicy::warmup_duration() const
@@ -72,14 +70,9 @@ bool AuthorityPolicy::is_command_below_switch_threshold(const Eigen::Vector3f & 
          std::abs(command.z()) <= switch_velocity_threshold_;
 }
 
-void AuthorityRuntime::set_warmup_duration(double seconds)
+void AuthorityRuntime::configure(const AuthorityConfig & config, bool require_api_heartbeat)
 {
-  policy_.set_warmup_duration(seconds);
-}
-
-void AuthorityRuntime::set_switch_velocity_threshold(float threshold)
-{
-  policy_.set_switch_velocity_threshold(threshold);
+  policy_.configure(config, require_api_heartbeat);
 }
 
 Authority AuthorityRuntime::read_snapshot() const

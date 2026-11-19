@@ -91,6 +91,7 @@ void Sim2RealNode::declare_node_parameters()
   node_->declare_parameter<bool>("enforce_position_limits", false);
   node_->declare_parameter<std::string>(
     "api_heartbeat_topic", "/ai_sapiens/api_heartbeat");
+  node_->declare_parameter<bool>("require_api_heartbeat", true);
   node_->declare_parameter<double>("api_heartbeat_timeout", 0.2);
   node_->declare_parameter<std::string>("cmd_vel_topic", "/cmd_vel");
   node_->declare_parameter<std::string>("teleop_input_plugin", "");
@@ -129,6 +130,7 @@ NodeOptions Sim2RealNode::read_node_options() const
   options.command_publisher_enabled =
     node_->get_parameter("command_publisher_enabled").as_bool();
   options.enforce_position_limits = node_->get_parameter("enforce_position_limits").as_bool();
+  options.require_api_heartbeat = node_->get_parameter("require_api_heartbeat").as_bool();
   options.api_heartbeat_topic =
     node_->get_parameter("api_heartbeat_topic").as_string();
   options.api_heartbeat_timeout =
@@ -268,7 +270,8 @@ void Sim2RealNode::wait_for_teleop_input()
 
 void Sim2RealNode::add_mode_controller()
 {
-  mode_controller_ = std::make_shared<ModeController>(node_, *root_config_, shared_data_);
+  mode_controller_ = std::make_shared<ModeController>(
+    node_, *root_config_, shared_data_, options_.require_api_heartbeat);
   control_loop_->set_mode_controller(mode_controller_);
 }
 

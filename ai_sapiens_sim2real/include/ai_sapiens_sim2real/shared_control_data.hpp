@@ -90,8 +90,7 @@ struct TeleopInput
   std::chrono::steady_clock::time_point update_time{};
 };
 
-// API command stream. Written by the twist and heartbeat handles; commands
-// are accepted only while the heartbeat remains valid.
+// API command and heartbeat samples published by their input handles.
 struct ApiInput
 {
   Eigen::Vector3f velocity_commands{Eigen::Vector3f::Zero()};

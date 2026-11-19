@@ -24,6 +24,7 @@
 #include <Eigen/Dense>  // NOLINT(build/include_order)
 
 #include "ai_sapiens_sim2real/authority.hpp"
+#include "ai_sapiens_sim2real/config/authority_config.hpp"
 #include "ai_sapiens_sim2real/shared_control_data.hpp"
 
 namespace ai_sapiens_sim2real
@@ -32,16 +33,19 @@ namespace ai_sapiens_sim2real
 class AuthorityPolicy
 {
 public:
-  void set_warmup_duration(double seconds);
-  void set_switch_velocity_threshold(float threshold);
+  void configure(const AuthorityConfig & config, bool require_api_heartbeat);
   std::chrono::duration<double> warmup_duration() const;
 
   // Pure policy checks; no mutable runtime state.
   bool can_accept_api_velocity(Authority mode) const;
+  bool heartbeat_allows_api(const SharedControlData & data) const
+  {
+    return !require_api_heartbeat_ || is_api_heartbeat_valid(data);
+  }
   bool is_api_heartbeat_valid(const SharedControlData & shared_data) const;
   bool is_api_session_valid(const SharedControlData & shared_data) const
   {
-    return shared_data.teleop.api_mode_requested && is_api_heartbeat_valid(shared_data);
+    return shared_data.teleop.api_mode_requested && heartbeat_allows_api(shared_data);
   }
 
   // Returns nullptr when API entry is allowed, otherwise a short rejection
@@ -53,15 +57,16 @@ public:
 private:
   bool is_command_below_switch_threshold(const Eigen::Vector3f & command) const;
 
-  std::chrono::duration<double> warmup_duration_{3.0};
+  bool require_api_heartbeat_{true};
+  static constexpr double kDefaultWarmupSeconds = 3.0;
+  std::chrono::duration<double> warmup_duration_{kDefaultWarmupSeconds};
   float switch_velocity_threshold_{0.05f};
 };
 
 class AuthorityRuntime
 {
 public:
-  void set_warmup_duration(double seconds);
-  void set_switch_velocity_threshold(float threshold);
+  void configure(const AuthorityConfig & config, bool require_api_heartbeat);
 
   Authority current() const
   {
@@ -80,6 +85,11 @@ public:
   bool can_accept_api_velocity(Authority mode) const
   {
     return policy_.can_accept_api_velocity(mode);
+  }
+
+  bool heartbeat_allows_api(const SharedControlData & data) const
+  {
+    return policy_.heartbeat_allows_api(data);
   }
 
   bool is_api_heartbeat_valid(const SharedControlData & shared_data) const

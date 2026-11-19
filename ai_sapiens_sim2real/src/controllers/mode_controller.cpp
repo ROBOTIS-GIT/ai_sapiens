@@ -24,7 +24,7 @@ namespace ai_sapiens_sim2real
 ModeController::ModeController(
   rclcpp::Node::SharedPtr node,
   const RootConfig & root_config,
-  SharedControlData * shared_data)
+  SharedControlData * shared_data, bool require_api_heartbeat)
 : node_(node),
   state_(shared_data),
   mode_(&shared_data->mode),
@@ -34,7 +34,7 @@ ModeController::ModeController(
 {
   service_request_gate_.init();
   initialize_joint_counts();
-  configure_mode_runtime(root_config);
+  configure_mode_runtime(root_config, require_api_heartbeat);
   enter_initial_state();
 }
 
@@ -469,7 +469,9 @@ void ModeController::initialize_joint_counts()
   }
 }
 
-void ModeController::configure_mode_runtime(const RootConfig & root_config)
+void ModeController::configure_mode_runtime(
+  const RootConfig & root_config,
+  bool require_api_heartbeat)
 {
   mode_state_machine_.reset(
     root_config.state_machine_config(),
@@ -478,13 +480,7 @@ void ModeController::configure_mode_runtime(const RootConfig & root_config)
     root_config.selectors_config());
   authority_config_ = root_config.authority_config();
 
-  if (const auto warmup = authority_config_.api_entry_warmup_duration) {
-    authority_.set_warmup_duration(*warmup);
-  }
-
-  if (const auto threshold = authority_config_.api_entry_velocity_neutral_threshold) {
-    authority_.set_switch_velocity_threshold(*threshold);
-  }
+  authority_.configure(authority_config_, require_api_heartbeat);
 }
 
 void ModeController::enter_initial_state()
@@ -516,10 +512,10 @@ ModeController::ModeRequestResult ModeController::set_mode_by_name(
   const bool can_accept_service_request =
     authority == Authority::Api &&
     state_->teleop.api_mode_requested &&
-    is_api_heartbeat_valid();
+    authority_.heartbeat_allows_api(*state_);
   if (!can_accept_service_request) {
     result.message =
-      "service requests require active API authority, a held API switch, and a valid heartbeat";
+      "service requests require active API authority, a held API switch, and the configured heartbeat condition";
     return result;
   }
 
@@ -596,7 +592,7 @@ bool ModeController::is_api_request_available() const
 {
   return current_authority() == Authority::Api &&
          state_->teleop.api_mode_requested &&
-         is_api_heartbeat_valid() &&
+         authority_.heartbeat_allows_api(*state_) &&
          !service_request_gate_.busy();
 }
 
@@ -743,7 +739,7 @@ ModeController::AuthorityChange ModeController::compute_warmup_entry_change() co
 // release so stale API control takes the conservative zero-velocity handoff.
 ModeController::AuthorityChange ModeController::compute_api_authority_change() const
 {
-  if (!is_api_heartbeat_valid()) {
+  if (!authority_.heartbeat_allows_api(*state_)) {
     return compute_api_loss_change();
   }
 

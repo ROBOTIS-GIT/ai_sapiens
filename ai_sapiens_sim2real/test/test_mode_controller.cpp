@@ -152,7 +152,7 @@ state_behaviors:
 class ModeControllerFixture
 {
 public:
-  ModeControllerFixture()
+  explicit ModeControllerFixture(bool require_heartbeat = true)
   {
     ensure_rclcpp_initialized();
 
@@ -168,7 +168,7 @@ public:
 
     node_ = std::make_shared<rclcpp::Node>("mode_controller_test");
     controller_ = std::make_unique<ai_sapiens_sim2real::ModeController>(
-      node_, *root_config_, &shared_data_);
+      node_, *root_config_, &shared_data_, require_heartbeat);
   }
 
   void update_controller()
@@ -497,6 +497,21 @@ TEST(ModeController, ApiEntryRejectsNonNeutralTeleopVelocity)
   fixture.update_controller();
 
   EXPECT_STREQ(fixture.controller_->status_snapshot().authority, "MANUAL");
+}
+
+TEST(ModeController, OptionalHeartbeatAllowsServiceWithNoHeartbeat)
+{
+  ModeControllerFixture fixture(false);
+  fixture.release_startup_gate();
+  fixture.shared_data_.teleop.api_mode_requested = true;
+  fixture.update_controller();
+  fixture.update_controller();
+
+  const auto status = fixture.controller_->status_snapshot();
+  EXPECT_STREQ(status.authority, "API");
+  EXPECT_FALSE(status.api_heartbeat_valid);
+  EXPECT_TRUE(status.api_request_available);
+  EXPECT_TRUE(fixture.controller_->set_mode_by_name("MimicSquat").success);
 }
 
 TEST(ModeController, ApiAcceptsMimicServiceRequest)

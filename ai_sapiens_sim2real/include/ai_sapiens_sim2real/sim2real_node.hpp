@@ -57,6 +57,7 @@ struct NodeOptions
   std::string joint_command_topic;
   bool command_publisher_enabled{true};
   bool enforce_position_limits{false};
+  bool require_api_heartbeat{true};
   std::string api_heartbeat_topic;
   double api_heartbeat_timeout{0.2};
   std::string cmd_vel_topic;
