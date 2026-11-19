@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="k1_rev2">
+  <xacro:property name="meshes_file_direction" value="package://ai_sapiens_description/meshes/k1_rev2" />
+  <xacro:arg name="use_mock_hardware" default="false" />
+  <xacro:arg name="mock_sensor_commands" default="false" />
+  <xacro:arg name="prefix" default="" />
+  <xacro:arg name="model" default="k1_rev2" />
+  <xacro:arg name="sim_mujoco" default="false" />
+  <xacro:arg name="mujoco_viewer" default="true" />
+  <xacro:arg name="mujoco_gantry" default="true" />
+  <xacro:arg name="radiomaster_usb" default="false" />
+  <xacro:arg name="radiomaster_usb_device" default="/dev/input/js0" />
+  <xacro:include filename="$(find ai_sapiens_description)/urdf/k1_rev2/$(arg model).urdf.xacro" />
+
+  <xacro:include filename="$(find ai_sapiens_description)/ros2_control/k1_rev2/k1.ros2_control.xacro" />
+  <xacro:include filename="$(find ai_sapiens_description)/ros2_control/k1_rev2/k1_mujoco.ros2_control.xacro" />
+  <xacro:include filename="$(find ai_sapiens_description)/ros2_control/k1_rev2/k1_radiomaster_usb.ros2_control.xacro" />
+
+  <xacro:k1/>
+
+  <xacro:if value="$(arg sim_mujoco)">
+    <xacro:k1_mujoco_system
+      viewer="$(arg mujoco_viewer)"
+      gantry="$(arg mujoco_gantry)"/>
+    <xacro:if value="$(arg radiomaster_usb)">
+      <xacro:k1_radiomaster_usb_system
+        device="$(arg radiomaster_usb_device)"/>
+    </xacro:if>
+  </xacro:if>
+  <xacro:unless value="$(arg sim_mujoco)">
+    <xacro:k1_system
+      use_mock_hardware="$(arg use_mock_hardware)"
+      mock_sensor_commands="$(arg mock_sensor_commands)"/>
+  </xacro:unless>
+
+</robot>
