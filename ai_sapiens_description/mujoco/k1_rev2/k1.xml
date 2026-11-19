@@ -164,10 +164,12 @@
     <mesh name="left_shoulder_yaw_link_collision" file="collision/left_shoulder_yaw_link.stl" />
     <mesh name="left_elbow_link_collision" file="collision/left_elbow_link.stl" />
     <mesh name="left_wrist_roll_rubber_hand_collision" file="collision/left_wrist_roll_rubber_hand.stl" />
+    <mesh name="left_wrist_roll_forearm_collision" file="collision/left_wrist_roll_forearm.stl" />
     <mesh name="right_shoulder_roll_link_collision" file="collision/right_shoulder_roll_link.stl" />
     <mesh name="right_shoulder_yaw_link_collision" file="collision/right_shoulder_yaw_link.stl" />
     <mesh name="right_elbow_link_collision" file="collision/right_elbow_link.stl" />
     <mesh name="right_wrist_roll_rubber_hand_collision" file="collision/right_wrist_roll_rubber_hand.stl" />
+    <mesh name="right_wrist_roll_forearm_collision" file="collision/right_wrist_roll_forearm.stl" />
   </asset>
   <worldbody>
     <body name="pelvis" pos="0 0 0.7955">
@@ -315,6 +317,7 @@
                   <inertial mass="0.30188192" pos="0.11655705 0.002341845 0.0018203594" fullinertia="0.00014602436 0.0013708956 0.0013404897 2.1797156e-05 -2.4383968e-05 6.0046604e-07" />
                   <joint name="left_wrist_roll_joint" class="QC060-200-R020-RE" type="hinge" axis="1 0 0" range="-3.1416 3.1416" limited="true" actuatorfrclimited="true" actuatorfrcrange="-47.277 47.277" />
                   <geom class="collision" type="mesh" mesh="left_wrist_roll_rubber_hand_collision" name="left_wrist_roll_rubber_hand_collision_0" pos="0 0 0" />
+                  <geom class="collision" type="mesh" mesh="left_wrist_roll_forearm_collision" name="left_wrist_roll_forearm_collision" pos="0 0 0" />
                   <geom class="visual" type="mesh" mesh="left_wrist_roll_rubber_hand_mat_07" material="mat_07" />
                   <geom class="visual" type="mesh" mesh="left_wrist_roll_rubber_hand_mat_02" material="mat_02" />
                   <geom class="visual" type="mesh" mesh="left_wrist_roll_rubber_hand_mat_01" material="mat_01" />
@@ -359,6 +362,7 @@
                   <inertial mass="0.30226836" pos="0.11653963 -0.0022997999 0.0016779157" fullinertia="0.00014591847 0.0013708692 0.0013405814 -2.1841485e-05 -2.145694e-05 -5.6499164e-07" />
                   <joint name="right_wrist_roll_joint" class="QC060-200-R020-RE" type="hinge" axis="1 0 0" range="-3.1416 3.1416" limited="true" actuatorfrclimited="true" actuatorfrcrange="-47.277 47.277" />
                   <geom class="collision" type="mesh" mesh="right_wrist_roll_rubber_hand_collision" name="right_wrist_roll_rubber_hand_collision_0" pos="0 0 0" />
+                  <geom class="collision" type="mesh" mesh="right_wrist_roll_forearm_collision" name="right_wrist_roll_forearm_collision" pos="0 0 0" />
                   <geom class="visual" type="mesh" mesh="right_wrist_roll_rubber_hand_mat_07" material="mat_07" />
                   <geom class="visual" type="mesh" mesh="right_wrist_roll_rubber_hand_mat_02" material="mat_02" />
                   <geom class="visual" type="mesh" mesh="right_wrist_roll_rubber_hand_mat_01" material="mat_01" />

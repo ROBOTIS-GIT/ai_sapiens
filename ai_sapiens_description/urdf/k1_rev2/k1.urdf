@@ -499,6 +499,12 @@
         <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/collision/left_wrist_roll_rubber_hand.stl" />
       </geometry>
     </collision>
+    <collision name="left_wrist_roll_forearm_collision">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/collision/left_wrist_roll_forearm.stl" />
+      </geometry>
+    </collision>
     <inertial>
       <origin xyz="0.11655705 0.002341845 0.0018203594" rpy="0 0 0" />
       <mass value="0.30188192" />
@@ -621,6 +627,12 @@
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
         <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/collision/right_wrist_roll_rubber_hand.stl" />
+      </geometry>
+    </collision>
+    <collision name="right_wrist_roll_forearm_collision">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://ai_sapiens_description/meshes/k1_rev2/collision/right_wrist_roll_forearm.stl" />
       </geometry>
     </collision>
     <inertial>

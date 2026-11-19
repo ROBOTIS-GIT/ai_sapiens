@@ -124,11 +124,25 @@ class Rev2DescriptionTests(unittest.TestCase):
                     self.assertFalse(collisions)
                     self.assertFalse(geoms)
                     continue
-                geometry, = link.findall('collision/geometry/mesh')
-                geom, = [g for g in geoms if g.get('type') == 'mesh']
-                asset = self.mjcf.find(f"asset/mesh[@name='{geom.get('mesh')}']")
-                relative = geometry.get('filename').split('/meshes/k1_rev2/', 1)[1]
-                self.assertEqual(asset.get('file'), relative)
+                urdf_meshes = [
+                    shape.get('filename').split('/meshes/k1_rev2/', 1)[1]
+                    for shape in link.findall('collision/geometry/mesh')
+                ]
+                mjcf_meshes = [
+                    self.mjcf.find(f"asset/mesh[@name='{geom.get('mesh')}']").get('file')
+                    for geom in geoms if geom.get('type') == 'mesh'
+                ]
+                self.assertCountEqual(urdf_meshes, mjcf_meshes)
+                if name.endswith('_wrist_roll_rubber_hand'):
+                    side = name.split('_', 1)[0]
+                    self.assertCountEqual(urdf_meshes, [
+                        f'collision/{name}.stl',
+                        f'collision/{side}_wrist_roll_forearm.stl',
+                    ])
+                    self.assertEqual(len(collisions), 2)
+                    self.assertEqual(len(geoms), 2)
+                    continue
+                self.assertEqual(len(urdf_meshes), 1)
                 if name == 'torso_link':
                     self.assertEqual(len(collisions), 2)
                     self.assertEqual(len(geoms), 2)
