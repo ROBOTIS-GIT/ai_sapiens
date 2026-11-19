@@ -15,8 +15,7 @@ if [ -z "${SERVICE_NAME}" ]; then
     exit 1
 fi
 
-# Set ROS_DOMAIN_ID if not already set (default to 30)
-export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-30}
+export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
 export ROS_DISTRO=${ROS_DISTRO:-jazzy}
 export COLCON_WS=${COLCON_WS:-/root/ros2_ws}
 
@@ -36,8 +35,11 @@ echo "[${SERVICE_NAME}] Process group: ${PGID}"
 echo "${PGID}" > /run/${SERVICE_NAME}.pgid || true
 
 # Source ROS2 environment
-source /opt/ros/${ROS_DISTRO}/setup.bash
-source ${COLCON_WS}/install/setup.bash
+source "/opt/ros/${ROS_DISTRO}/setup.bash"
+source "${COLCON_WS}/install/setup.bash"
+if [ -f /root/private_ws/install/setup.bash ]; then
+    source /root/private_ws/install/setup.bash
+fi
 
 # The command to execute must be provided via ROS2_COMMAND
 if [ -z "${ROS2_COMMAND}" ]; then
@@ -55,8 +57,6 @@ if [ -f "${LAUNCH_ARGS_FILE}" ]; then
     echo "[${SERVICE_NAME}] Launch args: ${LAUNCH_ARGS}"
 fi
 
-# Execute the ROS2 command
-# Using 'exec' ensures the command becomes PID 1 of this service,
-# which allows s6 to properly signal it and its children
+# Keep the command at the supervised PID; interactive bash ignores SIGINT during startup.
 # Note: stdout/stderr are automatically piped to ${SERVICE_NAME}-log via producer-for/consumer-for
-exec bash -i -c "${ROS2_CMD}"
+exec bash -c "exec ${ROS2_CMD}"
