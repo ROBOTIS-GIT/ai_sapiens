@@ -80,6 +80,7 @@ struct SensorData
 struct TeleopInput
 {
   Eigen::Vector3f velocity_commands{Eigen::Vector3f::Zero()};
+  bool is_velocity_command_valid{false};
   // Normalized plugin command, rescaled to the active policy range before observation.
   Eigen::Vector3f velocity_command_normalized{Eigen::Vector3f::Zero()};
   std::atomic<bool> received{false};

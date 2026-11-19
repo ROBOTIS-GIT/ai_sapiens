@@ -55,6 +55,9 @@ const char * AuthorityPolicy::api_entry_rejection_reason(
   if (!current_state_can_enter_api) {
     return "active mode cannot enter API authority";
   }
+  if (!shared_data.teleop.is_velocity_command_valid) {
+    return "teleop velocity command is unavailable";
+  }
   if (!is_command_below_switch_threshold(shared_data.teleop.velocity_commands)) {
     return "teleop velocity command is not neutral";
   }
@@ -77,6 +80,7 @@ bool AuthorityPolicy::is_command_below_switch_threshold(const Eigen::Vector3f & 
 void AuthorityRuntime::configure(const AuthorityConfig & config, bool require_api_heartbeat)
 {
   policy_.configure(config, require_api_heartbeat);
+  teleop_overrides_cmd_vel_ = config.teleop_overrides_cmd_vel;
 }
 
 VelocitySource AuthorityRuntime::velocity_source(
@@ -86,7 +90,7 @@ VelocitySource AuthorityRuntime::velocity_source(
   if (next == Authority::ApiWarmup) {
     return VelocitySource::Zero;
   }
-  if (next == Authority::Manual) {
+  if (next == Authority::Manual || (teleop_overrides_cmd_vel_ && teleop_has_priority(data))) {
     return VelocitySource::Teleop;
   }
   const bool is_current_session_command = data.api.velocity_received_at >= session_started_at_;
@@ -94,6 +98,16 @@ VelocitySource AuthorityRuntime::velocity_source(
     return VelocitySource::Api;
   }
   return VelocitySource::Zero;
+}
+
+bool AuthorityRuntime::teleop_has_priority(const SharedControlData & data) const
+{
+  if (!data.teleop.is_velocity_command_valid) {
+    // The handle zeros invalid input. Keep that zero until the operator sends a valid release.
+    return data.mode.velocity_source == VelocitySource::Teleop;
+  }
+  constexpr float kNormalizedStickDeadband = 0.05f;
+  return data.teleop.velocity_command_normalized.cwiseAbs().maxCoeff() > kNormalizedStickDeadband;
 }
 
 Authority AuthorityRuntime::read_snapshot() const

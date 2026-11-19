@@ -95,12 +95,15 @@ public:
     bool current_state_can_enter_api) const;
 
 private:
+  bool teleop_has_priority(const SharedControlData & data) const;
+
   // snapshot_ is read from non-RT status paths without taking a lock.
   Authority current_{Authority::Manual};
   std::atomic<int> snapshot_{static_cast<int>(Authority::Manual)};
 
   std::chrono::steady_clock::time_point warmup_deadline_{};
   std::chrono::steady_clock::time_point session_started_at_{};
+  bool teleop_overrides_cmd_vel_{true};
   AuthorityPolicy policy_;
 };
 

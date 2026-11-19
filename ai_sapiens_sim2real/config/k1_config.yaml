@@ -45,6 +45,7 @@ authority:
       - ReadyPose
       - Velocity
   default_velocity_state: Velocity
+  teleop_overrides_cmd_vel: true
 
 teleop_input:
   plugin: ai_sapiens_sim2real/RadiomasterPocketTeleopInputPlugin

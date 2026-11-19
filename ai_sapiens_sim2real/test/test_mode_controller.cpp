@@ -45,7 +45,7 @@ void ensure_rclcpp_initialized()
     });
 }
 
-std::filesystem::path write_root_config()
+std::filesystem::path write_root_config(bool prefer_teleop = true)
 {
   static int index = 0;
   const auto path = std::filesystem::temp_directory_path() /
@@ -54,7 +54,7 @@ std::filesystem::path write_root_config()
   std::ofstream(motion_path) << "0,0,0,0,0,0,1,0\n0,0,0,0,0,0,1,0\n";
 
   std::ofstream file(path);
-  file              <<
+  file <<
     R"(
 robot_joint_order: [joint]
 teleop_input:
@@ -74,6 +74,10 @@ selectors:
     table:
       200: MimicSquat
 authority:
+)";
+  file << "  teleop_overrides_cmd_vel: " << std::boolalpha << prefer_teleop;
+  file              <<
+    R"(
   api_entry:
     warmup_duration: 0.0
     velocity_neutral_threshold: 0.05
@@ -152,14 +156,16 @@ state_behaviors:
 class ModeControllerFixture
 {
 public:
-  explicit ModeControllerFixture(bool require_heartbeat = true)
+  explicit ModeControllerFixture(bool require_heartbeat = true, bool prefer_teleop = true)
   {
     ensure_rclcpp_initialized();
 
-    root_config_ = std::make_unique<ai_sapiens_sim2real::RootConfig>(write_root_config());
+    root_config_ =
+      std::make_unique<ai_sapiens_sim2real::RootConfig>(write_root_config(prefer_teleop));
 
     shared_data_.joint_map.controller_joint_names = {"joint"};
     shared_data_.resize(1U, 1U);
+    shared_data_.teleop.is_velocity_command_valid = true;
     shared_data_.teleop.received.store(true);
     shared_data_.teleop.unavailable.store(false);
     shared_data_.teleop.input_code = kReadyPoseInputCode;
@@ -536,6 +542,37 @@ TEST(ModeController, FreshNonNeutralApiCommandBlocksEntryButExpiredCommandDoesNo
   EXPECT_TRUE(data.mode.velocity_commands.isZero());
 }
 
+TEST(ModeController, StickOverrideSurvivesInvalidInputUntilValidNeutral)
+{
+  ModeControllerFixture fixture;
+  ASSERT_TRUE(fixture.enter_api());
+  auto & data = fixture.shared_data_;
+  data.api.velocity_commands.x() = 0.3F;
+  data.api.velocity_received_at = std::chrono::steady_clock::now();
+  fixture.update_controller();
+  EXPECT_FLOAT_EQ(data.mode.velocity_commands.x(), 0.3F);
+
+  data.teleop.velocity_command_normalized.y() = -0.4F;
+  data.teleop.velocity_commands.y() = -0.02F;
+  fixture.update_controller();
+  EXPECT_STREQ(fixture.controller_->status_snapshot().authority, "API");
+  EXPECT_FLOAT_EQ(data.mode.velocity_commands.x(), 0.0F);
+  EXPECT_FLOAT_EQ(data.mode.velocity_commands.y(), -0.02F);
+
+  data.api.velocity_commands.x() = 0.6F;
+  data.api.velocity_received_at = std::chrono::steady_clock::now();
+  data.teleop.is_velocity_command_valid = false;
+  data.teleop.velocity_commands.setZero();
+  data.teleop.velocity_command_normalized.setZero();
+  fixture.update_controller();
+  fixture.update_controller();
+  EXPECT_TRUE(data.mode.velocity_commands.isZero());
+
+  data.teleop.is_velocity_command_valid = true;
+  fixture.update_controller();
+  EXPECT_FLOAT_EQ(data.mode.velocity_commands.x(), 0.6F);
+}
+
 TEST(ModeController, FreshCommandFromPreviousSessionCannotDriveAfterReentry)
 {
   ModeControllerFixture fixture;
@@ -555,6 +592,25 @@ TEST(ModeController, FreshCommandFromPreviousSessionCannotDriveAfterReentry)
   data.api.velocity_received_at = std::chrono::steady_clock::now();
   fixture.update_controller();
   EXPECT_FLOAT_EQ(data.mode.velocity_commands.x(), 0.03F);
+}
+
+TEST(ModeController, DisabledStickOverrideKeepsApiVelocityAndStopsOnTimeout)
+{
+  ModeControllerFixture fixture(true, false);
+  ASSERT_TRUE(fixture.enter_api());
+  auto & data = fixture.shared_data_;
+  data.api.velocity_commands.x() = 0.3F;
+  data.api.velocity_received_at = std::chrono::steady_clock::now();
+  data.teleop.velocity_command_normalized.y() = 0.4F;
+  data.teleop.velocity_commands.y() = 0.4F;
+  fixture.update_controller();
+  EXPECT_STREQ(fixture.controller_->status_snapshot().authority, "API");
+  EXPECT_FLOAT_EQ(data.mode.velocity_commands.x(), 0.3F);
+  EXPECT_FLOAT_EQ(data.mode.velocity_commands.y(), 0.0F);
+
+  data.api.velocity_received_at -= std::chrono::seconds(2);
+  fixture.update_controller();
+  EXPECT_TRUE(data.mode.velocity_commands.isZero());
 }
 
 TEST(ModeController, ApiAcceptsMimicServiceRequest)

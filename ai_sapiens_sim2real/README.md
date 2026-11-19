@@ -94,6 +94,9 @@ states can provide inherited transitions but cannot become active.
 | `API_WARMUP` | Zero velocity | Holds the current state |
 | `API` | `/cmd_vel` | Mode request service |
 
+By default, moving the teleop stick beyond the neutral threshold overrides
+`/cmd_vel` on all axes. Centering the stick returns control to `/cmd_vel`.
+Set `authority.teleop_overrides_cmd_vel: false` to use only `/cmd_vel` in API mode.
 When using `/cmd_vel`, velocity stays zero until a command received during or
 after warmup is available. Each command expires one second after receipt.
 
