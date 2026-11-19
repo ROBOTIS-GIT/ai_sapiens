@@ -173,6 +173,7 @@
         <param name="ID">25</param>
         <param name="Drive Mode">64</param>
         <param name="Operating Mode">6</param>
+        <param name="Homing Offset">433</param>
         <command_interface name="Goal Position"/>
         <command_interface name="Current Offset"/>
         <command_interface name="MIT P Gain"/>
