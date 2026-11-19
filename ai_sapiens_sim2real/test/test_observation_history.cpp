@@ -18,8 +18,12 @@
 
 #include "ai_sapiens_sim2real/observation/observation_manager.hpp"
 
-namespace ai_sapiens_sim2real
-{
+using ai_sapiens_sim2real::ObservationContext;
+using ai_sapiens_sim2real::ObservationManager;
+using ai_sapiens_sim2real::ObservationRegistry;
+using ai_sapiens_sim2real::PolicyJointContext;
+using ai_sapiens_sim2real::SharedControlData;
+
 namespace
 {
 YAML::Node history_config()
@@ -171,6 +175,7 @@ TEST(ObservationHistory, RejectedSamplesAreReplacedWithoutRescalingInEitherLayou
     }
   }
 }
+
 TEST(ObservationHistory, FailedComputationRejectsOnlyTermsUpdatedThisTick)
 {
   for (const bool gym : {false, true}) {
@@ -221,5 +226,3 @@ TEST(ObservationHistory, FailedComputationRejectsOnlyTermsUpdatedThisTick)
     }
   }
 }
-
-}  // namespace ai_sapiens_sim2real

@@ -15,7 +15,10 @@
 #include <gtest/gtest.h>
 #include "ai_sapiens_sim2real/policy/policy_entry_validator.hpp"
 
-using namespace ai_sapiens_sim2real;
+using ai_sapiens_sim2real::BehaviorKind;
+using ai_sapiens_sim2real::EntryRejection;
+using ai_sapiens_sim2real::PolicyEntryValidator;
+using ai_sapiens_sim2real::StateBehavior;
 
 TEST(PolicyEntryValidator, NonMimicEntryDoesNotCheckOrientation)
 {

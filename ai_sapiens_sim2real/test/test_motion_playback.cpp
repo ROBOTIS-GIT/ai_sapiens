@@ -13,14 +13,14 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-
-#include <limits>
-#include <cstdio>
 #include <unistd.h>
-#include "ai_sapiens_sim2real/policy/mimic/motion_source.hpp"
+
+#include <cstdio>
+#include <limits>
 
 #include "ai_sapiens_sim2real/policy/mimic/motion_playback.hpp"
 #include "ai_sapiens_sim2real/policy/mimic/motion_reference.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/motion_source.hpp"
 
 using ai_sapiens_sim2real::MotionPlayback;
 using ai_sapiens_sim2real::MotionReference;

@@ -17,8 +17,9 @@
 #ifndef AI_SAPIENS_SIM2REAL__POLICY__MIMIC__MIMIC_HEADING_ALIGNMENT_HPP_
 #define AI_SAPIENS_SIM2REAL__POLICY__MIMIC__MIMIC_HEADING_ALIGNMENT_HPP_
 
-#include <cmath>
 #include <Eigen/Geometry>
+
+#include <cmath>
 
 namespace ai_sapiens_sim2real
 {
@@ -39,4 +40,4 @@ inline Eigen::Quaternionf mimic_heading_alignment(
 }
 }  // namespace ai_sapiens_sim2real
 
-#endif
+#endif  // AI_SAPIENS_SIM2REAL__POLICY__MIMIC__MIMIC_HEADING_ALIGNMENT_HPP_

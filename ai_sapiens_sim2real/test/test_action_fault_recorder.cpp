@@ -13,14 +13,21 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <yaml-cpp/yaml.h>
+
 #include <chrono>
 #include <cstdlib>
 #include <fstream>
 #include <limits>
-#include <yaml-cpp/yaml.h>
+
 #include "ai_sapiens_sim2real/policy/diagnostics/action_fault_recorder.hpp"
 
-using namespace ai_sapiens_sim2real;
+using ai_sapiens_sim2real::ActionFaultRecord;
+using ai_sapiens_sim2real::ActionFaultRecorder;
+using ai_sapiens_sim2real::ActionSafetyLimits;
+using ai_sapiens_sim2real::FaultPolicyMetadata;
+using ai_sapiens_sim2real::PolicyActionOutcome;
+using ai_sapiens_sim2real::validate_action;
 
 namespace
 {

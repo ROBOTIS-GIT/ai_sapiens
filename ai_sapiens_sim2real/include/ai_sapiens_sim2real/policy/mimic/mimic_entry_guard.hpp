@@ -17,10 +17,11 @@
 #ifndef AI_SAPIENS_SIM2REAL__POLICY__MIMIC__MIMIC_ENTRY_GUARD_HPP_
 #define AI_SAPIENS_SIM2REAL__POLICY__MIMIC__MIMIC_ENTRY_GUARD_HPP_
 
+#include <Eigen/Geometry>
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include <Eigen/Geometry>
 
 namespace ai_sapiens_sim2real
 {
@@ -61,4 +62,4 @@ inline MimicEntryCheck check_mimic_entry_tilt(
 }
 
 }  // namespace ai_sapiens_sim2real
-#endif
+#endif  // AI_SAPIENS_SIM2REAL__POLICY__MIMIC__MIMIC_ENTRY_GUARD_HPP_

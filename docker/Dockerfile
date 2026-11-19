@@ -2,26 +2,13 @@ FROM ros:jazzy
 
 WORKDIR /root
 
-ARG ONNXRUNTIME_VERSION=1.23.2
-ARG TARGETARCH
+ARG ONNXRUNTIME_VERSION
 
-RUN set -eux; \
-    case "$TARGETARCH" in \
-      amd64) ORT_ARCH=x64 ;; \
-      arm64) ORT_ARCH=aarch64 ;; \
-      *) echo "Unsupported TARGETARCH: $TARGETARCH"; exit 1 ;; \
-    esac && \
-    curl -sL https://github.com/microsoft/onnxruntime/releases/download/v${ONNXRUNTIME_VERSION}/onnxruntime-linux-${ORT_ARCH}-${ONNXRUNTIME_VERSION}.tgz -o /tmp/ort.tgz && \
-    mkdir -p /tmp/onnxruntime && \
-    tar -xzf /tmp/ort.tgz -C /tmp/onnxruntime --strip-components=1 && \
-    cp -r /tmp/onnxruntime/include /usr/local/include/onnxruntime && \
-    cp -r /tmp/onnxruntime/lib/* /usr/local/lib/ && \
-    cd /usr/local/lib && \
-    if [ ! -f libonnxruntime.so ] && [ -f libonnxruntime.so.* ]; then \
-        ln -sf $(ls libonnxruntime.so.* | head -1) libonnxruntime.so; \
-    fi && \
-    ldconfig && \
-    rm -rf /tmp/onnxruntime /tmp/ort.tgz
+COPY scripts/install_onnxruntime.sh /tmp/install_onnxruntime.sh
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl ca-certificates unzip && \
+    bash /tmp/install_onnxruntime.sh "$ONNXRUNTIME_VERSION" && \
+    rm -rf /var/lib/apt/lists/* /tmp/install_onnxruntime.sh
 
 ENV COLCON_WS=/root/ros2_ws
 WORKDIR ${COLCON_WS}

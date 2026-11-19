@@ -16,6 +16,7 @@
 
 #include "ai_sapiens_sim2real/sensor_handles/joint_states_diagnostics.hpp"
 
+#include <cinttypes>
 #include <limits>
 #include <utility>
 
@@ -138,10 +139,10 @@ void JointStatesDiagnostics::report_incomplete(const IncompleteSample & sample)
     Clock::now() - sample.detected_at).count();
   RCLCPP_WARN(logger_,
     "Ignoring incomplete JointState message on %s: %zu/%zu joints complete. "
-    "Missing/incomplete: %s detected_at=%lld.%09lld log_delay=%.1fms",
+    "Missing/incomplete: %s detected_at=%" PRId64 ".%09" PRId64 " log_delay=%.1fms",
     topic_.c_str(), sample.complete_joints, joint_names_.size(), summary.c_str(),
-    static_cast<long long>(sample.unix_ns / 1'000'000'000),
-    static_cast<long long>(sample.unix_ns % 1'000'000'000), delay_ms);
+    sample.unix_ns / 1'000'000'000,
+    sample.unix_ns % 1'000'000'000, delay_ms);
 }
 
 void JointStatesDiagnostics::flush()

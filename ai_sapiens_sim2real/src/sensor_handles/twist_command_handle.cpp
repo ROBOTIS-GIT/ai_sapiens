@@ -32,8 +32,7 @@ TwistCommandHandle::TwistCommandHandle(
   , active_velocity_command_ranges_(active_velocity_command_ranges)
 {
   // Initialize buffer with zero velocities
-  Eigen::Vector3f initial_cmd = Eigen::Vector3f::Zero();
-  buffer_.initRT(initial_cmd);
+  buffer_.initRT(ReceivedCmdVel{});
 
   // Create subscription
   subscription_ = node_->create_subscription<geometry_msgs::msg::Twist>(
@@ -47,7 +46,9 @@ TwistCommandHandle::TwistCommandHandle(
 void TwistCommandHandle::update(const rclcpp::Time & /*time*/)
 {
   // Clamp on the RT thread, where the active range is written; the callback only buffers raw.
-  const Eigen::Vector3f & raw = *buffer_.readFromRT();
+  const auto & command = *buffer_.readFromRT();
+  api_->velocity_received_at = command.received_at;
+  const auto & raw = command.velocity;
   const auto & active = *active_velocity_command_ranges_;
   api_->velocity_command_raw = raw;
   api_->velocity_commands.x() = clamp_axis(raw.x(), active.linear_x);
@@ -80,7 +81,7 @@ void TwistCommandHandle::callback(const geometry_msgs::msg::Twist::SharedPtr msg
   cmd.z() = static_cast<float>(msg->angular.z);
 
   // Write to buffer (thread-safe)
-  buffer_.writeFromNonRT(cmd);
+  buffer_.writeFromNonRT(ReceivedCmdVel{cmd, std::chrono::steady_clock::now()});
 }
 
 

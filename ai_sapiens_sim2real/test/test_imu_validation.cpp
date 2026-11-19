@@ -12,15 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <future>
-#include "ai_sapiens_sim2real/mode_runtime/input_executor.hpp"
 #include <gtest/gtest.h>
+
+#include <future>
 #include <limits>
 #include <thread>
-#include "ai_sapiens_sim2real/sensor_handles/imu_validation.hpp"
-#include "ai_sapiens_sim2real/sensor_handles/imu_sensor_handle.hpp"
 
-using namespace ai_sapiens_sim2real;
+#include "ai_sapiens_sim2real/mode_runtime/input_executor.hpp"
+#include "ai_sapiens_sim2real/sensor_handles/imu_sensor_handle.hpp"
+#include "ai_sapiens_sim2real/sensor_handles/imu_validation.hpp"
+
+using ai_sapiens_sim2real::ImuSensorHandle;
+using ai_sapiens_sim2real::InputExecutor;
+using ai_sapiens_sim2real::ModeRequests;
+using ai_sapiens_sim2real::SensorData;
+using ai_sapiens_sim2real::valid_imu_sample;
 
 TEST(ImuValidation, RejectsUnavailableZeroNonfiniteAndGrossNormErrors)
 {

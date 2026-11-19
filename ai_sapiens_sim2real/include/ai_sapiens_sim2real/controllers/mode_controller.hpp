@@ -65,7 +65,7 @@ public:
   ModeController(
     rclcpp::Node::SharedPtr node,
     const RootConfig & root_config,
-    SharedControlData * shared_data);
+    SharedControlData * shared_data, bool require_api_heartbeat = true);
 
   void update(const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/);
   void reset() override;
@@ -184,11 +184,12 @@ private:
   void apply_state_request(const StateRequest & requested);
   void run_active_mode();
   static const char * transition_reason_name(TransitionReason reason);
+  static const char * transition_source_suffix(TransitionReason reason);
   static bool is_failsafe_transition_reason(TransitionReason reason);
 
   // Startup wiring: load FSM/authority config, enter the initial state.
   void initialize_joint_counts();
-  void configure_mode_runtime(const RootConfig & root_config);
+  void configure_mode_runtime(const RootConfig & root_config, bool require_api_heartbeat);
   void update_entry_retry_gate();
   void log_entry_rejection(const StateRequest & request, const PolicyEntryResult & result) const;
   void enter_initial_state();

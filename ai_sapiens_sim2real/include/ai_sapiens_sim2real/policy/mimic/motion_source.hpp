@@ -19,6 +19,10 @@
 
 #include <memory>
 #include <mutex>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "ai_sapiens_sim2real/policy/mimic/motion_reference.hpp"
 
 namespace ai_sapiens_sim2real
@@ -47,4 +51,4 @@ private:
   mutable std::unique_ptr<const MotionReference> reference_;
 };
 }  // namespace ai_sapiens_sim2real
-#endif
+#endif  // AI_SAPIENS_SIM2REAL__POLICY__MIMIC__MOTION_SOURCE_HPP_

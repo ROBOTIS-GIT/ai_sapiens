@@ -121,6 +121,9 @@ AuthorityConfig read_authority_config(const YAML::Node & document)
   require_yaml_map(api_entry, "authority.api_entry");
 
   AuthorityConfig config;
+  if (authority["teleop_overrides_cmd_vel"]) {
+    config.teleop_overrides_cmd_vel = authority["teleop_overrides_cmd_vel"].as<bool>();
+  }
   if (api_entry["warmup_duration"]) {
     config.api_entry_warmup_duration = api_entry["warmup_duration"].as<double>();
   }

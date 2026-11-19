@@ -19,14 +19,12 @@
 namespace ai_sapiens_sim2real
 {
 
-void AuthorityPolicy::set_warmup_duration(double seconds)
+void AuthorityPolicy::configure(const AuthorityConfig & config, bool require_api_heartbeat)
 {
-  warmup_duration_ = std::chrono::duration<double>(seconds);
-}
-
-void AuthorityPolicy::set_switch_velocity_threshold(float threshold)
-{
-  switch_velocity_threshold_ = threshold;
+  warmup_duration_ = std::chrono::duration<double>(
+    config.api_entry_warmup_duration.value_or(kDefaultWarmupSeconds));
+  switch_velocity_threshold_ = config.api_entry_velocity_neutral_threshold.value_or(0.05f);
+  require_api_heartbeat_ = require_api_heartbeat;
 }
 
 std::chrono::duration<double> AuthorityPolicy::warmup_duration() const
@@ -34,9 +32,11 @@ std::chrono::duration<double> AuthorityPolicy::warmup_duration() const
   return warmup_duration_;
 }
 
-bool AuthorityPolicy::can_accept_api_velocity(Authority mode) const
+bool AuthorityPolicy::has_fresh_api_velocity(const ApiInput & api) const
 {
-  return mode == Authority::Api;
+  constexpr std::chrono::seconds kCmdVelTimeout{1};
+  return api.velocity_received_at != std::chrono::steady_clock::time_point{} &&
+         std::chrono::steady_clock::now() - api.velocity_received_at <= kCmdVelTimeout;
 }
 
 bool AuthorityPolicy::is_api_heartbeat_valid(const SharedControlData & shared_data) const
@@ -55,10 +55,15 @@ const char * AuthorityPolicy::api_entry_rejection_reason(
   if (!current_state_can_enter_api) {
     return "active mode cannot enter API authority";
   }
+  if (!shared_data.teleop.is_velocity_command_valid) {
+    return "teleop velocity command is unavailable";
+  }
   if (!is_command_below_switch_threshold(shared_data.teleop.velocity_commands)) {
     return "teleop velocity command is not neutral";
   }
-  if (!is_command_below_switch_threshold(shared_data.api.velocity_commands)) {
+  if (has_fresh_api_velocity(shared_data.api) &&
+    !is_command_below_switch_threshold(shared_data.api.velocity_commands))
+  {
     return "api velocity command is not neutral";
   }
 
@@ -72,14 +77,37 @@ bool AuthorityPolicy::is_command_below_switch_threshold(const Eigen::Vector3f & 
          std::abs(command.z()) <= switch_velocity_threshold_;
 }
 
-void AuthorityRuntime::set_warmup_duration(double seconds)
+void AuthorityRuntime::configure(const AuthorityConfig & config, bool require_api_heartbeat)
 {
-  policy_.set_warmup_duration(seconds);
+  policy_.configure(config, require_api_heartbeat);
+  teleop_overrides_cmd_vel_ = config.teleop_overrides_cmd_vel;
 }
 
-void AuthorityRuntime::set_switch_velocity_threshold(float threshold)
+VelocitySource AuthorityRuntime::velocity_source(
+  Authority next,
+  const SharedControlData & data) const
 {
-  policy_.set_switch_velocity_threshold(threshold);
+  if (next == Authority::ApiWarmup) {
+    return VelocitySource::Zero;
+  }
+  if (next == Authority::Manual || (teleop_overrides_cmd_vel_ && teleop_has_priority(data))) {
+    return VelocitySource::Teleop;
+  }
+  const bool is_current_session_command = data.api.velocity_received_at >= session_started_at_;
+  if (is_current_session_command && policy_.has_fresh_api_velocity(data.api)) {
+    return VelocitySource::Api;
+  }
+  return VelocitySource::Zero;
+}
+
+bool AuthorityRuntime::teleop_has_priority(const SharedControlData & data) const
+{
+  if (!data.teleop.is_velocity_command_valid) {
+    // The handle zeros invalid input. Keep that zero until the operator sends a valid release.
+    return data.mode.velocity_source == VelocitySource::Teleop;
+  }
+  constexpr float kNormalizedStickDeadband = 0.05f;
+  return data.teleop.velocity_command_normalized.cwiseAbs().maxCoeff() > kNormalizedStickDeadband;
 }
 
 Authority AuthorityRuntime::read_snapshot() const
@@ -96,7 +124,8 @@ void AuthorityRuntime::set_current(Authority mode, ModeDecision & decision)
 
 void AuthorityRuntime::begin_warmup()
 {
-  warmup_deadline_ = std::chrono::steady_clock::now() +
+  session_started_at_ = std::chrono::steady_clock::now();
+  warmup_deadline_ = session_started_at_ +
     std::chrono::duration_cast<std::chrono::steady_clock::duration>(policy_.warmup_duration());
 }
 

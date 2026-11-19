@@ -16,6 +16,8 @@
 
 #include "ai_sapiens_sim2real/sensor_handles/input_gap_monitor.hpp"
 
+#include <cinttypes>
+
 namespace ai_sapiens_sim2real
 {
 
@@ -102,8 +104,9 @@ void InputGapMonitor::flush_logs()
   }
 
   if (batch->dropped != 0) {
-    RCLCPP_WARN(logger_, "[Input diagnostics] topic=%s dropped=%llu oldest events; queue full",
-      topic_.c_str(), static_cast<unsigned long long>(batch->dropped));
+    RCLCPP_WARN(logger_,
+      "[Input diagnostics] topic=%s dropped=%" PRIu64 " oldest events; queue full",
+      topic_.c_str(), batch->dropped);
   }
 
   for (size_t i = 0; i < batch->count; ++i) {
@@ -114,20 +117,22 @@ void InputGapMonitor::flush_logs()
 void InputGapMonitor::report(const DiagnosticEvent & event)
 {
   const char * stream = event.stream == Stream::Raw ? "raw" : "accepted";
-  const auto seconds = static_cast<long long>(event.unix_ns / 1'000'000'000);
-  const auto nanoseconds = static_cast<long long>(event.unix_ns % 1'000'000'000);
+  const auto seconds = event.unix_ns / 1'000'000'000;
+  const auto nanoseconds = event.unix_ns % 1'000'000'000;
   const double delay_ms = std::chrono::duration<double, std::milli>(
     InputGapState::Clock::now() - event.detected_at).count();
 
   if (event.gap.is_warning) {
     RCLCPP_WARN(logger_,
-      "[Input gap] topic=%s stream=%s gap=%.1fms detected_at=%lld.%09lld log_delay=%.1fms",
+      "[Input gap] topic=%s stream=%s gap=%.1fms "
+      "detected_at=%" PRId64 ".%09" PRId64 " log_delay=%.1fms",
       topic_.c_str(), stream, event.gap.gap_ms, seconds, nanoseconds, delay_ms);
   }
 
   if (event.gap.is_recovery) {
     RCLCPP_INFO(logger_,
-      "[Input resumed] topic=%s stream=%s gap=%.1fms detected_at=%lld.%09lld log_delay=%.1fms",
+      "[Input resumed] topic=%s stream=%s gap=%.1fms "
+      "detected_at=%" PRId64 ".%09" PRId64 " log_delay=%.1fms",
       topic_.c_str(), stream, event.gap.gap_ms, seconds, nanoseconds, delay_ms);
   }
 }

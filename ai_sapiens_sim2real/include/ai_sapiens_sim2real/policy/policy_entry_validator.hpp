@@ -17,12 +17,13 @@
 #ifndef AI_SAPIENS_SIM2REAL__POLICY__POLICY_ENTRY_VALIDATOR_HPP_
 #define AI_SAPIENS_SIM2REAL__POLICY__POLICY_ENTRY_VALIDATOR_HPP_
 
+#include <Eigen/Geometry>
+
 #include <cmath>
 #include <limits>
 #include <string>
 #include <unordered_map>
 #include <utility>
-#include <Eigen/Geometry>
 #include "ai_sapiens_sim2real/config/root_sections/state_behaviors_config.hpp"
 #include "ai_sapiens_sim2real/policy/mimic/mimic_entry_guard.hpp"
 
@@ -99,4 +100,4 @@ private:
   References references_;
 };
 }  // namespace ai_sapiens_sim2real
-#endif
+#endif  // AI_SAPIENS_SIM2REAL__POLICY__POLICY_ENTRY_VALIDATOR_HPP_

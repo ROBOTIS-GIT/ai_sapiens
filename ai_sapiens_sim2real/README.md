@@ -94,22 +94,29 @@ states can provide inherited transitions but cannot become active.
 | `API_WARMUP` | Zero velocity | Holds the current state |
 | `API` | `/cmd_vel` | Mode request service |
 
+By default, moving the teleop stick beyond the neutral threshold overrides
+`/cmd_vel` on all axes. Centering the stick returns control to `/cmd_vel`.
+Set `authority.teleop_overrides_cmd_vel: false` to use only `/cmd_vel` in API mode.
+When using `/cmd_vel`, velocity stays zero until a command received during or
+after warmup is available. Each command expires one second after receipt.
+
 API entry requires all of the following:
 
 - a fresh rising edge of the configured API switch;
-- a valid, advancing API heartbeat;
+- a valid, advancing API heartbeat when `require_api_heartbeat` is true (default);
 - an active state listed in `authority.api_entry.allowed_from_states`;
 - teleop velocity within `velocity_neutral_threshold`;
-- commanded API velocity within `velocity_neutral_threshold`;
+- the latest `/cmd_vel` is absent, has expired, or commands zero velocity (within the configured tolerance);
 - completion of the configured warmup duration.
 
 Holding the switch high after a rejected entry does not retry. Toggle it off
-and on after correcting the rejection. During an API session, heartbeat loss
+and on after correcting the rejection. When heartbeat is required, heartbeat loss
 takes priority over a normal switch release and performs the conservative
 manual handoff.
 
 `ApiHeartbeat.sequence` must keep advancing. Repeated messages with an
-unchanged sequence become stale even if they continue arriving.
+unchanged sequence become stale even if they continue arriving. With the
+requirement disabled, heartbeat status still reports the actual signal.
 
 ## Decision and safety priority
 
@@ -236,6 +243,7 @@ Useful launch arguments include:
 | `enforce_position_limits` | `false` | Applies active-policy position limits. |
 | `thread_priority` | `50` | Requested FIFO realtime priority. |
 | `lock_memory` | `true` | Requests memory locking for the RT thread. |
+| `require_api_heartbeat` | `true` | Require an advancing heartbeat for API authority. |
 | `api_heartbeat_topic` | `/ai_sapiens/api_heartbeat` | API heartbeat input. |
 | `api_heartbeat_timeout` | `0.2` | Advancing-sequence watchdog timeout. |
 | `cmd_vel_topic` | `/cmd_vel` | API velocity command input. |
@@ -267,7 +275,7 @@ Default runtime interfaces are:
 | Service | `/ai_sapiens/list_modes` | `ai_sapiens_interfaces/srv/ListModes` |
 
 The mode request service accepts requests only under full `API` authority while
-the API switch is held and the heartbeat is valid. `ListModes` reports all
+the API switch is held and the configured heartbeat condition is satisfied. `ListModes` reports all
 concrete states and the subset currently available to the service.
 
 AI Sapiens-specific messages and services are defined in the shared
