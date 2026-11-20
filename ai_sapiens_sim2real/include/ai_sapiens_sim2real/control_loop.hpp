@@ -33,7 +33,6 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <realtime_tools/realtime_helpers.hpp>
-#include <std_msgs/msg/float64_multi_array.hpp>
 
 #include "ai_sapiens_sim2real/controllers/mode_controller.hpp"
 #include "ai_sapiens_sim2real/controllers/policy_controller.hpp"
@@ -272,7 +271,7 @@ private:
     return s;
   }
 
-  void publish_raw_debug_topics();
+  class DebugTopicPublisher;
 
   struct SensorEntry
   {
@@ -307,9 +306,9 @@ private:
   StatusSnapshot last_status_snapshot_;
   bool last_status_snapshot_valid_{false};
 
-  // Optional debug publishers.
-  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr raw_observation_publisher_;
-  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr processed_action_publisher_;
+  // Optional debug publishers, serialized on the RT thread.
+  std::unique_ptr<DebugTopicPublisher> raw_observation_publisher_;
+  std::unique_ptr<DebugTopicPublisher> processed_action_publisher_;
 
   // Worker thread control.
   const char * rt_stage_{"startup"};

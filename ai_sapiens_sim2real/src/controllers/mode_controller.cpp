@@ -593,7 +593,6 @@ ModeController::ModeStatusSnapshot ModeController::status_snapshot() const
   const auto authority = current_authority();
   return ModeStatusSnapshot{
     active_state,
-    available_service_state_names(),
     authority_name(authority),
     is_teleop_input_available(),
     is_api_heartbeat_valid(),

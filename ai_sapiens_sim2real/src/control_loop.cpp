@@ -16,8 +16,65 @@
 
 #include "ai_sapiens_sim2real/control_loop.hpp"
 
+#include <array>
+#include <cstring>
+
+#include <rcutils/error_handling.h>
+#include <realtime_tools/lock_free_queue.hpp>
+#include <std_msgs/msg/float64_multi_array.hpp>
+
 namespace ai_sapiens_sim2real
 {
+
+class ControlLoop::DebugTopicPublisher
+{
+public:
+  DebugTopicPublisher(rclcpp::Node & node, const char * topic)
+  : publisher_(node.create_publisher<Message>(topic, 10)) {}
+
+  void publish(const std::vector<float> & values)
+  {
+    try {
+      message_.data.assign(values.begin(), values.end());
+      publisher_->publish(message_);
+    } catch (const std::exception & error) {
+      record_failure(error.what());
+    } catch (...) {
+      record_failure("unknown exception");
+    }
+  }
+
+  void flush(const rclcpp::Logger & logger)
+  {
+    Failure failure;
+    if (failures_.pop(failure)) {
+      RCLCPP_WARN(logger, "Dropped monitoring message (topic=%s): %s",
+        publisher_->get_topic_name(), failure.data());
+    }
+  }
+
+private:
+  using Message = std_msgs::msg::Float64MultiArray;
+  using Failure = std::array<char, RCUTILS_ERROR_MESSAGE_MAX_LENGTH>;
+
+  void record_failure(const char * reason)
+  {
+    const auto now = std::chrono::steady_clock::now();
+    if (now < next_report_) {
+      return;
+    }
+    next_report_ = now + std::chrono::seconds(1);
+    Failure failure{};
+    std::strncpy(failure.data(), reason, failure.size() - 1);
+    // Keep the pending warning when the consumer has not drained it yet.
+    (void)failures_.push(failure);
+  }
+
+  rclcpp::Publisher<Message>::SharedPtr publisher_;
+  Message message_;
+  realtime_tools::LockFreeSPSCQueue<Failure, 1> failures_;
+  std::chrono::steady_clock::time_point next_report_{std::chrono::steady_clock::time_point::min()};
+};
 
 ControlLoop::ControlLoop(
   rclcpp::Node::SharedPtr node,
@@ -104,18 +161,19 @@ void ControlLoop::set_status_log_enabled(bool enabled)
 
 void ControlLoop::set_debug_publish_enabled(bool enabled)
 {
-  debug_publish_enabled_ = enabled;
   if (!enabled) {
+    debug_publish_enabled_ = false;
     raw_observation_publisher_.reset();
     processed_action_publisher_.reset();
     return;
   }
 
-  if (!raw_observation_publisher_) {
-    raw_observation_publisher_ = node_->create_publisher<std_msgs::msg::Float64MultiArray>(
-      "/policy_input/raw_observation", 10);
-    processed_action_publisher_ = node_->create_publisher<std_msgs::msg::Float64MultiArray>(
-      "/policy_output/processed_action", 10);
+  if (!debug_publish_enabled_) {
+    raw_observation_publisher_ = std::make_unique<DebugTopicPublisher>(
+      *node_, "/policy_input/raw_observation");
+    processed_action_publisher_ = std::make_unique<DebugTopicPublisher>(
+      *node_, "/policy_output/processed_action");
+    debug_publish_enabled_ = true;
     RCLCPP_INFO(
       node_->get_logger(),
       "Debug publishers enabled: /policy_input/raw_observation, "
@@ -176,6 +234,10 @@ void ControlLoop::flush_diagnostics()
 {
   for (const auto & publisher : command_publishers_) {
     publisher->flush_diagnostics();
+  }
+  if (debug_publish_enabled_) {
+    raw_observation_publisher_->flush(node_->get_logger());
+    processed_action_publisher_->flush(node_->get_logger());
   }
 }
 
@@ -451,7 +513,8 @@ void ControlLoop::publish_debug_topics_if_needed(
   const bool should_publish_debug_topics =
     debug_publish_enabled_ && iteration % observation_publish_interval == 0;
   if (should_publish_debug_topics) {
-    publish_raw_debug_topics();
+    raw_observation_publisher_->publish(shared_data_.policy.input);
+    processed_action_publisher_->publish(shared_data_.output.command.position);
   }
 }
 
@@ -645,29 +708,5 @@ std::string ControlLoop::format_vec3(float x, float y, float z)
   snprintf(buf, sizeof(buf), "[%.3f, %.3f, %.3f]", x, y, z);
   return std::string(buf);
 }
-
-void ControlLoop::publish_raw_debug_topics()
-{
-  if (!raw_observation_publisher_ || !processed_action_publisher_) {
-    return;
-  }
-
-  std_msgs::msg::Float64MultiArray obs_msg;
-  obs_msg.data.reserve(shared_data_.policy.input.size());
-  for (const auto value : shared_data_.policy.input) {
-    obs_msg.data.push_back(static_cast<double>(value));
-  }
-
-  raw_observation_publisher_->publish(obs_msg);
-
-  std_msgs::msg::Float64MultiArray action_msg;
-  action_msg.data.reserve(shared_data_.output.command.position.size());
-  for (const auto value : shared_data_.output.command.position) {
-    action_msg.data.push_back(static_cast<double>(value));
-  }
-
-  processed_action_publisher_->publish(action_msg);
-}
-
 
 }  // namespace ai_sapiens_sim2real

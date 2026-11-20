@@ -79,7 +79,6 @@ public:
   struct ModeStatusSnapshot
   {
     std::string active_state;
-    std::vector<std::string> available_states;
     const char * authority{"UNKNOWN"};
     bool teleop_input_valid{false};
     bool api_heartbeat_valid{false};
