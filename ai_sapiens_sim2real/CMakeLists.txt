@@ -13,6 +13,8 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rcpputils REQUIRED)
+find_package(rcutils REQUIRED)
 find_package(realtime_tools REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
@@ -74,6 +76,7 @@ add_executable(ai_sapiens_sim2real_node
   src/mode_runtime/operator_command_inputs.cpp
   src/mode_runtime/startup_gate.cpp
   src/mode_runtime/input_executor.cpp
+  src/mode_runtime/node_executor.cpp
   src/policy/gait_clock.cpp
   src/policy/mimic/motion_reference.cpp
   src/policy/policy_entry_validator.cpp
@@ -98,6 +101,8 @@ add_executable(ai_sapiens_sim2real_node
 
 ament_target_dependencies(ai_sapiens_sim2real_node
   rclcpp
+  rcpputils
+  rcutils
   realtime_tools
   sensor_msgs
   geometry_msgs
@@ -281,15 +286,22 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 
   find_package(ament_cmake_gtest REQUIRED)
+  find_package(rcl REQUIRED)
 
   ament_add_gtest(test_input_gap_monitor test/test_input_gap_monitor.cpp)
   ament_target_dependencies(test_input_gap_monitor rclcpp)
   target_link_libraries(test_input_gap_monitor input_gap_monitor)
 
   ament_add_gtest(test_input_executor test/test_input_executor.cpp
-    src/mode_runtime/input_executor.cpp src/mode_runtime/startup_gate.cpp)
-  ament_target_dependencies(test_input_executor rclcpp realtime_tools)
+    src/mode_runtime/input_executor.cpp src/mode_runtime/startup_gate.cpp
+    src/mode_runtime/node_executor.cpp)
+  ament_target_dependencies(test_input_executor rclcpp rcpputils realtime_tools)
   target_link_libraries(test_input_executor Threads::Threads yaml-cpp Eigen3::Eigen input_gap_monitor)
+
+  ament_add_gtest(test_node_executor test/test_node_executor.cpp
+    test/ros_test_main.cpp SKIP_LINKING_MAIN_LIBRARIES src/mode_runtime/node_executor.cpp)
+  ament_target_dependencies(test_node_executor rcl rclcpp rcpputils ai_sapiens_interfaces)
+  target_link_libraries(test_node_executor ${CMAKE_DL_LIBS} "-Wl,--wrap=rcl_send_response")
 
   ament_add_gtest(test_joint_states_sensor_handle test/test_joint_states_sensor_handle.cpp
     src/sensor_handles/joint_states_diagnostics.cpp

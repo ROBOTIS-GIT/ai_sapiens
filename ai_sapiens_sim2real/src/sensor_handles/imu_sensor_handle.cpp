@@ -20,6 +20,8 @@
 #include <stdexcept>
 #include <cmath>
 
+#include "ai_sapiens_sim2real/exception_diagnostics.hpp"
+
 namespace ai_sapiens_sim2real
 {
 
@@ -54,7 +56,7 @@ ImuSensorHandle::ImuSensorHandle(
   subscription_ = node_->create_subscription<sensor_msgs::msg::Imu>(
     topic,
     10,
-    std::bind(&ImuSensorHandle::callback, this, std::placeholders::_1), subscription_options);
+    CALLBACK_WITH_EXCEPTION_LOG(this, ImuSensorHandle::callback), subscription_options);
 
   RCLCPP_INFO(node_->get_logger(), "[ImuSensorHandle] subscribed to %s", topic.c_str());
 }

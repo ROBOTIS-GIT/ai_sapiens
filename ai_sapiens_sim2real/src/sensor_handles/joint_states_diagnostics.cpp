@@ -20,6 +20,8 @@
 #include <limits>
 #include <utility>
 
+#include "ai_sapiens_sim2real/exception_diagnostics.hpp"
+
 namespace ai_sapiens_sim2real
 {
 
@@ -28,7 +30,9 @@ JointStatesDiagnostics::JointStatesDiagnostics(
   const std::vector<std::string> & joint_names)
 : logger_(node->get_logger()), topic_(topic), joint_names_(joint_names)
 {
-  timer_ = node->create_wall_timer(std::chrono::milliseconds(10), [this]() {flush();});
+  timer_ = node->create_wall_timer(
+    std::chrono::milliseconds(10),
+    CALLBACK_WITH_EXCEPTION_LOG(this, JointStatesDiagnostics::flush));
 }
 
 void JointStatesDiagnostics::record_ready()

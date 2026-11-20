@@ -18,6 +18,8 @@
 
 #include <algorithm>
 
+#include "ai_sapiens_sim2real/exception_diagnostics.hpp"
+
 namespace ai_sapiens_sim2real
 {
 
@@ -38,7 +40,7 @@ TwistCommandHandle::TwistCommandHandle(
   subscription_ = node_->create_subscription<geometry_msgs::msg::Twist>(
     topic,
     10,
-    std::bind(&TwistCommandHandle::callback, this, std::placeholders::_1), subscription_options);
+    CALLBACK_WITH_EXCEPTION_LOG(this, TwistCommandHandle::callback), subscription_options);
 
   RCLCPP_INFO(node_->get_logger(), "[TwistCommandHandle] subscribed to %s", topic.c_str());
 }

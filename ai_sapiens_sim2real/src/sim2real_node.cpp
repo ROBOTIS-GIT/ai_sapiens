@@ -18,6 +18,8 @@
 
 #include <stdexcept>
 
+#include "ai_sapiens_sim2real/exception_diagnostics.hpp"
+#include "ai_sapiens_sim2real/mode_runtime/node_executor.hpp"
 #include "ai_sapiens_sim2real/command_publishers/joint_command_publisher.hpp"
 #include "ai_sapiens_sim2real/controllers/mode_controller.hpp"
 #include "ai_sapiens_sim2real/controllers/policy_controller.hpp"
@@ -55,6 +57,9 @@ int Sim2RealNode::run()
     return 1;
   } catch (const std::exception & e) {
     RCLCPP_ERROR(node_->get_logger(), "Error: %s", e.what());
+    return 1;
+  } catch (...) {
+    RCLCPP_FATAL(node_->get_logger(), "Sim2RealNode::run failed: unknown exception");
     return 1;
   }
 
@@ -310,9 +315,11 @@ void Sim2RealNode::run_control_loop_until_shutdown()
     input_executor_.start();
     control_loop_->start();
     RCLCPP_INFO(node_->get_logger(), "Control loop started; input executor is separate.");
-    rclcpp::spin(node_);
+    NodeExecutor executor(node_);
+    executor.spin();
   } catch (...) {
     rclcpp::shutdown();
+    log_executor_exception(node_->get_logger(), "Node executor or control loop startup");
     input_executor_.stop();
     control_loop_->stop();
     throw;

@@ -21,6 +21,8 @@
 #include <stdexcept>
 #include <unordered_map>
 
+#include "ai_sapiens_sim2real/exception_diagnostics.hpp"
+
 namespace ai_sapiens_sim2real
 {
 
@@ -67,8 +69,7 @@ JointStatesSensorHandle::JointStatesSensorHandle(
   subscription_ = node_->create_subscription<sensor_msgs::msg::JointState>(
     topic,
     10,
-    std::bind(&JointStatesSensorHandle::callback, this, std::placeholders::_1),
-      subscription_options);
+    CALLBACK_WITH_EXCEPTION_LOG(this, JointStatesSensorHandle::callback), subscription_options);
 
   RCLCPP_INFO(
     node_->get_logger(),
