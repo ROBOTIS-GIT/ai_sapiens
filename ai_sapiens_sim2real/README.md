@@ -124,16 +124,17 @@ requirement disabled, heartbeat status still reports the actual signal.
 checks themselves live in `failsafe_reason()` and the authority arbitration in
 `compute_authority_change()`. The first matching condition wins.
 
-1. teleop input timeout;
-2. teleop Damping input;
-3. internal Damping request;
-4. policy action-limit violation;
-5. bad orientation;
-6. startup gate;
-7. authority transition;
-8. velocity source and behavior-state request.
+1. joint command publication failure (11 consecutive failures)
+2. teleop input timeout
+3. teleop Damping input
+4. internal Damping request
+5. policy action-limit violation
+6. bad orientation
+7. startup gate
+8. authority transition
+9. velocity source and behavior-state request.
 
-The first five entries select `state_machine.damping_state`, a concrete state with
+The first six entries select `state_machine.damping_state`, a concrete state with
 a `kind: damping` behavior. An RT exception triggers one emergency command with
 that same behavior's damping gains. When the field is omitted, the initial
 state is used if it runs a damping behavior. Otherwise the configuration must

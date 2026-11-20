@@ -492,6 +492,22 @@ TEST(ModeController, ReadyPoseStartupUsesDampingGainsForEmergencyAndFailsafe)
   EXPECT_FLOAT_EQ(data.output.command.damping[0], 3.5f);
 }
 
+TEST(ModeController, LatchedCommandPublishFaultRevokesApiAndKeepsDamping)
+{
+  ModeControllerFixture fixture;
+  ASSERT_TRUE(fixture.enter_mimic_through_service());
+  fixture.shared_data_.output.is_command_publish_fault_latched = true;
+  fixture.update_controller();
+  const auto status = fixture.controller_->status_snapshot();
+  EXPECT_EQ(status.active_state, "Damping");
+  EXPECT_STREQ(status.authority, "MANUAL");
+  EXPECT_STREQ(status.last_transition_reason, "command_publish_fault");
+
+  fixture.shared_data_.teleop.input_code = kVelocityInputCode;
+  fixture.update_controller();
+  EXPECT_EQ(fixture.controller_->status_snapshot().active_state, "Damping");
+}
+
 TEST(ModeController, TeleopLossOverridesTheActiveState)
 {
   ModeControllerFixture fixture;

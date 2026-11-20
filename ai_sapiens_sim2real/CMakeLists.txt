@@ -15,7 +15,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rcpputils REQUIRED)
 find_package(rcutils REQUIRED)
-find_package(realtime_tools REQUIRED)
+find_package(realtime_tools 3.2.0 REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
@@ -58,6 +58,7 @@ ament_target_dependencies(input_gap_monitor rclcpp)
 # ============================================================================
 add_executable(ai_sapiens_sim2real_node
   src/policy/action_pipeline.cpp
+  src/command_publishers/command_publish_diagnostics.cpp
   src/command_publishers/joint_command_publisher.cpp
   src/config/config_utils.cpp
   src/control_loop.cpp
@@ -308,6 +309,14 @@ if(BUILD_TESTING)
     src/sensor_handles/joint_states_sensor_handle.cpp)
   ament_target_dependencies(test_joint_states_sensor_handle rclcpp realtime_tools sensor_msgs)
   target_link_libraries(test_joint_states_sensor_handle Eigen3::Eigen input_gap_monitor)
+
+  ament_add_gtest(test_joint_command_publisher test/test_joint_command_publisher.cpp
+    test/ros_test_main.cpp SKIP_LINKING_MAIN_LIBRARIES
+    src/command_publishers/command_publish_diagnostics.cpp
+    src/command_publishers/joint_command_publisher.cpp)
+  ament_target_dependencies(test_joint_command_publisher
+    rcl rclcpp rcutils realtime_tools ai_sapiens_interfaces)
+  target_link_libraries(test_joint_command_publisher Eigen3::Eigen "-Wl,--wrap=rcl_publish")
 
   ament_add_gtest(test_twist_command_handle test/test_twist_command_handle.cpp
     src/sensor_handles/twist_command_handle.cpp)

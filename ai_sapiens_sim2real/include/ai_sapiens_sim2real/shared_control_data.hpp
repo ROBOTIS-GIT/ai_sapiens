@@ -158,6 +158,7 @@ struct BehaviorOutput
   JointCommand command;
   JointCommand last_published;
   bool has_published_command{false};
+  bool is_command_publish_fault_latched{false};
   std::vector<float> feedforward;
   std::vector<float> action_scale;
   std::vector<float> action_offset;

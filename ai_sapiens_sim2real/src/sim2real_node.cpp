@@ -316,6 +316,9 @@ void Sim2RealNode::run_control_loop_until_shutdown()
     control_loop_->start();
     RCLCPP_INFO(node_->get_logger(), "Control loop started; input executor is separate.");
     NodeExecutor executor(node_);
+    auto diagnostics_timer = node_->create_wall_timer(std::chrono::milliseconds(20), [this]() {
+          control_loop_->flush_diagnostics();
+    });
     executor.spin();
   } catch (...) {
     rclcpp::shutdown();

@@ -16,7 +16,7 @@
   <depend>rclcpp</depend>
   <depend>rcpputils</depend>
   <depend>rcutils</depend>
-  <depend>realtime_tools</depend>
+  <depend version_gte="3.2.0">realtime_tools</depend>
   <depend>sensor_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>std_msgs</depend>

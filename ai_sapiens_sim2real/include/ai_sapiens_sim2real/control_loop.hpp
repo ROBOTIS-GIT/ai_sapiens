@@ -140,6 +140,9 @@ public:
    */
   void stop();
 
+  // Single consumer on the node executor, with a final drain after the RT thread joins.
+  void flush_diagnostics();
+
   /**
    * @brief Check if control loop is running.
    * @return True if running
@@ -198,7 +201,8 @@ private:
     const ModeDecision & decision,
     const rclcpp::Time & current_time,
     const rclcpp::Duration & measured_period);
-  void command(const rclcpp::Time & current_time);
+  void command(
+    const rclcpp::Time & current_time, CommandPublishMode mode = CommandPublishMode::Control);
   void publish_emergency_damping();
   void publish_debug_topics_if_needed(
     int iteration,

@@ -151,6 +151,14 @@ void ControlLoop::stop()
     rt_thread_.join();
     RCLCPP_INFO(node_->get_logger(), "Control loop stopped");
   }
+  flush_diagnostics();
+}
+
+void ControlLoop::flush_diagnostics()
+{
+  for (const auto & publisher : command_publishers_) {
+    publisher->flush_diagnostics();
+  }
 }
 
 bool ControlLoop::all_sensors_ready() const
@@ -281,7 +289,7 @@ void ControlLoop::publish_emergency_damping()
     if (mode_controller_) {
       mode_controller_->apply_emergency_damping();
     }
-    command(node_->get_clock()->now());
+    command(node_->get_clock()->now(), CommandPublishMode::EmergencyDamping);
   } catch (...) {
   }
 }
@@ -376,11 +384,11 @@ void ControlLoop::act(
   policy_controller_->update(decision, current_time, measured_period);
 }
 
-void ControlLoop::command(const rclcpp::Time & current_time)
+void ControlLoop::command(const rclcpp::Time & current_time, CommandPublishMode mode)
 {
   for (auto & publisher : command_publishers_) {
     if (publisher->is_enabled()) {
-      publisher->publish(current_time);
+      publisher->publish(current_time, mode);
     }
   }
 }
