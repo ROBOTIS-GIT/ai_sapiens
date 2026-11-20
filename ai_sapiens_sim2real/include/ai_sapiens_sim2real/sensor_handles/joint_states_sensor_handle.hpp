@@ -119,6 +119,7 @@ private:
   JointStatesData callback_data_;
   std::vector<std::string> cached_message_names_;
   std::vector<size_t> message_indices_;
+  std::vector<JointSampleStatus> joint_status_;
   std::unique_ptr<JointStatesDiagnostics> diagnostics_;
 
   // Subscription callback writes buffer_; update() copies it into SharedControlData.

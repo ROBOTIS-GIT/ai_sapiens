@@ -52,7 +52,7 @@ struct TestRootSectionsConfig
     state_behaviors = StateBehaviorsConfig::from_yaml(node, shared_data);
     teleop_conditions = TeleopConditionsConfig::from_yaml(node);
     selectors = SelectorsConfig::from_yaml(node);
-    state_machine = StateMachineConfig::from_yaml(node);
+    state_machine = StateMachineConfig::from_yaml(node, state_behaviors);
     RootConfigValidator(
       state_machine,
       state_behaviors,

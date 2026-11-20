@@ -24,6 +24,8 @@
 namespace ai_sapiens_sim2real
 {
 
+enum class CommandPublishMode {Control, EmergencyDamping};
+
 /**
  * @brief Base interface for all command publishers.
  *
@@ -44,8 +46,12 @@ public:
    * have been updated. It should read from SharedControlData and publish.
    *
    * @param time Current ROS time
+   * @param mode Identifies the last emission on an RT fault for error reporting.
    */
-  virtual void publish(const rclcpp::Time & time) = 0;
+  virtual void publish(const rclcpp::Time & time, CommandPublishMode mode) = 0;
+
+  // Called by the node executor and once more after both the executor and RT loop stop.
+  virtual void flush_diagnostics() {}
 
   /**
    * @brief Get the name of this command publisher.

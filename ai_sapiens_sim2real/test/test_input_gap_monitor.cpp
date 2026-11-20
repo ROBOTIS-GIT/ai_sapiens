@@ -22,6 +22,9 @@
 
 #include "ai_sapiens_sim2real/sensor_handles/input_gap_monitor.hpp"
 
+#include "ros_log_capture.hpp"
+
+using ai_sapiens_sim2real::test::RosLogCapture;
 using ai_sapiens_sim2real::InputGapMonitor;
 using ai_sapiens_sim2real::InputGapState;
 
@@ -81,28 +84,26 @@ TEST(InputGapMonitor, TimerWarnsBeforeRecoveryAndLabelsBothStreams)
     InputGapMonitor monitor(node, "/test/input", 1000.0);
     monitor.received_raw();
     monitor.received_accepted();
-    testing::internal::CaptureStderr();
+    RosLogCapture capture(node->get_logger().get_name());
     std::this_thread::sleep_for(80ms);
     for (int i = 0; i < 5; ++i) {
       rclcpp::spin_some(node);
       std::this_thread::sleep_for(5ms);
     }
-    const auto warning = testing::internal::GetCapturedStderr();
+    const auto warning = capture.take();
     EXPECT_NE(warning.find("[Input gap] topic=/test/input stream=raw"), std::string::npos);
     EXPECT_NE(warning.find("[Input gap] topic=/test/input stream=accepted"), std::string::npos);
     EXPECT_EQ(warning.find("[Input resumed]"), std::string::npos);
 
-    testing::internal::CaptureStderr();
     monitor.received_raw();
     monitor.received_accepted();
-    const auto immediate = testing::internal::GetCapturedStderr();
+    const auto immediate = capture.take();
     EXPECT_TRUE(immediate.empty());
-    testing::internal::CaptureStderr();
     for (int i = 0; i < 5; ++i) {
       rclcpp::spin_some(node);
       std::this_thread::sleep_for(5ms);
     }
-    const auto recovery = testing::internal::GetCapturedStderr();
+    const auto recovery = capture.take();
     EXPECT_NE(recovery.find("[Input resumed] topic=/test/input stream=raw"), std::string::npos);
     EXPECT_NE(recovery.find("[Input resumed] topic=/test/input stream=accepted"),
         std::string::npos);
@@ -123,7 +124,7 @@ TEST(InputGapMonitor, InputExecutorNeverPrintsQueuedWarnings)
     inputs.add_callback_group(group, node->get_node_base_interface());
     InputGapMonitor monitor(node, "/test/deferred", 1000.0, group);
 
-    testing::internal::CaptureStderr();
+    RosLogCapture capture(node->get_logger().get_name());
     std::this_thread::sleep_for(80ms);
     for (int i = 0; i < 5; ++i) {
       inputs.spin_some();
@@ -131,14 +132,13 @@ TEST(InputGapMonitor, InputExecutorNeverPrintsQueuedWarnings)
     }
     monitor.received_raw();
     monitor.received_accepted();
-    EXPECT_TRUE(testing::internal::GetCapturedStderr().empty());
+    EXPECT_TRUE(capture.take().empty());
 
-    testing::internal::CaptureStderr();
     for (int i = 0; i < 5; ++i) {
       rclcpp::spin_some(node);
       std::this_thread::sleep_for(5ms);
     }
-    const auto output = testing::internal::GetCapturedStderr();
+    const auto output = capture.take();
     const auto warning = output.find("[Input gap]");
     const auto recovery = output.find("[Input resumed]");
     ASSERT_NE(warning, std::string::npos);
@@ -154,19 +154,18 @@ TEST(InputGapMonitor, BoundedQueueReportsOverflowAfterOutputResumes)
   {
     auto node = std::make_shared<rclcpp::Node>("input_gap_overflow_test");
     InputGapMonitor monitor(node, "/test/overflow", 1000.0);
-    testing::internal::CaptureStderr();
+    RosLogCapture capture(node->get_logger().get_name());
     for (int i = 0; i < 70; ++i) {
       std::this_thread::sleep_for(55ms);
       monitor.received_raw();
     }
-    EXPECT_TRUE(testing::internal::GetCapturedStderr().empty());
+    EXPECT_TRUE(capture.take().empty());
 
-    testing::internal::CaptureStderr();
     for (int i = 0; i < 5; ++i) {
       rclcpp::spin_some(node);
       std::this_thread::sleep_for(5ms);
     }
-    const auto output = testing::internal::GetCapturedStderr();
+    const auto output = capture.take();
     EXPECT_NE(output.find("dropped="), std::string::npos);
     EXPECT_NE(output.find("oldest events; queue full"), std::string::npos);
     EXPECT_NE(output.find("[Input resumed]"), std::string::npos);

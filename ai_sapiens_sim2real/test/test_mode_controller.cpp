@@ -17,7 +17,6 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
-#include <mutex>
 #include <string>
 
 #include <rclcpp/rclcpp.hpp>
@@ -34,18 +33,8 @@ constexpr uint16_t kVelocityInputCode = 3U;
 constexpr uint16_t kMimicInputCode = 4U;
 constexpr uint16_t kMimicSquatSelectorCode = 200U;
 
-void ensure_rclcpp_initialized()
-{
-  static std::once_flag flag;
-  std::call_once(
-    flag, []() {
-      if (!rclcpp::ok()) {
-        rclcpp::init(0, nullptr);
-      }
-    });
-}
-
-std::filesystem::path write_root_config(bool prefer_teleop = true)
+std::filesystem::path write_root_config(
+  bool prefer_teleop = true, const std::string & initial = "Damping")
 {
   static int index = 0;
   const auto path = std::filesystem::temp_directory_path() /
@@ -76,7 +65,7 @@ selectors:
 authority:
 )";
   file << "  teleop_overrides_cmd_vel: " << std::boolalpha << prefer_teleop;
-  file              <<
+  file <<
     R"(
   api_entry:
     warmup_duration: 0.0
@@ -84,7 +73,10 @@ authority:
     allowed_from_states: [Damping, ReadyPose, Velocity]
   default_velocity_state: Velocity
 state_machine:
-  initial: Damping
+)";
+  file << "  initial: " << initial << '\n';
+  file              <<
+    R"(  damping_state: Damping
   states:
     Damping:
       run: damping
@@ -126,7 +118,7 @@ state_behaviors:
   damping:
     kind: damping
     damping:
-      values: [0.0]
+      values: [3.5]
   ready_pose:
     kind: posture
     duration: 0.01
@@ -156,12 +148,12 @@ state_behaviors:
 class ModeControllerFixture
 {
 public:
-  explicit ModeControllerFixture(bool require_heartbeat = true, bool prefer_teleop = true)
+  explicit ModeControllerFixture(
+    bool require_heartbeat = true, bool prefer_teleop = true,
+    const std::string & initial = "Damping")
   {
-    ensure_rclcpp_initialized();
-
     root_config_ =
-      std::make_unique<ai_sapiens_sim2real::RootConfig>(write_root_config(prefer_teleop));
+      std::make_unique<ai_sapiens_sim2real::RootConfig>(write_root_config(prefer_teleop, initial));
 
     shared_data_.joint_map.controller_joint_names = {"joint"};
     shared_data_.resize(1U, 1U);
@@ -455,6 +447,67 @@ TEST(ModeController, DampingRequestOverridesTeleopTransition)
   EXPECT_STREQ(status.last_transition_reason, "damping_request");
 }
 
+TEST(ModeController, EmergencyCommandUsesConfiguredGainsWithoutChangingState)
+{
+  ModeControllerFixture fixture;
+  fixture.release_startup_gate();
+  auto & data = fixture.shared_data_;
+  ASSERT_EQ(data.mode.active_state_name, "ReadyPose");
+  ASSERT_FLOAT_EQ(data.output.command.damping[0], 1.0f);
+  data.sensors.joint_pos[0] = 1.25f;
+  data.output.feedforward[0] = 2.0f;
+  data.output.position_limits[0] = std::make_pair(-0.5f, 0.5f);
+  const auto transitions = data.mode.transition_count;
+
+  fixture.controller_->apply_emergency_damping();
+
+  EXPECT_EQ(data.mode.active_state_name, "ReadyPose");
+  EXPECT_EQ(data.mode.transition_count, transitions);
+  EXPECT_FLOAT_EQ(data.output.command.stiffness[0], 0.0f);
+  EXPECT_FLOAT_EQ(data.output.command.damping[0], 3.5f);
+  EXPECT_FLOAT_EQ(data.output.command.position[0], 1.25f);
+  EXPECT_FLOAT_EQ(data.output.feedforward[0], 0.0f);
+  EXPECT_FALSE(data.output.position_limits[0]);
+  EXPECT_FALSE(data.output.has_published_command);
+}
+
+TEST(ModeController, ReadyPoseStartupUsesDampingGainsForEmergencyAndFailsafe)
+{
+  ModeControllerFixture fixture(true, true, "ReadyPose");
+  auto & data = fixture.shared_data_;
+  ASSERT_EQ(data.mode.active_state_name, "ReadyPose");
+  fixture.controller_->reset();
+  ASSERT_EQ(data.mode.active_state_name, "ReadyPose");
+  ASSERT_FLOAT_EQ(data.output.command.stiffness[0], 1.0f);
+
+  fixture.controller_->apply_emergency_damping();
+  EXPECT_EQ(data.mode.active_state_name, "ReadyPose");
+  EXPECT_FLOAT_EQ(data.output.command.stiffness[0], 0.0f);
+  EXPECT_FLOAT_EQ(data.output.command.damping[0], 3.5f);
+
+  data.requests.damping = true;
+  fixture.update_controller();
+  EXPECT_EQ(data.mode.active_state_name, "Damping");
+  EXPECT_FLOAT_EQ(data.output.command.stiffness[0], 0.0f);
+  EXPECT_FLOAT_EQ(data.output.command.damping[0], 3.5f);
+}
+
+TEST(ModeController, LatchedCommandPublishFaultRevokesApiAndKeepsDamping)
+{
+  ModeControllerFixture fixture;
+  ASSERT_TRUE(fixture.enter_mimic_through_service());
+  fixture.shared_data_.output.is_command_publish_fault_latched = true;
+  fixture.update_controller();
+  const auto status = fixture.controller_->status_snapshot();
+  EXPECT_EQ(status.active_state, "Damping");
+  EXPECT_STREQ(status.authority, "MANUAL");
+  EXPECT_STREQ(status.last_transition_reason, "command_publish_fault");
+
+  fixture.shared_data_.teleop.input_code = kVelocityInputCode;
+  fixture.update_controller();
+  EXPECT_EQ(fixture.controller_->status_snapshot().active_state, "Damping");
+}
+
 TEST(ModeController, TeleopLossOverridesTheActiveState)
 {
   ModeControllerFixture fixture;
@@ -540,6 +593,58 @@ TEST(ModeController, FreshNonNeutralApiCommandBlocksEntryButExpiredCommandDoesNo
   fixture.update_controller();
   EXPECT_STREQ(fixture.controller_->status_snapshot().authority, "API");
   EXPECT_TRUE(data.mode.velocity_commands.isZero());
+}
+
+TEST(AuthorityRuntime, OptionalCmdVelNeutralCheckPreservesTeleopAndWarmupGuards)
+{
+  using ai_sapiens_sim2real::Authority;
+  using ai_sapiens_sim2real::VelocitySource;
+
+  ai_sapiens_sim2real::AuthorityConfig config;
+  config.api_entry_require_neutral_cmd_vel = false;
+  ai_sapiens_sim2real::AuthorityRuntime runtime;
+  runtime.configure(config, true);
+
+  ai_sapiens_sim2real::SharedControlData data;
+  data.teleop.api_mode_requested = true;
+  data.api.heartbeat_received.store(true);
+  data.api.heartbeat_stale.store(false);
+  data.api.velocity_commands.x() = 0.3F;
+  data.api.velocity_received_at = std::chrono::steady_clock::now() - std::chrono::milliseconds(10);
+
+  data.teleop.is_velocity_command_valid = false;
+  EXPECT_STREQ(
+    runtime.api_entry_rejection_reason(data, true), "teleop velocity command is unavailable");
+  data.teleop.is_velocity_command_valid = true;
+  data.teleop.velocity_commands.x() = 0.2F;
+  EXPECT_STREQ(
+    runtime.api_entry_rejection_reason(data, true), "teleop velocity command is not neutral");
+
+  data.teleop.velocity_commands.setZero();
+  ASSERT_EQ(runtime.api_entry_rejection_reason(data, true), nullptr);
+  runtime.begin_warmup();
+  EXPECT_EQ(runtime.velocity_source(Authority::Api, data), VelocitySource::Zero);
+  data.api.velocity_received_at = std::chrono::steady_clock::now();
+  EXPECT_EQ(runtime.velocity_source(Authority::ApiWarmup, data), VelocitySource::Zero);
+  EXPECT_EQ(runtime.velocity_source(Authority::Api, data), VelocitySource::Api);
+}
+
+TEST(ModeController, AppliesFreshCmdVelOnFirstApiTickAfterWarmup)
+{
+  ModeControllerFixture fixture;
+  fixture.release_startup_gate();
+  fixture.set_api_heartbeat_valid(true);
+  auto & data = fixture.shared_data_;
+  data.teleop.api_mode_requested = true;
+  fixture.update_controller();
+  ASSERT_STREQ(fixture.controller_->status_snapshot().authority, "API_WARMUP");
+  EXPECT_TRUE(data.mode.velocity_commands.isZero());
+
+  data.api.velocity_commands << 0.8F, -0.4F, 0.6F;
+  data.api.velocity_received_at = std::chrono::steady_clock::now();
+  fixture.update_controller();
+  ASSERT_STREQ(fixture.controller_->status_snapshot().authority, "API");
+  EXPECT_TRUE(data.mode.velocity_commands.isApprox(data.api.velocity_commands));
 }
 
 TEST(ModeController, StickOverrideSurvivesInvalidInputUntilValidNeutral)

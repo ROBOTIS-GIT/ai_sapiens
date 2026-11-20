@@ -56,7 +56,10 @@ public:
     bool current_state_can_enter_api) const;
 
 private:
+  bool cmd_vel_blocks_api_entry(const ApiInput & api) const;
+
   bool require_api_heartbeat_{true};
+  bool require_neutral_cmd_vel_{true};
   static constexpr double kDefaultWarmupSeconds = 1.0;
   std::chrono::duration<double> warmup_duration_{kDefaultWarmupSeconds};
   float switch_velocity_threshold_{0.05f};

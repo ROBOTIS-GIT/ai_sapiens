@@ -127,6 +127,9 @@ AuthorityConfig read_authority_config(const YAML::Node & document)
   if (api_entry["warmup_duration"]) {
     config.api_entry_warmup_duration = api_entry["warmup_duration"].as<double>();
   }
+  if (api_entry["require_neutral_cmd_vel"]) {
+    config.api_entry_require_neutral_cmd_vel = api_entry["require_neutral_cmd_vel"].as<bool>();
+  }
   if (api_entry["velocity_neutral_threshold"]) {
     config.api_entry_velocity_neutral_threshold =
       api_entry["velocity_neutral_threshold"].as<float>();
@@ -192,7 +195,7 @@ RootConfig::RootConfig(const std::filesystem::path & path)
       state_behaviors_config_ = StateBehaviorsConfig::from_yaml(document_, shared_data);
       teleop_conditions_config_ = TeleopConditionsConfig::from_yaml(document_);
       selectors_config_ = SelectorsConfig::from_yaml(document_);
-      state_machine_config_ = StateMachineConfig::from_yaml(document_);
+      state_machine_config_ = StateMachineConfig::from_yaml(document_, state_behaviors_config_);
       authority_config_ = read_authority_config(document_);
 
       RootConfigValidator(

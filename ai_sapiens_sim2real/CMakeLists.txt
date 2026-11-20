@@ -13,7 +13,9 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(realtime_tools REQUIRED)
+find_package(rcpputils REQUIRED)
+find_package(rcutils REQUIRED)
+find_package(realtime_tools 3.2.0 REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
@@ -55,6 +57,8 @@ ament_target_dependencies(input_gap_monitor rclcpp)
 # Runtime library and executable
 # ============================================================================
 add_library(sim2real_core STATIC
+  src/command_publishers/command_publish_diagnostics.cpp
+  src/command_publishers/joint_command_publisher.cpp
   src/config/config_utils.cpp
   src/config/root_config.cpp
   src/config/root_config_validator.cpp
@@ -68,6 +72,7 @@ add_library(sim2real_core STATIC
   src/mode_runtime/authority_runtime.cpp
   src/mode_runtime/input_executor.cpp
   src/mode_runtime/mode_state_machine.cpp
+  src/mode_runtime/node_executor.cpp
   src/mode_runtime/startup_gate.cpp
   src/observation/configured_observation_group.cpp
   src/observation/observation_manager.cpp
@@ -96,10 +101,12 @@ add_library(sim2real_core STATIC
   src/sensor_handles/joint_states_diagnostics.cpp
   src/sensor_handles/joint_states_sensor_handle.cpp
   src/sensor_handles/teleop_input_handle.cpp
+  src/sensor_handles/twist_command_handle.cpp
 )
 
 ament_target_dependencies(sim2real_core
-  rclcpp realtime_tools sensor_msgs std_msgs ament_index_cpp)
+  rclcpp rcpputils rcutils realtime_tools sensor_msgs geometry_msgs std_msgs
+  ai_sapiens_interfaces ament_index_cpp)
 target_link_libraries(sim2real_core
   input_gap_monitor
   yaml-cpp
@@ -109,18 +116,18 @@ target_link_libraries(sim2real_core
 )
 
 add_executable(ai_sapiens_sim2real_node
-  src/command_publishers/joint_command_publisher.cpp
   src/control_loop.cpp
   src/controllers/mode_ros_interface.cpp
   src/main.cpp
   src/sim2real_node.cpp
   src/mode_runtime/operator_command_inputs.cpp
   src/sensor_handles/api_heartbeat_handle.cpp
-  src/sensor_handles/twist_command_handle.cpp
 )
 
 ament_target_dependencies(ai_sapiens_sim2real_node
   rclcpp
+  rcpputils
+  rcutils
   realtime_tools
   sensor_msgs
   geometry_msgs
@@ -298,6 +305,7 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 
   find_package(ament_cmake_gtest REQUIRED)
+  find_package(rcl REQUIRED)
 
   ament_add_gtest(test_input_gap_monitor test/test_input_gap_monitor.cpp)
   ament_target_dependencies(test_input_gap_monitor rclcpp)
@@ -306,8 +314,22 @@ if(BUILD_TESTING)
   ament_add_gtest(test_input_executor test/test_input_executor.cpp)
   target_link_libraries(test_input_executor sim2real_core)
 
+  ament_add_gtest(test_node_executor test/test_node_executor.cpp
+    test/ros_test_main.cpp SKIP_LINKING_MAIN_LIBRARIES)
+  ament_target_dependencies(test_node_executor rcl)
+  target_link_libraries(test_node_executor
+    sim2real_core ${CMAKE_DL_LIBS} "-Wl,--wrap=rcl_send_response")
+
   ament_add_gtest(test_joint_states_sensor_handle test/test_joint_states_sensor_handle.cpp)
   target_link_libraries(test_joint_states_sensor_handle sim2real_core)
+
+  ament_add_gtest(test_joint_command_publisher test/test_joint_command_publisher.cpp
+    test/ros_test_main.cpp SKIP_LINKING_MAIN_LIBRARIES)
+  ament_target_dependencies(test_joint_command_publisher rcl)
+  target_link_libraries(test_joint_command_publisher sim2real_core "-Wl,--wrap=rcl_publish")
+
+  ament_add_gtest(test_twist_command_handle test/test_twist_command_handle.cpp)
+  target_link_libraries(test_twist_command_handle sim2real_core)
 
   # RealtimeRequestGate: accept/consume/discard/busy semantics (header-only).
   ament_add_gtest(test_request_gate test/test_request_gate.cpp)
@@ -337,7 +359,8 @@ if(BUILD_TESTING)
 
   # ModeController: exercise the actual decide/apply path for startup, teleop
   # transitions, and failsafes.
-  ament_add_gtest(test_mode_controller test/test_mode_controller.cpp)
+  ament_add_gtest(test_mode_controller test/test_mode_controller.cpp
+    test/ros_test_main.cpp SKIP_LINKING_MAIN_LIBRARIES)
   target_link_libraries(test_mode_controller sim2real_core)
 
   # MotionPlayback: absolute-motion-time seek/completion window.
@@ -359,6 +382,7 @@ if(BUILD_TESTING)
   target_link_libraries(test_action_fault_recorder sim2real_core)
 
   ament_add_gtest(test_policy_action_fault test/test_policy_action_fault.cpp
+    test/ros_test_main.cpp SKIP_LINKING_MAIN_LIBRARIES
     test/test_policy_observation_flow.cpp
     test/test_blinkmimic.cpp
     test/test_supermimic.cpp)
