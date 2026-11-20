@@ -30,6 +30,7 @@ import yaml
 
 
 class RootKinematics:
+
     def forward(self, p, rotation, v, w, q, qd):
         return p[:, None], rotation[:, None], v[:, None], w[:, None]
 
