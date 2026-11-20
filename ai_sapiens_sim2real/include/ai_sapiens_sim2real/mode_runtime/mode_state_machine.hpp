@@ -82,6 +82,7 @@ public:
 
   // Read-only FSM queries used by services, status, and mode execution.
   const std::string & initial_state_name() const;
+  const std::string & damping_state_name() const;
   const ModeState * find_state(const std::string & state_name) const;
   std::vector<std::string> concrete_state_names() const;
   std::string parent_state_name(const std::string & state_name) const;

@@ -18,6 +18,8 @@
 
 #include <cinttypes>
 
+#include "ai_sapiens_sim2real/exception_diagnostics.hpp"
+
 namespace ai_sapiens_sim2real
 {
 
@@ -28,10 +30,11 @@ InputGapMonitor::InputGapMonitor(
   raw_(expected_rate_hz), accepted_(expected_rate_hz)
 {
   check_timer_ = node->create_wall_timer(
-    std::chrono::milliseconds(10), [this]() {check_gaps();}, callback_group);
+    std::chrono::milliseconds(10),
+    CALLBACK_WITH_EXCEPTION_LOG(this, InputGapMonitor::check_gaps), callback_group);
   // Default callback group: formatting and output never run in the input executor.
   log_timer_ = node->create_wall_timer(
-    std::chrono::milliseconds(10), [this]() {flush_logs();});
+    std::chrono::milliseconds(10), CALLBACK_WITH_EXCEPTION_LOG(this, InputGapMonitor::flush_logs));
 }
 
 void InputGapMonitor::received_raw() {receive(raw_, Stream::Raw);}

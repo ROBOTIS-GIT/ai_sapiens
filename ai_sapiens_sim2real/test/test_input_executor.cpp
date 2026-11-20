@@ -17,12 +17,17 @@
 #include <atomic>
 #include <chrono>
 #include <stdexcept>
+#include <string>
 #include <thread>
 
+#include "ai_sapiens_sim2real/exception_diagnostics.hpp"
 #include "ai_sapiens_sim2real/mode_runtime/input_executor.hpp"
 #include "ai_sapiens_sim2real/mode_runtime/startup_gate.hpp"
 #include "ai_sapiens_sim2real/sensor_handles/input_gap_monitor.hpp"
 
+#include "ros_log_capture.hpp"
+
+using ai_sapiens_sim2real::test::RosLogCapture;
 using ai_sapiens_sim2real::InputExecutor;
 using namespace std::chrono_literals;
 
@@ -76,7 +81,14 @@ TEST_F(InputExecutorTest, CallbackFailureShutsDownAndRemainsObservable)
 {
   auto node = std::make_shared<rclcpp::Node>("input_executor_failure_test");
   InputExecutor inputs(node);
-  auto timer = node->create_wall_timer(1ms, []() {throw std::runtime_error("test failure");},
+  struct Input
+  {
+    void receive() {throw std::runtime_error("test failure");}
+  } input;
+
+  RosLogCapture logs("ai_sapiens_sim2real");
+  const int registration_line = __LINE__ + 1;
+  auto timer = node->create_wall_timer(1ms, CALLBACK_WITH_EXCEPTION_LOG(&input, Input::receive),
     inputs.subscription_options().callback_group);
   inputs.start();
 
@@ -87,6 +99,9 @@ TEST_F(InputExecutorTest, CallbackFailureShutsDownAndRemainsObservable)
   inputs.stop();
   EXPECT_TRUE(inputs.has_failed());
   EXPECT_FALSE(rclcpp::ok());
+  const std::string expected = std::string("Exception escaped callback Input::receive ") +
+    "(registered at " + __FILE__ + ":" + std::to_string(registration_line) + ")\n";
+  EXPECT_EQ(logs.take(), expected);
 }
 
 TEST_F(InputExecutorTest, StartupSpinOnlyRunsInputCallbacks)
@@ -124,10 +139,10 @@ TEST_F(InputExecutorTest, StartupWaitFlushesDiagnosticsBeforeAnyTeleopSample)
     inputs.subscription_options().callback_group);
   auto plugin = std::make_shared<WaitingTeleopPlugin>();
 
-  testing::internal::CaptureStderr();
+  RosLogCapture capture(node->get_logger().get_name());
   const bool is_ready = ai_sapiens_sim2real::wait_for_teleop_input_sample(node, plugin, 0.15,
     inputs);
-  const auto output = testing::internal::GetCapturedStderr();
+  const auto output = capture.take();
   EXPECT_FALSE(is_ready);
   EXPECT_NE(output.find("[Input gap] topic=/test/startup_gap stream=raw"), std::string::npos);
   EXPECT_NE(output.find("[Input gap] topic=/test/startup_gap stream=accepted"), std::string::npos);

@@ -255,6 +255,10 @@ bool ModeController::is_startup_teleop_input_safe(
 // No writes -- the flag clears and authority effects live in apply_failsafe().
 std::optional<ModeController::TransitionReason> ModeController::failsafe_reason() const
 {
+  if (output_->is_command_publish_fault_latched) {
+    return TransitionReason::CommandPublishFault;
+  }
+
   if (is_teleop_input_unavailable()) {
     return TransitionReason::TeleopInputTimeout;
   }
@@ -294,6 +298,7 @@ void ModeController::apply_failsafe(TransitionReason reason)
   // re-entry then requires a fresh API switch edge. Other failsafes just drop
   // any pending service request.
   const bool should_revoke_api_authority =
+    reason == TransitionReason::CommandPublishFault ||
     reason == TransitionReason::TeleopInputDamping ||
     reason == TransitionReason::TeleopInputTimeout;
   if (should_revoke_api_authority) {
@@ -419,6 +424,8 @@ const char * ModeController::transition_reason_name(TransitionReason reason)
       return "teleop_input_damping";
     case TransitionReason::DampingRequest:
       return "damping_request";
+    case TransitionReason::CommandPublishFault:
+      return "command_publish_fault";
     case TransitionReason::ActionLimit:
       return "action_limit";
     case TransitionReason::BadOrientation:
@@ -456,6 +463,7 @@ bool ModeController::is_failsafe_transition_reason(TransitionReason reason)
     case TransitionReason::TeleopInputTimeout:
     case TransitionReason::TeleopInputDamping:
     case TransitionReason::DampingRequest:
+    case TransitionReason::CommandPublishFault:
     case TransitionReason::ActionLimit:
     case TransitionReason::BadOrientation:
       return true;
@@ -585,7 +593,6 @@ ModeController::ModeStatusSnapshot ModeController::status_snapshot() const
   const auto authority = current_authority();
   return ModeStatusSnapshot{
     active_state,
-    available_service_state_names(),
     authority_name(authority),
     is_teleop_input_available(),
     is_api_heartbeat_valid(),
@@ -663,15 +670,6 @@ std::vector<float> ModeController::make_controller_ordered_joint_positions() con
   }
 
   return controller_values;
-}
-
-void ModeController::copy_controller_positions_to_output(
-  const std::vector<float> & controller_values)
-{
-  for (size_t i = 0; i < controller_joint_count_; ++i) {
-    output_->command.position[i] = controller_values[i];
-    output_->last_published.position[i] = controller_values[i];
-  }
 }
 
 const StateBehavior & ModeController::behavior_for_state(const std::string & state_name) const
@@ -1059,25 +1057,22 @@ void ModeController::enter_requested_mode(const StateRequest & request)
   }
 }
 
-// Keeps the active behavior's damping gains: every behavior fills
-// output_->command.damping, so zeroing stiffness/feedforward and mirroring measured
-// positions turns the last published command into a viscous brake.
 void ModeController::apply_emergency_damping()
 {
-  output_->position_limits.assign(controller_joint_count_, std::nullopt);
-  std::fill(output_->feedforward.begin(), output_->feedforward.end(), 0.0f);
-  std::fill(output_->command.stiffness.begin(), output_->command.stiffness.end(), 0.0f);
-  run_damping();
+  set_damping_command(behavior_for_state(mode_state_machine_.damping_state_name()));
 }
 
 void ModeController::enter_damping_state(const StateRequest & request)
 {
-  const auto & behavior = behavior_for_state(request.name);
-
   mode_->active_policy_name.clear();
   requests_->damping = false;
   requests_->action_limit_exceeded = false;
 
+  set_damping_command(behavior_for_state(request.name));
+}
+
+void ModeController::set_damping_command(const StateBehavior & behavior)
+{
   output_->position_limits.assign(controller_joint_count_, std::nullopt);
   std::fill(output_->feedforward.begin(), output_->feedforward.end(), 0.0f);
   std::fill(output_->command.stiffness.begin(), output_->command.stiffness.end(), 0.0f);
@@ -1100,7 +1095,6 @@ void ModeController::enter_posture_state(const StateRequest & request)
   active_posture_duration_ = behavior.duration;
   active_posture_target_ = behavior.target_position;
   posture_start_controller_ = make_controller_ordered_joint_positions();
-  posture_target_.assign(controller_joint_count_, 0.0f);
   posture_start_time_ = std::chrono::steady_clock::now();
 
   run_posture();
@@ -1129,7 +1123,6 @@ void ModeController::run_damping()
 {
   for (Eigen::Index i = 0; i < state_->sensors.joint_pos.size(); ++i) {
     output_->command.position[static_cast<size_t>(i)] = state_->sensors.joint_pos[i];
-    output_->last_published.position[static_cast<size_t>(i)] = state_->sensors.joint_pos[i];
   }
 }
 
@@ -1141,12 +1134,10 @@ void ModeController::run_posture()
   const float alpha = static_cast<float>(std::clamp(posture_phase, 0.0, 1.0));
 
   for (size_t i = 0; i < controller_joint_count_; ++i) {
-    posture_target_[i] =
+    output_->command.position[i] =
       posture_start_controller_[i] + alpha *
       (active_posture_target_[i] - posture_start_controller_[i]);
   }
-
-  copy_controller_positions_to_output(posture_target_);
 }
 
 }  // namespace ai_sapiens_sim2real

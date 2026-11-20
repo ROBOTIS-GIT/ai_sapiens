@@ -21,6 +21,10 @@
 
 #include "ai_sapiens_sim2real/sensor_handles/joint_states_sensor_handle.hpp"
 
+#include "ros_log_capture.hpp"
+
+using ai_sapiens_sim2real::test::RosLogCapture;
+using ai_sapiens_sim2real::JointSampleStatus;
 using ai_sapiens_sim2real::JointStatesDiagnostics;
 using ai_sapiens_sim2real::JointStatesSensorHandle;
 using ai_sapiens_sim2real::ModeRequests;
@@ -30,6 +34,8 @@ using namespace std::chrono_literals;
 class JointStatesSensorHandleTest : public ::testing::Test
 {
 protected:
+  static constexpr auto kWatchdogTimeout = 2s;
+
   void SetUp() override
   {
     rclcpp::init(0, nullptr);
@@ -37,8 +43,9 @@ protected:
     group = node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, false);
     rclcpp::SubscriptionOptions options;
     options.callback_group = group;
-    handle = std::make_unique<JointStatesSensorHandle>(node, &sensors, &requests, 10.0,
-      std::vector<std::string>{"left", "right"}, "/test/joint_mapping", options);
+    handle = std::make_unique<JointStatesSensorHandle>(node, &sensors, &requests,
+      kWatchdogTimeout.count(), std::vector<std::string>{"left", "right"},
+      "/test/joint_mapping", options);
     publisher = node->create_publisher<sensor_msgs::msg::JointState>("/test/joint_mapping", 10);
     inputs = std::make_unique<rclcpp::executors::SingleThreadedExecutor>();
     inputs->add_callback_group(group, node->get_node_base_interface());
@@ -93,6 +100,16 @@ protected:
   std::unique_ptr<rclcpp::executors::SingleThreadedExecutor> inputs;
 };
 
+TEST_F(JointStatesSensorHandleTest, RejectsInvalidWatchdogTimeouts)
+{
+  for (double timeout : {0.0, -1.0, std::numeric_limits<double>::quiet_NaN(),
+      std::numeric_limits<double>::infinity()})
+  {
+    EXPECT_THROW(JointStatesSensorHandle(node, &sensors, &requests, timeout, {"left"}),
+      std::runtime_error);
+  }
+}
+
 TEST_F(JointStatesSensorHandleTest, ReusesMappingAndRebuildsForReorderingAndDuplicates)
 {
   send({"left", "right"}, {1, 2}, {3, 4});
@@ -131,61 +148,92 @@ TEST_F(JointStatesSensorHandleTest, RejectsIncompleteSamplesWithoutReplacingAcce
   EXPECT_FLOAT_EQ(sensors.joint_vel[1], 10);
 }
 
+TEST_F(JointStatesSensorHandleTest, OnlyRequiresFiniteValuesForConfiguredJoints)
+{
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  const double inf = std::numeric_limits<double>::infinity();
+  send({"right", "left"}, {1, nan}, {3, 4});
+  EXPECT_FALSE(handle->is_ready());
+
+  RosLogCapture capture(node->get_logger().get_name());
+  flush_logs();
+  EXPECT_NE(capture.take().find("left(invalid position/velocity)"),
+    std::string::npos);
+
+  send({"extra", "right", "left"}, {nan, 2, 1}, {-inf, 4, 3});
+  ASSERT_TRUE(handle->is_ready());
+  for (const auto invalid : {inf, -inf, nan, std::numeric_limits<double>::max()}) {
+    send({"right", "left"}, {6, 5}, {invalid, 7});
+    EXPECT_FLOAT_EQ(sensors.joint_pos[0], 1);
+    EXPECT_FLOAT_EQ(sensors.joint_vel[1], 4);
+  }
+  send({"right", "left"}, {6, 5}, {8, 7});
+  EXPECT_FLOAT_EQ(sensors.joint_pos[0], 5);
+  EXPECT_FLOAT_EQ(sensors.joint_vel[1], 8);
+}
+
+TEST_F(JointStatesSensorHandleTest, InvalidRequiredJointDoesNotRefreshWatchdog)
+{
+  send({"left", "right"}, {1, 2}, {3, 4});
+  ASSERT_TRUE(handle->is_ready());
+  ASSERT_FALSE(requests.damping);
+
+  const auto deadline = std::chrono::steady_clock::now() + kWatchdogTimeout + 20ms;
+  while (std::chrono::steady_clock::now() < deadline) {
+    send({"left", "right"}, {5, 6}, {7, std::numeric_limits<double>::infinity()});
+  }
+  EXPECT_TRUE(requests.damping);
+  EXPECT_FLOAT_EQ(sensors.joint_pos[0], 1);
+  EXPECT_TRUE(rclcpp::ok());
+}
+
 TEST_F(JointStatesSensorHandleTest, MissingJointWarningIsDeferredAndThrottledFromStartup)
 {
-  testing::internal::CaptureStderr();
+  RosLogCapture capture(node->get_logger().get_name());
   send({"left"}, {1}, {2});
-  EXPECT_TRUE(testing::internal::GetCapturedStderr().empty());
+  EXPECT_TRUE(capture.take().empty());
 
-  testing::internal::CaptureStderr();
   flush_logs();
-  const auto first = testing::internal::GetCapturedStderr();
+  const auto first = capture.take();
   EXPECT_NE(first.find("1/2 joints complete"), std::string::npos);
   EXPECT_NE(first.find("Missing/incomplete: right"), std::string::npos);
   EXPECT_NE(first.find("detected_at="), std::string::npos);
   EXPECT_NE(first.find("log_delay="), std::string::npos);
   EXPECT_EQ(first.find("Joint 'right'"), std::string::npos);
 
-  testing::internal::CaptureStderr();
   send({"left"}, {3}, {4});
   flush_logs();
-  EXPECT_EQ(testing::internal::GetCapturedStderr().find("Ignoring incomplete"), std::string::npos);
+  EXPECT_EQ(capture.take().find("Ignoring incomplete"), std::string::npos);
 
   std::this_thread::sleep_for(1010ms);
   send({"left"}, {3}, {4});
-  testing::internal::CaptureStderr();
   flush_logs();
-  EXPECT_NE(testing::internal::GetCapturedStderr().find("Ignoring incomplete"), std::string::npos);
+  EXPECT_NE(capture.take().find("Ignoring incomplete"), std::string::npos);
 }
 
 TEST_F(JointStatesSensorHandleTest, DiagnosticsSnapshotPreservesMissingDetailsAndReportsReadyOnce)
 {
   const std::vector<std::string> names{"j0", "j1", "j2", "j3", "j4", "j5", "j6", "j7", "j8", "j9"};
   JointStatesDiagnostics diagnostics(node, "/test/diagnostics", names);
-  sensor_msgs::msg::JointState msg;
-  std::vector<size_t> indices(names.size(), std::numeric_limits<size_t>::max());
-  indices[0] = 0;
-  msg.position = {1.0};
+  std::vector<JointSampleStatus> status(names.size(), JointSampleStatus::MissingJoint);
+  status[0] = JointSampleStatus::MissingValues;
 
-  testing::internal::CaptureStderr();
-  diagnostics.record_incomplete(msg, indices, 0);
+  RosLogCapture capture(node->get_logger().get_name());
+  diagnostics.record_incomplete(status, 0);
   diagnostics.record_ready();
-  EXPECT_TRUE(testing::internal::GetCapturedStderr().empty());
+  EXPECT_TRUE(capture.take().empty());
 
   // The pending diagnostic owns its snapshot, independent of subsequent input changes.
-  indices.assign(names.size(), 0);
-  msg.velocity = {2.0};
-  testing::internal::CaptureStderr();
+  status.assign(names.size(), JointSampleStatus::Valid);
   flush_logs();
-  const auto output = testing::internal::GetCapturedStderr();
+  const auto output = capture.take();
   EXPECT_NE(output.find("0/10 joints complete"), std::string::npos);
   EXPECT_NE(output.find(
       "j0(missing position/velocity), j1, j2, j3, j4, j5, j6, j7, ..."), std::string::npos);
   EXPECT_NE(output.find("all 10 joints received"), std::string::npos);
 
-  testing::internal::CaptureStderr();
   diagnostics.record_ready();
   flush_logs();
-  EXPECT_EQ(testing::internal::GetCapturedStderr().find("all 10 joints received"),
+  EXPECT_EQ(capture.take().find("all 10 joints received"),
     std::string::npos);
 }

@@ -63,7 +63,6 @@ protected:
 
   void SetUp() override
   {
-    if (!rclcpp::ok()) {rclcpp::init(0, nullptr);}
     const auto node = std::make_shared<rclcpp::Node>("policy_action_fault_test");
     const auto directory = policy_directory();
     const Sim2RealConfig config(directory / "sim2real.yaml");

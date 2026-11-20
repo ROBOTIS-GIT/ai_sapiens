@@ -23,6 +23,8 @@
 
 #include <pluginlib/class_list_macros.hpp>
 
+#include "ai_sapiens_sim2real/exception_diagnostics.hpp"
+
 namespace ai_sapiens_sim2real
 {
 namespace
@@ -107,15 +109,18 @@ void RadiomasterPocketTeleopInputPlugin::configure(
     subscription_options().callback_group);
 
   subscription_ = node_->create_subscription<RcStatus>(
-    topic_,
-    10,
-    [this](const RcStatus::SharedPtr msg) {
-      input_gap_monitor_->received_raw();
-      warn_if_hardware_error(*msg);
-      handle_raw_message(*msg);
-    }, subscription_options());
+    topic_, 10,
+    CALLBACK_WITH_EXCEPTION_LOG(this, RadiomasterPocketTeleopInputPlugin::on_rc_status),
+    subscription_options());
 
   RCLCPP_INFO(node_->get_logger(), "[%s] topic(%s)", name().c_str(), topic_.c_str());
+}
+
+void RadiomasterPocketTeleopInputPlugin::on_rc_status(const RcStatus::SharedPtr msg)
+{
+  input_gap_monitor_->received_raw();
+  warn_if_hardware_error(*msg);
+  handle_raw_message(*msg);
 }
 
 std::string RadiomasterPocketTeleopInputPlugin::name() const

@@ -79,6 +79,7 @@ selectors:
 
 state_machine:
   initial: Damping
+  damping_state: Damping
   states:
     Damping:
       run: damping

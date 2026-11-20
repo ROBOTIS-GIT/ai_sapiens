@@ -192,7 +192,7 @@ RootConfig::RootConfig(const std::filesystem::path & path)
       state_behaviors_config_ = StateBehaviorsConfig::from_yaml(document_, shared_data);
       teleop_conditions_config_ = TeleopConditionsConfig::from_yaml(document_);
       selectors_config_ = SelectorsConfig::from_yaml(document_);
-      state_machine_config_ = StateMachineConfig::from_yaml(document_);
+      state_machine_config_ = StateMachineConfig::from_yaml(document_, state_behaviors_config_);
       authority_config_ = read_authority_config(document_);
 
       RootConfigValidator(

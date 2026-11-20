@@ -17,7 +17,11 @@
 #include "ai_sapiens_sim2real/controllers/mode_ros_interface.hpp"
 
 #include <chrono>
+#include <exception>
 #include <memory>
+
+#include <rcutils/logging_macros.h>
+#include <rcutils/time.h>
 
 namespace ai_sapiens_sim2real
 {
@@ -90,19 +94,29 @@ void ModeRosInterface::fill_mode_list(
 
 void ModeRosInterface::publish_status()
 {
-  mode_controller_->flush_transition_log();
+  const auto warn_status_dropped = [this](const char * reason) {
+      RCUTILS_LOG_WARN_THROTTLE_NAMED(
+        rcutils_steady_time_now, 1000, node_->get_logger().get_name(),
+        "Dropped monitoring message (topic=%s): %s", mode_status_pub_->get_topic_name(), reason);
+    };
 
-  const auto snapshot = mode_controller_->status_snapshot();
-  ai_sapiens_interfaces::msg::ModeStatus msg;
-  msg.header.stamp = node_->now();
-  msg.active_mode = snapshot.active_state;
-  msg.authority = snapshot.authority;
-  msg.teleop_input_valid = snapshot.teleop_input_valid;
-  msg.api_heartbeat_valid = snapshot.api_heartbeat_valid;
-  msg.api_request_available = snapshot.api_request_available;
-  msg.last_transition_reason = snapshot.last_transition_reason;
-
-  mode_status_pub_->publish(msg);
+  try {
+    mode_controller_->flush_transition_log();
+    const auto snapshot = mode_controller_->status_snapshot();
+    ai_sapiens_interfaces::msg::ModeStatus msg;
+    msg.header.stamp = node_->now();
+    msg.active_mode = snapshot.active_state;
+    msg.authority = snapshot.authority;
+    msg.teleop_input_valid = snapshot.teleop_input_valid;
+    msg.api_heartbeat_valid = snapshot.api_heartbeat_valid;
+    msg.api_request_available = snapshot.api_request_available;
+    msg.last_transition_reason = snapshot.last_transition_reason;
+    mode_status_pub_->publish(msg);
+  } catch (const std::exception & error) {
+    warn_status_dropped(error.what());
+  } catch (...) {
+    warn_status_dropped("unknown exception");
+  }
 }
 
 }  // namespace ai_sapiens_sim2real
