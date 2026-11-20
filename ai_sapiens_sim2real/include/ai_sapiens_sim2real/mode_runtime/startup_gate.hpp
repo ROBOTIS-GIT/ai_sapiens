@@ -22,6 +22,7 @@
 #include <rclcpp/rclcpp.hpp>
 
 #include "ai_sapiens_sim2real/teleop_input/teleop_input_plugin_base.hpp"
+#include "ai_sapiens_sim2real/mode_runtime/input_executor.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -30,7 +31,8 @@ namespace ai_sapiens_sim2real
 bool wait_for_teleop_input_sample(
   const rclcpp::Node::SharedPtr & node,
   const std::shared_ptr<TeleopInputPluginBase> & plugin,
-  double timeout_seconds);
+  double timeout_seconds,
+  InputExecutor & input_executor);
 
 }  // namespace ai_sapiens_sim2real
 

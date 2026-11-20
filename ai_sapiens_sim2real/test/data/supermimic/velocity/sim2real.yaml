@@ -1,0 +1,61 @@
+policy_joints:
+- left_hip_roll_joint
+- right_hip_roll_joint
+step_dt: 0.02
+joint_properties:
+  left_hip_roll_joint:
+    default_position: 0.1
+    stiffness: 76.5
+    damping: 4.87
+    position_limit: null
+  right_hip_roll_joint:
+    default_position: -0.2
+    stiffness: 76.5
+    damping: 4.87
+    position_limit: null
+commands:
+  base_velocity:
+    ranges:
+      lin_vel_x: [-1.5, 1.5]
+      lin_vel_y: [-0.5, 0.5]
+      ang_vel_z: [-3.14, 3.14]
+actions:
+  joint_pos:
+    clip: null
+    scale: [0.5, 0.5]
+    offset: [0.1, -0.2]
+observations:
+  supermimic:
+    schema: cyclo.supermimic.external_goal.v1
+    encoder: velocity
+    representation: gencoord
+    actor_obs: proprio
+    history:
+      layout: term_major
+      terms:
+        projected_gravity:
+          scale: 1.0
+          clip: null
+          history_length: 3
+        base_ang_vel:
+          scale: 1.0
+          clip: null
+          history_length: 3
+        joint_pos_rel:
+          scale: 1.0
+          clip: null
+          history_length: 3
+        joint_vel_rel:
+          scale: 1.0
+          clip: null
+          history_length: 3
+        last_action:
+          scale: 1.0
+          clip: null
+          history_length: 3
+    velocity_goal:
+      layout: frame_major
+      terms:
+        velocity_command:
+          scale: 1.0
+          clip: null

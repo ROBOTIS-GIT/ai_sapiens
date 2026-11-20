@@ -110,6 +110,11 @@ def generate_launch_description():
             description='Clamp published commands to active policy position limits'
         ),
         DeclareLaunchArgument(
+            'require_api_heartbeat',
+            default_value='true',
+            description='Require an advancing heartbeat for API authority'
+        ),
+        DeclareLaunchArgument(
             'api_heartbeat_topic',
             default_value='/ai_sapiens/api_heartbeat',
             description='API heartbeat topic'
@@ -163,6 +168,7 @@ def generate_launch_description():
             'joint_command_topic': LaunchConfiguration('joint_command_topic'),
             'command_publisher_enabled': LaunchConfiguration('command_publisher_enabled'),
             'enforce_position_limits': LaunchConfiguration('enforce_position_limits'),
+            'require_api_heartbeat': LaunchConfiguration('require_api_heartbeat'),
             'api_heartbeat_topic': LaunchConfiguration('api_heartbeat_topic'),
             'api_heartbeat_timeout': LaunchConfiguration('api_heartbeat_timeout'),
             'cmd_vel_topic': LaunchConfiguration('cmd_vel_topic'),

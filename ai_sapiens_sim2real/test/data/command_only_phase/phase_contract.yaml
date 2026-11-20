@@ -1,0 +1,28 @@
+gait_phase:
+  params:
+    periods:
+    - 1.16
+    - 0.8
+    - 0.65
+    forward_thresholds:
+    - 1.6
+    - 2.4
+    swing_ratios:
+    - 0.36
+    - 0.6
+    - 0.6
+    transition_tau: 0.25
+    offsets:
+    - 0.0
+    - 0.5
+    update: integrated_free_running
+    reset_phase: 0.0
+    stand_command_norm_plus_yaw_threshold: 0.1
+    stand_mode_priority: true
+    observation_order:
+    - sin_left
+    - cos_left
+    - sin_right
+    - cos_right
+    - swing_left
+    - swing_right

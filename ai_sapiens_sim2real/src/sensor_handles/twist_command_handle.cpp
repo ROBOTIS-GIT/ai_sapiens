@@ -18,6 +18,9 @@
 
 #include <algorithm>
 
+#include "ai_sapiens_sim2real/exception_diagnostics.hpp"
+#include "ai_sapiens_sim2real/sensor_handles/sensor_input_validation.hpp"
+
 namespace ai_sapiens_sim2real
 {
 
@@ -25,20 +28,20 @@ TwistCommandHandle::TwistCommandHandle(
   rclcpp::Node::SharedPtr node,
   ApiInput * api,
   const AxisRanges * active_velocity_command_ranges,
-  const std::string & topic)
+  const std::string & topic,
+  const rclcpp::SubscriptionOptions & subscription_options)
 : node_(node)
   , api_(api)
   , active_velocity_command_ranges_(active_velocity_command_ranges)
 {
   // Initialize buffer with zero velocities
-  Eigen::Vector3f initial_cmd = Eigen::Vector3f::Zero();
-  buffer_.initRT(initial_cmd);
+  buffer_.initRT(ReceivedCmdVel{});
 
   // Create subscription
   subscription_ = node_->create_subscription<geometry_msgs::msg::Twist>(
     topic,
     10,
-    std::bind(&TwistCommandHandle::callback, this, std::placeholders::_1));
+    CALLBACK_WITH_EXCEPTION_LOG(this, TwistCommandHandle::callback), subscription_options);
 
   RCLCPP_INFO(node_->get_logger(), "[TwistCommandHandle] subscribed to %s", topic.c_str());
 }
@@ -46,7 +49,9 @@ TwistCommandHandle::TwistCommandHandle(
 void TwistCommandHandle::update(const rclcpp::Time & /*time*/)
 {
   // Clamp on the RT thread, where the active range is written; the callback only buffers raw.
-  const Eigen::Vector3f & raw = *buffer_.readFromRT();
+  const auto & command = *buffer_.readFromRT();
+  api_->velocity_received_at = command.received_at;
+  const auto & raw = command.velocity;
   const auto & active = *active_velocity_command_ranges_;
   api_->velocity_command_raw = raw;
   api_->velocity_commands.x() = clamp_axis(raw.x(), active.linear_x);
@@ -72,6 +77,15 @@ float TwistCommandHandle::clamp_axis(double value, const AxisRange & range)
 
 void TwistCommandHandle::callback(const geometry_msgs::msg::Twist::SharedPtr msg)
 {
+  if (!fits_finite_float(msg->linear.x) || !fits_finite_float(msg->linear.y) ||
+    !fits_finite_float(msg->angular.z))
+  {
+    RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 1000,
+      "Ignoring velocity command outside finite float range (topic=%s vx=%g vy=%g wz=%g)",
+      subscription_->get_topic_name(), msg->linear.x, msg->linear.y, msg->angular.z);
+    return;
+  }
+
   // Buffer the raw command; update() clamps it to the active range.
   Eigen::Vector3f cmd;
   cmd.x() = static_cast<float>(msg->linear.x);
@@ -79,7 +93,7 @@ void TwistCommandHandle::callback(const geometry_msgs::msg::Twist::SharedPtr msg
   cmd.z() = static_cast<float>(msg->angular.z);
 
   // Write to buffer (thread-safe)
-  buffer_.writeFromNonRT(cmd);
+  buffer_.writeFromNonRT(ReceivedCmdVel{cmd, std::chrono::steady_clock::now()});
 }
 
 

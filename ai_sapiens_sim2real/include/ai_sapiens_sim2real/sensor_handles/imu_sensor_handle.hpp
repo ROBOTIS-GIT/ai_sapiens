@@ -19,6 +19,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <memory>
 #include <string>
 
 #include <Eigen/Dense>  // NOLINT(build/include_order)
@@ -28,6 +29,7 @@
 
 #include "ai_sapiens_sim2real/interfaces/sensor_handle_base.hpp"
 #include "ai_sapiens_sim2real/shared_control_data.hpp"
+#include "ai_sapiens_sim2real/sensor_handles/input_gap_monitor.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -39,6 +41,7 @@ struct ImuData
 {
   Eigen::Vector3f angular_velocity{Eigen::Vector3f::Zero()};
   Eigen::Quaternionf orientation{Eigen::Quaternionf::Identity()};
+  bool is_valid{false};
   std::chrono::steady_clock::time_point received_at{};
 };
 
@@ -62,7 +65,9 @@ public:
     SensorData * sensors,
     ModeRequests * requests,
     double timeout_seconds,
-    const std::string & topic = "/imu_sensor_broadcaster/imu");
+    const std::string & topic = "/imu_sensor_broadcaster/imu",
+    const rclcpp::SubscriptionOptions & subscription_options = {},
+    double expected_rate_hz = 1000.0);
 
   void update(const rclcpp::Time & /*time*/) override;
 
@@ -76,12 +81,15 @@ public:
 
 private:
   void callback(const sensor_msgs::msg::Imu::SharedPtr msg);
+  void apply_valid_sample(const ImuData & data);
+  void update_failsafe(const ImuData & data);
   void log_stale_once(std::chrono::steady_clock::duration elapsed) const;
 
   rclcpp::Node::SharedPtr node_;
   SensorData * sensors_;
   ModeRequests * requests_;
   std::string topic_;
+  std::unique_ptr<InputGapMonitor> input_gap_monitor_;
 
   // Subscription callback writes buffer_; update() copies it into SharedControlData.
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr subscription_;

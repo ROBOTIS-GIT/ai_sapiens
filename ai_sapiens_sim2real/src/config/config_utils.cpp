@@ -41,8 +41,7 @@ YAML::Node load_yaml_file(const std::filesystem::path & path, const std::string 
   try {
     return YAML::LoadFile(path.string());
   } catch (const YAML::Exception & e) {
-    throw std::runtime_error(
-      context + " failed to load YAML file '" + path.string() + "': " + e.what());
+    throw YamlConfigError(path, context, "Could not load YAML: " + std::string(e.what()));
   }
 }
 

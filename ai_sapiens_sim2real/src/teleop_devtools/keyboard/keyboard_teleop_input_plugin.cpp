@@ -54,7 +54,7 @@ void KeyboardTeleopInputPlugin::configure(
     config_.topic, rclcpp::SensorDataQoS(),
     [this](const KeyboardInput::SharedPtr message) {
       handle_raw_message(*message);
-    });
+    }, subscription_options());
 
   RCLCPP_INFO(
     node_->get_logger(), "%s: topic=%s", name().c_str(), config_.topic.c_str());

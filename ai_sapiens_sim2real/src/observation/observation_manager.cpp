@@ -37,6 +37,7 @@ ObservationManager::ObservationManager(
 
 void ObservationManager::reset()
 {
+  updated_terms_ = 0;
   const auto context = make_observation_context();
   for (auto & term : terms_) {
     auto obs = term.func(context, term.params);
@@ -46,21 +47,69 @@ void ObservationManager::reset()
 
 std::vector<float> ObservationManager::compute()
 {
-  obs_buffer_.clear();
+  update_history();
+  assemble_observation();
+  return obs_buffer_;
+}
+
+void ObservationManager::update_history()
+{
+  updated_terms_ = 0;
   const auto context = make_observation_context();
 
   for (auto & term : terms_) {
-    // Get raw observation from the active policy context.
-    auto obs = term.func(context, term.params);
+    term.add(term.func(context, term.params));
+    ++updated_terms_;
+  }
+}
 
-    // Add to history with clip/scale processing
-    term.add(obs);
+void ObservationManager::assemble_observation()
+{
+  obs_buffer_.clear();
 
-    // Append concatenated history to output
-    term.append_to(obs_buffer_);
+  if (!use_gym_history_) {
+    for (const auto & term : terms_) {
+      term.append_to(obs_buffer_);
+    }
+
+    return;
   }
 
-  return obs_buffer_;
+  // Complete frames from oldest to newest, with terms in YAML order.
+  const int history_length = terms_.empty() ? 0 : terms_.front().history_length;
+
+  for (int frame = 0; frame < history_length; ++frame) {
+    for (const auto & term : terms_) {
+      const auto & entry = term.get(frame);
+      obs_buffer_.insert(obs_buffer_.end(), entry.begin(), entry.end());
+    }
+  }
+}
+
+void ObservationManager::reject_latest()
+{
+  // A term may throw before later histories have been updated.
+  for (size_t i = 0; i < updated_terms_; ++i) {
+    terms_[i].reject_latest();
+  }
+  updated_terms_ = 0;
+}
+
+std::vector<ObservationSlice> ObservationManager::layout() const
+{
+  size_t frame_width = 0;
+  for (const auto & term : terms_) {
+    frame_width += term.single_size();
+  }
+  std::vector<ObservationSlice> result;
+  size_t offset = 0;
+  for (const auto & term : terms_) {
+    const auto width = term.single_size();
+    result.push_back({term.name, offset, width, static_cast<size_t>(term.history_length),
+        use_gym_history_ ? frame_width : width});
+    offset += use_gym_history_ ? width : term.size();
+  }
+  return result;
 }
 
 size_t ObservationManager::get_observation_size() const
@@ -92,6 +141,11 @@ void ObservationManager::parse_config(const YAML::Node & obs_config)
     throw std::runtime_error("Observations config must be a map");
   }
 
+  const auto use_gym_history = obs_config["use_gym_history"];
+  if (use_gym_history && !use_gym_history.IsNull()) {
+    use_gym_history_ = use_gym_history.as<bool>();
+  }
+
   bool should_scale_before_clip_by_default = false;
   const auto global_scale_first = obs_config["scale_first"];
   if (global_scale_first && !global_scale_first.IsNull()) {
@@ -113,11 +167,29 @@ void ObservationManager::parse_config(const YAML::Node & obs_config)
               << term.single_size() << " x " << term.history_length << " history)" << std::endl;
   }
 
+  validate_history_layout();
+
   // Pre-allocate output buffer
   obs_buffer_.reserve(get_observation_size());
 
   std::cout << "[ObservationManager] Total observation size: " << get_observation_size()
             << std::endl;
+}
+
+void ObservationManager::validate_history_layout() const
+{
+  if (!use_gym_history_ || terms_.empty()) {
+    return;
+  }
+
+  const int history_length = terms_.front().history_length;
+
+  for (const auto & term : terms_) {
+    if (term.history_length != history_length) {
+      throw std::runtime_error(
+              "use_gym_history requires the same history_length for every observation term");
+    }
+  }
 }
 
 ObservationTermCfg ObservationManager::parse_observation_term(

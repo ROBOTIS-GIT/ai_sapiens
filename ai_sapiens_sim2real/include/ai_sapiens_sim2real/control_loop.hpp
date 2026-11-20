@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <exception>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -32,7 +33,6 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <realtime_tools/realtime_helpers.hpp>
-#include <std_msgs/msg/float64_multi_array.hpp>
 
 #include "ai_sapiens_sim2real/controllers/mode_controller.hpp"
 #include "ai_sapiens_sim2real/controllers/policy_controller.hpp"
@@ -140,6 +140,13 @@ public:
    */
   void stop();
 
+  // Join without stopping or logging. Report only after notifying the executors.
+  void wait();
+  void log_exit() const;
+
+  // Single consumer on the node executor, with a final drain after the RT thread joins.
+  void flush_diagnostics();
+
   /**
    * @brief Check if control loop is running.
    * @return True if running
@@ -176,7 +183,8 @@ private:
   // RT thread lifecycle.
   void rt_thread_func();
   void prepare_realtime_thread();
-  bool initialize_controllers_after_sensor_ready();
+  rclcpp::Time read_control_time();
+  bool initialize_controllers_after_sensor_ready(rclcpp::Time & last_control_time);
 
   // One control-loop tick. Each stage names what it does to SharedControlData:
   //   sense   -> sensor handles fill sensors/teleop/api inputs
@@ -198,8 +206,10 @@ private:
     const ModeDecision & decision,
     const rclcpp::Time & current_time,
     const rclcpp::Duration & measured_period);
-  void command(const rclcpp::Time & current_time);
-  void publish_emergency_damping();
+  void command(
+    const rclcpp::Time & current_time, CommandPublishMode mode = CommandPublishMode::Control);
+  void log_abort() const;
+  void publish_emergency_damping(const rclcpp::Time & stamp);
   void publish_debug_topics_if_needed(
     int iteration,
     int observation_publish_interval);
@@ -261,7 +271,7 @@ private:
     return s;
   }
 
-  void publish_raw_debug_topics();
+  class DebugTopicPublisher;
 
   struct SensorEntry
   {
@@ -296,11 +306,16 @@ private:
   StatusSnapshot last_status_snapshot_;
   bool last_status_snapshot_valid_{false};
 
-  // Optional debug publishers.
-  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr raw_observation_publisher_;
-  rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr processed_action_publisher_;
+  // Optional debug publishers, serialized on the RT thread.
+  std::unique_ptr<DebugTopicPublisher> raw_observation_publisher_;
+  std::unique_ptr<DebugTopicPublisher> processed_action_publisher_;
 
   // Worker thread control.
+  const char * rt_stage_{"startup"};
+  const char * abort_stage_{"startup"};
+  int abort_iteration_{0};
+  std::exception_ptr rt_exception_;
+  std::exception_ptr emergency_exception_;
   std::thread rt_thread_;
   std::atomic<bool> running_{false};
   std::atomic<bool> faulted_{false};

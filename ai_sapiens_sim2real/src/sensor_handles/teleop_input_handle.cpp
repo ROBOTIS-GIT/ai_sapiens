@@ -33,7 +33,7 @@ float normalize_axis(double output, const AxisRange & declared, bool & out_of_ra
   constexpr double kTolerance = 1e-3;
   const bool is_above_declared_max = output > declared.max + kTolerance;
   const bool is_below_declared_min = output < declared.min - kTolerance;
-  if (is_above_declared_max || is_below_declared_min) {
+  if (!std::isfinite(output) || is_above_declared_max || is_below_declared_min) {
     out_of_range = true;
     return 0.0f;
   }
@@ -100,6 +100,7 @@ void TeleopInputHandle::update(const rclcpp::Time & /*time*/)
     has_accepted_command && command_age > vel_command_timeout_;
   const bool is_input_unavailable = !has_accepted_command || is_command_timed_out;
 
+  teleop_->is_velocity_command_valid = false;
   copy_command_state(command, has_accepted_command, is_input_unavailable);
   if (is_input_unavailable) {
     log_unavailable_input_once(command, has_accepted_command);
@@ -124,6 +125,7 @@ void TeleopInputHandle::update(const rclcpp::Time & /*time*/)
     return;
   }
 
+  teleop_->is_velocity_command_valid = true;
   teleop_->velocity_command_normalized = normalized;
   const auto & active = *active_velocity_command_ranges_;
   teleop_->velocity_commands.x() = scale_unit_to_axis(normalized.x(), active.linear_x);

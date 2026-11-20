@@ -29,6 +29,7 @@ policy_action_transition:
 
 policy_asset_roots:
   - ../assets/k1
+  - /workspace/ai_sapiens_sim2real_external_assets/k1
 
 mimic_defaults:
   fps: 50
@@ -38,19 +39,21 @@ mimic_defaults:
 
 authority:
   api_entry:
-    warmup_duration: 3.0
+    warmup_duration: 1.0
+    require_neutral_cmd_vel: true
     velocity_neutral_threshold: 0.05
     allowed_from_states:
       - Damping
       - ReadyPose
       - Velocity
   default_velocity_state: Velocity
+  teleop_overrides_cmd_vel: true
 
 teleop_input:
   plugin: ai_sapiens_sim2real/RadiomasterPocketTeleopInputPlugin
   config: teleop/radiomaster_pocket.yaml
   vel_command_timeout: 0.2
-  timeout: 0.2
+  timeout: 5.0
 
 teleop_conditions:
   DampingRequested:
@@ -78,6 +81,7 @@ selectors:
 
 state_machine:
   initial: Damping
+  damping_state: Damping
   states:
     Damping:
       run: damping

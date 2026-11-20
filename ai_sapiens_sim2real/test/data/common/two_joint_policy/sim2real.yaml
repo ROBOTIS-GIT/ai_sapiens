@@ -1,0 +1,26 @@
+policy_joints: [left_hip_roll_joint, right_hip_roll_joint]
+step_dt: 0.02
+joint_properties:
+  left_hip_roll_joint:
+    default_position: 0.1
+    stiffness: 10.0
+    damping: 1.0
+    position_limit: [-1.0, 2.0]
+  right_hip_roll_joint:
+    default_position: -0.2
+    stiffness: 20.0
+    damping: 2.0
+    position_limit: [-2.0, 1.0]
+actions:
+  joint_pos:
+    scale: [0.5, 0.25]
+    offset: default_position
+observations:
+  joint_pos_rel:
+    history_length: 2
+  last_action:
+    history_length: 2
+  base_ang_vel: {}
+  motion_anchor_ori_b: {}
+  motion_command: {}
+commands: {}

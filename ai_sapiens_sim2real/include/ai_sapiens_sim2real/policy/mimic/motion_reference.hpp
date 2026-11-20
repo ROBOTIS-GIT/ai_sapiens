@@ -14,13 +14,14 @@
 //
 // Author: Kiwoong Park
 
-#ifndef AI_SAPIENS_SIM2REAL__POLICY__MOTION_REFERENCE_HPP_
-#define AI_SAPIENS_SIM2REAL__POLICY__MOTION_REFERENCE_HPP_
+#ifndef AI_SAPIENS_SIM2REAL__POLICY__MIMIC__MOTION_REFERENCE_HPP_
+#define AI_SAPIENS_SIM2REAL__POLICY__MIMIC__MOTION_REFERENCE_HPP_
 
 #include <cctype>
 
 #include <algorithm>
 #include <fstream>
+#include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -41,26 +42,36 @@ public:
     float fps,
     const std::vector<std::string> & fallback_joint_order);
 
-  void seek(float time);
+  void seek(double time);
+
+  size_t num_frames() const {return static_cast<size_t>(num_frames_);}
+
+  Eigen::Vector3f root_position() const
+  {
+    return frames_->root_positions[index_0_] * (1.0f - blend_) +
+           frames_->root_positions[index_1_] * blend_;
+  }
 
   Eigen::VectorXf joint_pos() const
   {
-    return dof_positions_[index_0_] * (1.0f - blend_) + dof_positions_[index_1_] * blend_;
+    return frames_->dof_positions[index_0_] * (1.0f - blend_) +
+           frames_->dof_positions[index_1_] * blend_;
   }
 
   Eigen::VectorXf joint_vel() const
   {
-    return dof_velocities_[index_0_] * (1.0f - blend_) + dof_velocities_[index_1_] * blend_;
+    return frames_->dof_velocities[index_0_] * (1.0f - blend_) +
+           frames_->dof_velocities[index_1_] * blend_;
   }
 
   Eigen::Quaternionf root_quaternion() const
   {
-    return root_quaternions_[index_0_].slerp(blend_, root_quaternions_[index_1_]);
+    return frames_->root_quaternions[index_0_].slerp(blend_, frames_->root_quaternions[index_1_]);
   }
 
   float joint_pos_for_joint(const std::string & joint_name) const;
   const std::vector<std::string> & joint_order() const;
-  float duration() const
+  double duration() const
   {
     return duration_;
   }
@@ -78,23 +89,30 @@ private:
   static std::vector<Eigen::VectorXf> compute_forward_derivative(
     const std::vector<Eigen::VectorXf> & xs, float dt);
 
+  static std::vector<Eigen::VectorXf> compute_central_derivative(
+    const std::vector<Eigen::VectorXf> & xs, float dt);
+
   // Current interpolation cursor.
-  float dt_{0.02f};
+  double dt_{0.02};
   int num_frames_{0};
-  float duration_{0.0f};
+  double duration_{0.0};
   int index_0_{0};
   int index_1_{0};
   float blend_{0.0f};
 
-  // Motion data in motion-file joint order.
-  std::vector<std::string> joint_order_;
-  std::unordered_map<std::string, Eigen::Index> joint_index_by_name_;
-  std::vector<Eigen::VectorXf> root_positions_;
-  std::vector<Eigen::Quaternionf> root_quaternions_;
-  std::vector<Eigen::VectorXf> dof_positions_;
-  std::vector<Eigen::VectorXf> dof_velocities_;
+  // Shared frame data; each copy retains an independent interpolation cursor.
+  struct Frames
+  {
+    std::vector<std::string> joint_order;
+    std::unordered_map<std::string, Eigen::Index> joint_index_by_name;
+    std::vector<Eigen::VectorXf> root_positions;
+    std::vector<Eigen::Quaternionf> root_quaternions;
+    std::vector<Eigen::VectorXf> dof_positions;
+    std::vector<Eigen::VectorXf> dof_velocities;
+  };
+  std::shared_ptr<Frames> frames_{std::make_shared<Frames>()};
 };
 
 }  // namespace ai_sapiens_sim2real
 
-#endif  // AI_SAPIENS_SIM2REAL__POLICY__MOTION_REFERENCE_HPP_
+#endif  // AI_SAPIENS_SIM2REAL__POLICY__MIMIC__MOTION_REFERENCE_HPP_
