@@ -17,7 +17,6 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
-#include <mutex>
 #include <string>
 
 #include <rclcpp/rclcpp.hpp>
@@ -33,17 +32,6 @@ constexpr uint16_t kReadyPoseInputCode = 2U;
 constexpr uint16_t kVelocityInputCode = 3U;
 constexpr uint16_t kMimicInputCode = 4U;
 constexpr uint16_t kMimicSquatSelectorCode = 200U;
-
-void ensure_rclcpp_initialized()
-{
-  static std::once_flag flag;
-  std::call_once(
-    flag, []() {
-      if (!rclcpp::ok()) {
-        rclcpp::init(0, nullptr);
-      }
-    });
-}
 
 std::filesystem::path write_root_config(bool prefer_teleop = true)
 {
@@ -158,8 +146,6 @@ class ModeControllerFixture
 public:
   explicit ModeControllerFixture(bool require_heartbeat = true, bool prefer_teleop = true)
   {
-    ensure_rclcpp_initialized();
-
     root_config_ =
       std::make_unique<ai_sapiens_sim2real::RootConfig>(write_root_config(prefer_teleop));
 

@@ -41,7 +41,6 @@ class PolicyObservationFlow : public ::testing::Test
 protected:
   void SetUp() override
   {
-    if (!rclcpp::ok()) {rclcpp::init(0, nullptr);}
     node = std::make_shared<rclcpp::Node>("policy_observation_flow_test");
     auto pattern = (std::filesystem::temp_directory_path() / "observation-flow-XXXXXX").string();
     ASSERT_NE(::mkdtemp(pattern.data()), nullptr);

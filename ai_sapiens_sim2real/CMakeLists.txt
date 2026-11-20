@@ -346,6 +346,7 @@ if(BUILD_TESTING)
   # ModeController: exercise the actual decide/apply path for startup, teleop
   # transitions, and failsafes.
   ament_add_gtest(test_mode_controller test/test_mode_controller.cpp
+    test/ros_test_main.cpp SKIP_LINKING_MAIN_LIBRARIES
     src/config/config_utils.cpp
     src/config/root_config.cpp
     src/config/root_config_validator.cpp
@@ -386,6 +387,7 @@ if(BUILD_TESTING)
   target_link_libraries(test_action_fault_recorder yaml-cpp Eigen3::Eigen Threads::Threads)
 
   ament_add_gtest(test_policy_action_fault test/test_policy_action_fault.cpp
+    test/ros_test_main.cpp SKIP_LINKING_MAIN_LIBRARIES
     test/test_policy_observation_flow.cpp
     src/policy/mimic/mimic_policy_runtime.cpp
     src/policy/policy_runtime.cpp
