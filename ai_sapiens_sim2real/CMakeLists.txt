@@ -309,6 +309,11 @@ if(BUILD_TESTING)
   ament_target_dependencies(test_joint_states_sensor_handle rclcpp realtime_tools sensor_msgs)
   target_link_libraries(test_joint_states_sensor_handle Eigen3::Eigen input_gap_monitor)
 
+  ament_add_gtest(test_twist_command_handle test/test_twist_command_handle.cpp
+    src/sensor_handles/twist_command_handle.cpp)
+  ament_target_dependencies(test_twist_command_handle geometry_msgs rclcpp realtime_tools)
+  target_link_libraries(test_twist_command_handle Eigen3::Eigen)
+
   # RealtimeRequestGate: accept/consume/discard/busy semantics (header-only).
   ament_add_gtest(test_request_gate test/test_request_gate.cpp)
   ament_target_dependencies(test_request_gate realtime_tools)
