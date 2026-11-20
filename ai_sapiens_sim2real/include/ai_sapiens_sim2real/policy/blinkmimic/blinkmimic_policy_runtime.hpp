@@ -17,6 +17,11 @@
 #ifndef AI_SAPIENS_SIM2REAL__POLICY__BLINKMIMIC__BLINKMIMIC_POLICY_RUNTIME_HPP_
 #define AI_SAPIENS_SIM2REAL__POLICY__BLINKMIMIC__BLINKMIMIC_POLICY_RUNTIME_HPP_
 
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 #include "ai_sapiens_sim2real/policy/blinkmimic/blinkmimic_observation.hpp"
 #include "ai_sapiens_sim2real/policy/policy_runtime.hpp"
 

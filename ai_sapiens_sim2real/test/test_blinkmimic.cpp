@@ -13,19 +13,33 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include "ai_sapiens_sim2real/policy/diagnostics/action_fault_recorder.hpp"
-#include "ai_sapiens_sim2real/controllers/policy_controller.hpp"
-#include "ai_sapiens_sim2real/config/root_config.hpp"
+
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
-#include "ai_sapiens_sim2real/policy/onnx_inference.hpp"
 #include <limits>
 #include <memory>
-#include "ai_sapiens_sim2real/policy/blinkmimic/blinkmimic_policy_runtime.hpp"
-#include "ai_sapiens_sim2real/policy/mimic/motion_source.hpp"
 
-using namespace ai_sapiens_sim2real;
+#include "ai_sapiens_sim2real/config/root_config.hpp"
+#include "ai_sapiens_sim2real/controllers/policy_controller.hpp"
+#include "ai_sapiens_sim2real/policy/blinkmimic/blinkmimic_policy_runtime.hpp"
+#include "ai_sapiens_sim2real/policy/diagnostics/action_fault_recorder.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/motion_source.hpp"
+#include "ai_sapiens_sim2real/policy/onnx_inference.hpp"
+
+using ai_sapiens_sim2real::ActionFaultRecorder;
+using ai_sapiens_sim2real::BehaviorKind;
+using ai_sapiens_sim2real::BlinkMimicMotion;
+using ai_sapiens_sim2real::BlinkMimicObservation;
+using ai_sapiens_sim2real::BlinkMimicPolicyRuntime;
+using ai_sapiens_sim2real::MimicBehavior;
+using ai_sapiens_sim2real::ModeDecision;
+using ai_sapiens_sim2real::MotionSource;
+using ai_sapiens_sim2real::PolicyController;
+using ai_sapiens_sim2real::PolicyUpdateResult;
+using ai_sapiens_sim2real::RootConfig;
+using ai_sapiens_sim2real::SharedControlData;
+using ai_sapiens_sim2real::Sim2RealConfig;
 
 namespace
 {
@@ -64,7 +78,7 @@ protected:
     return runtime;
   }
 };
-}
+}  // namespace
 
 TEST_F(BlinkMimic, ReferenceDerivativesIncludeEndpoints)
 {
@@ -301,10 +315,12 @@ TEST_F(BlinkMimic, SelectedMotionOwnsCompletionAndPolicyReentryStillResets)
 TEST_F(BlinkMimic, UnsupportedPlaybackContractFailsAtLoad)
 {
   mimic.fps = 30;
-  EXPECT_THROW(BlinkMimicObservation(config, mimic, config.policy_joints(), &data), std::runtime_error);
+  EXPECT_THROW(
+    BlinkMimicObservation(config, mimic, config.policy_joints(), &data), std::runtime_error);
   mimic.fps = 50;
   mimic.time_start = .1f;
-  EXPECT_THROW(BlinkMimicObservation(config, mimic, config.policy_joints(), &data), std::runtime_error);
+  EXPECT_THROW(
+    BlinkMimicObservation(config, mimic, config.policy_joints(), &data), std::runtime_error);
 }
 
 TEST_F(BlinkMimic, MatchesUpstreamMotionGoalsAndTemporalHistory)
@@ -359,7 +375,8 @@ TEST(BlinkExportIntegration, LoadsPythonExportAndComputesValidatedTargets)
     data.sensors.joint_pos[j] = config.joint_properties().default_position[j];
   }
   if (!rclcpp::ok()) {rclcpp::init(0, nullptr);}
-  auto runtime = BlinkMimicPolicyRuntime::create(std::make_shared<rclcpp::Node>("blink_export_test"),
+  auto runtime = BlinkMimicPolicyRuntime::create(
+    std::make_shared<rclcpp::Node>("blink_export_test"),
     "MimicBlinkExport", (directory / "exported/policy.onnx").string(), config, mimic,
     config.policy_joints(), &data);
   runtime->enter();
@@ -377,7 +394,9 @@ TEST_F(BlinkMimic, ControllerSharesOnlySamePolicyAndReentersAfterDamping)
   const std::filesystem::path temp(pattern);
   const auto other_model = temp / "other.onnx";
   std::filesystem::copy_file(directory / "policy.onnx", other_model);
-  auto root = YAML::Load(R"(
+  auto root =
+    YAML::Load(
+        R"(
 robot_joint_order: [left_hip_roll_joint, right_hip_roll_joint]
 teleop_input: {plugin: test, config: test.yaml}
 teleop_conditions: {DampingRequested: {input_code: 1}}
@@ -463,7 +482,8 @@ state_behaviors:
 TEST_F(BlinkMimic, FaultCaptureIdentifiesReferenceBeforeAndAfterSwitch)
 {
   if (!rclcpp::ok()) {rclcpp::init(0, nullptr);}
-  auto runtime = BlinkMimicPolicyRuntime::create(std::make_shared<rclcpp::Node>("reference_fault_test"),
+  auto runtime = BlinkMimicPolicyRuntime::create(
+    std::make_shared<rclcpp::Node>("reference_fault_test"),
     "first", (directory / "policy.onnx").string(), config, mimic, config.policy_joints(), &data);
   auto second = mimic;
   second.motion_file = directory / "second.csv";  // Same prepared data, distinct diagnostic path.
@@ -474,7 +494,8 @@ TEST_F(BlinkMimic, FaultCaptureIdentifiesReferenceBeforeAndAfterSwitch)
     ASSERT_NE(::mkdtemp(pattern.data()), nullptr);
     ActionFaultRecorder::Options options;
     options.directory = pattern;
-    auto recorder = std::make_shared<ActionFaultRecorder>(options, rclcpp::get_logger("reference_test"));
+    auto recorder = std::make_shared<ActionFaultRecorder>(
+      options, rclcpp::get_logger("reference_test"));
     const auto file = recorder->session_directory() / "incident-1-attempt-1.yaml";
     runtime->set_fault_recorder(recorder);
     runtime->select_motion("first");
@@ -482,11 +503,13 @@ TEST_F(BlinkMimic, FaultCaptureIdentifiesReferenceBeforeAndAfterSwitch)
     runtime->enter();
     data.sensors.is_imu_usable = true;
     ASSERT_EQ(runtime->update(rclcpp::Duration::from_seconds(0)), PolicyUpdateResult::TargetReady);
-    ASSERT_EQ(runtime->update(rclcpp::Duration::from_seconds(.02)), PolicyUpdateResult::TargetReady);
+    ASSERT_EQ(
+      runtime->update(rclcpp::Duration::from_seconds(.02)), PolicyUpdateResult::TargetReady);
     runtime->select_motion("second");
     runtime->set_active_behavior("MimicSecond", "second");
     data.sensors.is_imu_usable = false;
-    ASSERT_EQ(runtime->update(rclcpp::Duration::from_seconds(.02)), PolicyUpdateResult::TargetUnavailable);
+    ASSERT_EQ(
+      runtime->update(rclcpp::Duration::from_seconds(.02)), PolicyUpdateResult::TargetUnavailable);
     runtime->select_motion("first");
     runtime->set_active_behavior("MimicFirst", "first");
     runtime->set_fault_recorder(nullptr);

@@ -17,9 +17,12 @@
 #ifndef AI_SAPIENS_SIM2REAL__POLICY__BLINKMIMIC__BLINKMIMIC_CONFIG_HPP_
 #define AI_SAPIENS_SIM2REAL__POLICY__BLINKMIMIC__BLINKMIMIC_CONFIG_HPP_
 
+#include <string>
+#include <vector>
+
+#include "ai_sapiens_sim2real/config/mimic_behavior.hpp"
 #include "ai_sapiens_sim2real/config/sim2real_config.hpp"
 #include "ai_sapiens_sim2real/observation/configured_observation_group.hpp"
-#include "ai_sapiens_sim2real/config/mimic_behavior.hpp"
 
 namespace ai_sapiens_sim2real
 {

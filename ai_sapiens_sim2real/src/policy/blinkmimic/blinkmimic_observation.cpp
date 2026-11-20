@@ -114,7 +114,9 @@ std::vector<float> BlinkMimicObservation::sensor_frame()
         frame.push_back(sensors.joint_pos[joint_indices_[j]] - config_.defaults[j]);
       }
     } else if (term.name == "joint_vel") {
-      for (const auto index : joint_indices_) {frame.push_back(sensors.joint_vel[index]);}
+      for (const auto index : joint_indices_) {
+        frame.push_back(sensors.joint_vel[index]);
+      }
     } else if (term.name == "base_ang_vel") {
       append_vector(frame, sensors.angular_velocity);
     } else if (term.name == "projected_gravity") {

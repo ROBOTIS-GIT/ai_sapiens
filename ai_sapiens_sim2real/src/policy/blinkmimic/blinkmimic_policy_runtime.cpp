@@ -26,7 +26,8 @@ std::unique_ptr<BlinkMimicPolicyRuntime> BlinkMimicPolicyRuntime::create(
   const Sim2RealConfig & config, const MimicBehavior & mimic,
   const std::vector<std::string> & controller_joints, SharedControlData * data)
 {
-  auto observations = std::make_unique<BlinkMimicObservation>(config, mimic, controller_joints, data);
+  auto observations = std::make_unique<BlinkMimicObservation>(
+    config, mimic, controller_joints, data);
   auto * view = observations.get();
   return std::unique_ptr<BlinkMimicPolicyRuntime>(new BlinkMimicPolicyRuntime(
       std::move(node), name, std::move(model), config, controller_joints, data,

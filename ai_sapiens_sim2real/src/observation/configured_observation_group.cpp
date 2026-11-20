@@ -59,18 +59,20 @@ ConfiguredObservationGroup::ConfiguredObservationGroup(
   std::set<std::string> seen;
   for (const auto & item : terms) {
     const auto name = item.first.as<std::string>();
-    require(supported_terms.count(name) && seen.insert(name).second, "unknown/duplicate term " + name);
+    require(supported_terms.count(name) && seen.insert(name).second,
+      "unknown/duplicate term " + name);
     const auto cfg = item.second;
     const int history = cfg["history_length"] ? cfg["history_length"].as<int>() : 1;
     require(history > 0 && history <= 1024, name + " invalid history length");
     if (terms_.empty()) {history_length_ = static_cast<size_t>(history);}
-    require(static_cast<size_t>(history) == history_length_, "group terms need equal history lengths");
+    require(static_cast<size_t>(history) == history_length_,
+      "group terms need equal history lengths");
     ConfiguredObservationTerm term{name, supported_terms.at(name), {}, std::nullopt};
     const auto scale = cfg["scale"];
     term.scale = scale.IsScalar() ? std::vector<float>(term.width, scale.as<float>()) :
       scale.as<std::vector<float>>();
     require(term.scale.size() == term.width && std::all_of(term.scale.begin(), term.scale.end(),
-        [](float v) {return std::isfinite(v);}), name + " invalid scale");
+      [](float v) {return std::isfinite(v);}), name + " invalid scale");
     const auto clip = cfg["clip"];
     if (clip && !clip.IsNull()) {
       const auto limits = clip.as<std::vector<float>>();

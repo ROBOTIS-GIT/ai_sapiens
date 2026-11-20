@@ -17,9 +17,13 @@
 #ifndef AI_SAPIENS_SIM2REAL__POLICY__SUPERMIMIC__SUPERMIMIC_OBSERVATION_HPP_
 #define AI_SAPIENS_SIM2REAL__POLICY__SUPERMIMIC__SUPERMIMIC_OBSERVATION_HPP_
 
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "ai_sapiens_sim2real/observation/observation_history_buffer.hpp"
 #include "ai_sapiens_sim2real/observation/policy_observation.hpp"
 #include "ai_sapiens_sim2real/policy/supermimic/supermimic_config.hpp"
-#include "ai_sapiens_sim2real/observation/observation_history_buffer.hpp"
 #include "ai_sapiens_sim2real/policy/supermimic/supermimic_motion.hpp"
 #include "ai_sapiens_sim2real/shared_control_data.hpp"
 

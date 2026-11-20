@@ -151,7 +151,8 @@ LoadedPolicyRuntimes::Entry PolicyRuntimeLoader::load_supermimic(
   SharedControlData * data, const RootConfig::PolicyBehavior & behavior,
   const Sim2RealConfig & config, RuntimeCache & cache)
 {
-  const bool is_motion = config.observations()["supermimic"]["encoder"].as<std::string>() == "motion";
+  const bool is_motion =
+    config.observations()["supermimic"]["encoder"].as<std::string>() == "motion";
   if (is_motion != behavior.mimic.has_value()) {
     throw std::runtime_error(
       "SuperMimic motion encoder requires kind: mimic; velocity encoder requires kind: policy");
@@ -175,7 +176,8 @@ LoadedPolicyRuntimes::Entry PolicyRuntimeLoader::load_supermimic(
     select_reference = [runtime, reference_name]() {runtime->select_motion(reference_name);};
   }
 
-  return {runtime, behavior.action_transition, std::move(select_reference), behavior.mimic.has_value()};
+  return {runtime, behavior.action_transition, std::move(select_reference),
+    behavior.mimic.has_value()};
 }
 
 PolicyRuntime * PolicyRuntimeLoader::add_runtime(

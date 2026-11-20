@@ -13,19 +13,34 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include "ai_sapiens_sim2real/policy/diagnostics/action_fault_recorder.hpp"
-#include "ai_sapiens_sim2real/controllers/policy_controller.hpp"
-#include "ai_sapiens_sim2real/config/root_config.hpp"
+
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
-#include "ai_sapiens_sim2real/policy/onnx_inference.hpp"
 #include <limits>
 #include <memory>
-#include "ai_sapiens_sim2real/policy/supermimic/supermimic_policy_runtime.hpp"
-#include "ai_sapiens_sim2real/policy/mimic/motion_source.hpp"
 
-using namespace ai_sapiens_sim2real;
+#include "ai_sapiens_sim2real/config/root_config.hpp"
+#include "ai_sapiens_sim2real/controllers/policy_controller.hpp"
+#include "ai_sapiens_sim2real/policy/diagnostics/action_fault_recorder.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/motion_source.hpp"
+#include "ai_sapiens_sim2real/policy/onnx_inference.hpp"
+#include "ai_sapiens_sim2real/policy/supermimic/supermimic_policy_runtime.hpp"
+
+using ai_sapiens_sim2real::ActionFaultRecorder;
+using ai_sapiens_sim2real::BehaviorKind;
+using ai_sapiens_sim2real::ConfiguredObservationGroup;
+using ai_sapiens_sim2real::ConfiguredObservationTerm;
+using ai_sapiens_sim2real::MimicBehavior;
+using ai_sapiens_sim2real::ModeDecision;
+using ai_sapiens_sim2real::MotionSource;
+using ai_sapiens_sim2real::PolicyController;
+using ai_sapiens_sim2real::PolicyUpdateResult;
+using ai_sapiens_sim2real::RootConfig;
+using ai_sapiens_sim2real::SharedControlData;
+using ai_sapiens_sim2real::Sim2RealConfig;
+using ai_sapiens_sim2real::SuperMimicObservation;
+using ai_sapiens_sim2real::SuperMimicPolicyRuntime;
 
 namespace
 {
@@ -65,7 +80,7 @@ protected:
     return runtime;
   }
 };
-}
+}  // namespace
 
 TEST_F(SuperMimic, RejectedInitialSampleDoesNotKeepYawAlignment)
 {
@@ -411,7 +426,8 @@ TEST(SuperMimicExportIntegration, LoadsPythonExportAndComputesValidatedTargets)
 TEST_F(SuperMimic, FaultCaptureIdentifiesReferenceBeforeAndAfterSwitch)
 {
   if (!rclcpp::ok()) {rclcpp::init(0, nullptr);}
-  auto runtime = SuperMimicPolicyRuntime::create(std::make_shared<rclcpp::Node>("reference_fault_test"),
+  auto runtime = SuperMimicPolicyRuntime::create(
+    std::make_shared<rclcpp::Node>("reference_fault_test"),
     "first", (directory / "policy.onnx").string(), config, mimic, config.policy_joints(), &data);
   auto second = mimic;
   second.motion_file = directory / "second.csv";  // Same prepared data, distinct diagnostic path.
@@ -422,7 +438,8 @@ TEST_F(SuperMimic, FaultCaptureIdentifiesReferenceBeforeAndAfterSwitch)
     ASSERT_NE(::mkdtemp(pattern.data()), nullptr);
     ActionFaultRecorder::Options options;
     options.directory = pattern;
-    auto recorder = std::make_shared<ActionFaultRecorder>(options, rclcpp::get_logger("reference_test"));
+    auto recorder = std::make_shared<ActionFaultRecorder>(
+      options, rclcpp::get_logger("reference_test"));
     const auto file = recorder->session_directory() / "incident-1-attempt-1.yaml";
     runtime->set_fault_recorder(recorder);
     runtime->select_motion("first");
@@ -430,11 +447,13 @@ TEST_F(SuperMimic, FaultCaptureIdentifiesReferenceBeforeAndAfterSwitch)
     runtime->enter();
     data.sensors.is_imu_usable = true;
     ASSERT_EQ(runtime->update(rclcpp::Duration::from_seconds(0)), PolicyUpdateResult::TargetReady);
-    ASSERT_EQ(runtime->update(rclcpp::Duration::from_seconds(.02)), PolicyUpdateResult::TargetReady);
+    ASSERT_EQ(
+      runtime->update(rclcpp::Duration::from_seconds(.02)), PolicyUpdateResult::TargetReady);
     runtime->select_motion("second");
     runtime->set_active_behavior("MimicSecond", "second");
     data.sensors.is_imu_usable = false;
-    ASSERT_EQ(runtime->update(rclcpp::Duration::from_seconds(.02)), PolicyUpdateResult::TargetUnavailable);
+    ASSERT_EQ(
+      runtime->update(rclcpp::Duration::from_seconds(.02)), PolicyUpdateResult::TargetUnavailable);
     runtime->select_motion("first");
     runtime->set_active_behavior("MimicFirst", "first");
     runtime->set_fault_recorder(nullptr);
@@ -488,7 +507,9 @@ TEST_F(SuperMimic, YamlControlsPreprocessing)
 TEST(ConfiguredObservationGroup, OrderedTermsAndLayoutDeterminePacking)
 {
   const std::map<std::string, size_t> widths{{"a", 2}, {"b", 1}};
-  auto yaml = YAML::Load(R"(
+  auto yaml =
+    YAML::Load(
+        R"(
 layout: term_major
 terms:
   b: {scale: 1.0, clip: null, history_length: 2}

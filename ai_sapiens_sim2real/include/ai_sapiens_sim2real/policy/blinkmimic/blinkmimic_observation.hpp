@@ -17,10 +17,14 @@
 #ifndef AI_SAPIENS_SIM2REAL__POLICY__BLINKMIMIC__BLINKMIMIC_OBSERVATION_HPP_
 #define AI_SAPIENS_SIM2REAL__POLICY__BLINKMIMIC__BLINKMIMIC_OBSERVATION_HPP_
 
-#include "ai_sapiens_sim2real/observation/policy_observation.hpp"
+#include <memory>
+#include <string>
+#include <vector>
+
 #include "ai_sapiens_sim2real/observation/observation_history_buffer.hpp"
-#include "ai_sapiens_sim2real/policy/blinkmimic/blinkmimic_motion.hpp"
+#include "ai_sapiens_sim2real/observation/policy_observation.hpp"
 #include "ai_sapiens_sim2real/policy/blinkmimic/blinkmimic_config.hpp"
+#include "ai_sapiens_sim2real/policy/blinkmimic/blinkmimic_motion.hpp"
 #include "ai_sapiens_sim2real/shared_control_data.hpp"
 
 namespace ai_sapiens_sim2real

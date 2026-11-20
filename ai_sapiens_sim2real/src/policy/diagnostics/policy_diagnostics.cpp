@@ -119,7 +119,8 @@ void PolicyDiagnostics::log_result(
   if (result.status == PolicyActionStatus::InferenceFailed) {
     RCLCPP_WARN(logger_,
       "Policy '%s' inference failed (%zu/%zu consecutive unusable actions): %s",
-      (active_state_.empty() ? metadata_->state : active_state_).c_str(), decision.failures, decision.max_failures, result.error.c_str());
+      (active_state_.empty() ? metadata_->state : active_state_).c_str(),
+      decision.failures, decision.max_failures, result.error.c_str());
 
     if (decision.outcome == PolicyActionOutcome::Damping) {
       RCLCPP_ERROR(logger_,
@@ -129,7 +130,8 @@ void PolicyDiagnostics::log_result(
   } else if (decision.previous_failures != 0) {
     RCLCPP_INFO(logger_,
       "Policy '%s' recovered after %zu unusable action(s); accepting target and resetting retries",
-      (active_state_.empty() ? metadata_->state : active_state_).c_str(), decision.previous_failures);
+      (active_state_.empty() ? metadata_->state : active_state_).c_str(),
+      decision.previous_failures);
   }
 
   if (!path.empty()) {RCLCPP_INFO(logger_, "Inference diagnostics queued: %s", path.c_str());}

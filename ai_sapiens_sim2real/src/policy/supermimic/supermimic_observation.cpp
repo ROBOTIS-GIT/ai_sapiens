@@ -52,7 +52,8 @@ SuperMimicObservation::SuperMimicObservation(
   if (!data_) {throw std::runtime_error("SuperMimic requires shared sensor data");}
   if (config_.is_motion != mimic.has_value()) {
     throw std::runtime_error(
-      "SuperMimic motion encoder requires kind: mimic and CSV; velocity encoder requires kind: policy");
+      "SuperMimic motion encoder requires kind: mimic and CSV; "
+      "velocity encoder requires kind: policy");
   }
   if (mimic) {motion_ = prepare_motion(*mimic);}
 }

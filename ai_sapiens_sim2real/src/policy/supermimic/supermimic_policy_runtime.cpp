@@ -46,7 +46,7 @@ SuperMimicPolicyRuntime::SuperMimicPolicyRuntime(
 {
   if (observations_->motion()) {
     references_.emplace(name, Reference{
-      observations_->motion(), std::move(completion), std::move(motion_file)});
+        observations_->motion(), std::move(completion), std::move(motion_file)});
     active_reference_ = &references_.at(name);
   }
 }

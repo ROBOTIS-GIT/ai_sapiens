@@ -89,7 +89,8 @@ void SuperMimicConfig::load_policy_settings(
   require(std::isfinite(config.step_dt()) && std::abs(config.step_dt() - 0.02) < 1e-9,
     "step_dt=" + std::to_string(config.step_dt()) + "; expected 0.02");
   default_velocities = node["default_joint_velocity"] ?
-    node["default_joint_velocity"].as<std::vector<float>>() : std::vector<float>(joints.size(), 0.f);
+    node["default_joint_velocity"].as<std::vector<float>>() :
+    std::vector<float>(joints.size(), 0.f);
   require(default_velocities.size() == joints.size(), "joint velocity defaults size mismatch");
   require(std::none_of(config.action_properties().clip.begin(),
       config.action_properties().clip.end(),

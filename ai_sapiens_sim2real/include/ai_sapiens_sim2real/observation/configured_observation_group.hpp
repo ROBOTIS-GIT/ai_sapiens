@@ -17,12 +17,14 @@
 #ifndef AI_SAPIENS_SIM2REAL__OBSERVATION__CONFIGURED_OBSERVATION_GROUP_HPP_
 #define AI_SAPIENS_SIM2REAL__OBSERVATION__CONFIGURED_OBSERVATION_GROUP_HPP_
 
+#include <yaml-cpp/yaml.h>
+
 #include <map>
 #include <optional>
 #include <string>
 #include <utility>
 #include <vector>
-#include <yaml-cpp/yaml.h>
+
 #include "ai_sapiens_sim2real/observation/policy_observation.hpp"
 
 namespace ai_sapiens_sim2real

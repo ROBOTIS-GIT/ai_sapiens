@@ -17,10 +17,12 @@
 #ifndef AI_SAPIENS_SIM2REAL__POLICY__BLINKMIMIC__BLINKMIMIC_MOTION_HPP_
 #define AI_SAPIENS_SIM2REAL__POLICY__BLINKMIMIC__BLINKMIMIC_MOTION_HPP_
 
+#include <Eigen/Dense>
+
 #include <memory>
 #include <string>
 #include <vector>
-#include <Eigen/Dense>
+
 #include "ai_sapiens_sim2real/policy/mimic/motion_reference.hpp"
 
 namespace ai_sapiens_sim2real
