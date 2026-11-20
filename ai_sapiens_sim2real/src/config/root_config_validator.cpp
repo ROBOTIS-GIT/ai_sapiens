@@ -60,8 +60,9 @@ void RootConfigValidator::validate() const
 
 void RootConfigValidator::validate_state_machine_links() const
 {
-  require_initial_state_is_non_abstract();
   require_states_have_known_behaviors();
+  require_existing_non_abstract_state(state_machine_.initial_state_name(), "state_machine.initial");
+  require_damping_state();
   require_transitions_use_known_conditions();
   require_transitions_use_known_selectors();
   require_transition_targets_are_non_abstract();
@@ -85,11 +86,13 @@ void RootConfigValidator::validate_authority_links() const
   require_default_velocity_state_is_non_mimic_policy();
 }
 
-void RootConfigValidator::require_initial_state_is_non_abstract() const
+void RootConfigValidator::require_damping_state() const
 {
-  require_existing_non_abstract_state(
-    state_machine_.initial_state_name(),
-    "state_machine.initial");
+  const auto & name = state_machine_.damping_state_name();
+  const auto & state = require_existing_non_abstract_state(name, "state_machine.damping_state");
+  if (state_behaviors_.require_behavior(state.run).kind != BehaviorKind::Damping) {
+    throw std::runtime_error("state_machine.damping_state must select a damping behavior: " + name);
+  }
 }
 
 void RootConfigValidator::require_states_have_known_behaviors() const
@@ -351,7 +354,7 @@ void RootConfigValidator::require_known_selector(
   }
 }
 
-void RootConfigValidator::require_existing_non_abstract_state(
+const ModeState & RootConfigValidator::require_existing_non_abstract_state(
   const std::string & state_name,
   const std::string & path) const
 {
@@ -359,6 +362,7 @@ void RootConfigValidator::require_existing_non_abstract_state(
   if (state->abstract) {
     throw std::runtime_error(path + " references abstract state '" + state_name + "'");
   }
+  return *state;
 }
 
 void RootConfigValidator::require_abstract_state(

@@ -24,6 +24,7 @@
 
 #include "ai_sapiens_sim2real/config/config_utils.hpp"
 #include "ai_sapiens_sim2real/config/root_config_validator.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/motion_source.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -44,6 +45,29 @@ std::filesystem::path asset_relative_path(const std::string & path)
   return std::filesystem::path(normalized);
 }
 
+std::string missing_asset_message(
+  const YAML::Node & asset_node,
+  const std::string & field_path,
+  const std::vector<std::filesystem::path> & roots)
+{
+  const auto asset = asset_relative_path(asset_node.as<std::string>());
+  const auto mark = asset_node.Mark();
+  std::string message = "Field: " + field_path;
+
+  if (!mark.is_null()) {
+    message += " (line " + std::to_string(mark.line + 1) + ")";
+  }
+  message += "\n  Asset directory not found: " + asset.generic_string();
+  message += "\n  Searched:";
+
+  for (const auto & root : roots) {
+    message += "\n    - " + (root / asset).lexically_normal().string();
+  }
+
+  message += "\n  Check the asset spelling, policy_asset_roots, and installed asset directories.";
+  return message;
+}
+
 void require_root_sections(const YAML::Node & document)
 {
   require_yaml_map(document["authority"], "authority");
@@ -61,14 +85,16 @@ std::vector<std::string> read_controller_joint_names(const YAML::Node & document
   return joint_names;
 }
 
-ActionTransitionConfig read_action_transition_config(const YAML::Node & transition)
+ActionTransitionConfig resolve_action_transition_config(
+  const YAML::Node & transition,
+  ActionTransitionConfig config = {},
+  const std::string & field = "policy_action_transition")
 {
-  ActionTransitionConfig config;
   if (!transition.IsDefined()) {
     return config;
   }
 
-  require_yaml_map(transition, "policy_action_transition");
+  require_yaml_map(transition, field);
   try {
     if (transition["enabled"].IsDefined()) {
       config.enabled = transition["enabled"].as<bool>();
@@ -78,11 +104,11 @@ ActionTransitionConfig read_action_transition_config(const YAML::Node & transiti
     }
   } catch (const YAML::Exception &) {
     throw std::runtime_error(
-      "policy_action_transition requires boolean enabled and numeric duration");
+      field + " requires boolean enabled and numeric duration");
   }
   if (!std::isfinite(config.duration) || config.duration < 0.0) {
     throw std::runtime_error(
-      "policy_action_transition.duration must be finite and non-negative");
+      field + ".duration must be finite and non-negative");
   }
 
   return config;
@@ -95,8 +121,14 @@ AuthorityConfig read_authority_config(const YAML::Node & document)
   require_yaml_map(api_entry, "authority.api_entry");
 
   AuthorityConfig config;
+  if (authority["teleop_overrides_cmd_vel"]) {
+    config.teleop_overrides_cmd_vel = authority["teleop_overrides_cmd_vel"].as<bool>();
+  }
   if (api_entry["warmup_duration"]) {
     config.api_entry_warmup_duration = api_entry["warmup_duration"].as<double>();
+  }
+  if (api_entry["require_neutral_cmd_vel"]) {
+    config.api_entry_require_neutral_cmd_vel = api_entry["require_neutral_cmd_vel"].as<bool>();
   }
   if (api_entry["velocity_neutral_threshold"]) {
     config.api_entry_velocity_neutral_threshold =
@@ -153,7 +185,7 @@ RootConfig::RootConfig(const std::filesystem::path & path)
     [&] {
       require_root_sections(document_);
       policy_action_transition_ =
-      read_action_transition_config(document_["policy_action_transition"]);
+      resolve_action_transition_config(document_["policy_action_transition"]);
 
       controller_joints_ = read_controller_joint_names(document_);
 
@@ -163,7 +195,7 @@ RootConfig::RootConfig(const std::filesystem::path & path)
       state_behaviors_config_ = StateBehaviorsConfig::from_yaml(document_, shared_data);
       teleop_conditions_config_ = TeleopConditionsConfig::from_yaml(document_);
       selectors_config_ = SelectorsConfig::from_yaml(document_);
-      state_machine_config_ = StateMachineConfig::from_yaml(document_);
+      state_machine_config_ = StateMachineConfig::from_yaml(document_, state_behaviors_config_);
       authority_config_ = read_authority_config(document_);
 
       RootConfigValidator(
@@ -262,6 +294,9 @@ RootConfig::PolicyBehavior RootConfig::read_policy_behavior(
 {
   PolicyBehavior behavior;
   behavior.name = name;
+  behavior.action_transition = resolve_action_transition_config(
+    behavior_node["policy_action_transition"], policy_action_transition_,
+    "state_behaviors." + name + ".policy_action_transition");
   behavior.policy_path = behavior_policy_path(behavior_node, name);
   behavior.sim2real_config_path = behavior_sim2real_config_path(behavior_node, name);
 
@@ -276,7 +311,15 @@ MimicBehavior RootConfig::build_mimic_behavior(
   const std::string & name, const YAML::Node & behavior_node) const
 {
   const auto node = behavior_node_with_mimic_defaults(behavior_node);
+  auto mimic = read_mimic_behavior(name, node);
+  validate_mimic_behavior(name, mimic);
+  mimic.source = get_or_create_motion_source(mimic.motion_file, mimic.fps);
+  return mimic;
+}
 
+MimicBehavior RootConfig::read_mimic_behavior(
+  const std::string & name, const YAML::Node & node) const
+{
   const auto motion_path = behavior_motion_file_path(node, name);
   if (!motion_path) {
     throw std::runtime_error("state_behaviors." + name + " requires motion or motion_file");
@@ -288,12 +331,33 @@ MimicBehavior RootConfig::build_mimic_behavior(
   mimic.time_start = node["time_start"] ? node["time_start"].as<float>() : 0.0f;
   mimic.time_end = read_mimic_time_end(node);
   mimic.on_complete = read_mimic_on_complete(node);
+  return mimic;
+}
 
+void RootConfig::validate_mimic_behavior(
+  const std::string & name, const MimicBehavior & mimic) const
+{
+  if (!std::isfinite(mimic.fps) || mimic.fps <= 0) {
+    throw std::runtime_error("state_behaviors." + name + ".fps must be finite and positive");
+  }
   if (!mimic.on_complete.empty() && mimic.on_complete != "stay") {
     require_known_mimic_completion_state(mimic.on_complete, name);
   }
+}
 
-  return mimic;
+std::shared_ptr<MotionSource> RootConfig::get_or_create_motion_source(
+  const std::filesystem::path & motion_file, float fps) const
+{
+  std::lock_guard<std::mutex> lock(motion_sources_mutex_);
+  const auto key = std::make_pair(motion_file.string(), fps);
+  const auto found = motion_sources_.find(key);
+  if (found != motion_sources_.end()) {
+    return found->second;
+  }
+
+  auto source = std::make_shared<MotionSource>(motion_file.string(), fps, controller_joints_);
+  motion_sources_.emplace(key, source);
+  return source;
 }
 
 std::optional<float> RootConfig::read_mimic_time_end(const YAML::Node & node) const
@@ -395,8 +459,7 @@ std::filesystem::path RootConfig::behavior_asset_path(
   }
 
   throw std::runtime_error(
-    "state_behaviors." + name + ".asset '" + asset.string() +
-    "' was not found under policy_asset_roots: " + make_path_list_string(roots));
+    missing_asset_message(behavior_node["asset"], "state_behaviors." + name + ".asset", roots));
 }
 
 std::filesystem::path RootConfig::behavior_policy_path(

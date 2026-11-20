@@ -18,11 +18,15 @@
 #define AI_SAPIENS_SIM2REAL__CONFIG__MIMIC_BEHAVIOR_HPP_
 
 #include <filesystem>
+#include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 
 namespace ai_sapiens_sim2real
 {
+
+class MotionSource;
 
 // A mimic policy's reference-motion playback config, resolved from the root
 // config. RootConfig produces it; MimicPolicyRuntime consumes it.
@@ -30,9 +34,19 @@ struct MimicBehavior
 {
   std::filesystem::path motion_file;    // absolute path to the reference motion
   float fps{50.0f};
+  std::shared_ptr<MotionSource> source;  // Prepared by RootConfig; required by consumers.
   float time_start{0.0f};               // absolute motion start time
   std::optional<float> time_end;        // absolute motion end time; nullopt: motion's end
   std::string on_complete{"Velocity"};  // state to hand off to when the window ends
+
+  const MotionSource & require_motion_source() const
+  {
+    if (!source) {
+      throw std::logic_error("Mimic motion source was not prepared: " + motion_file.string());
+    }
+
+    return *source;
+  }
 };
 
 }  // namespace ai_sapiens_sim2real

@@ -17,6 +17,7 @@
 #include "ai_sapiens_sim2real/config/root_sections/state_behaviors_config.hpp"
 
 #include <array>
+#include <cmath>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -136,7 +137,7 @@ StateBehavior StateBehaviorsConfig::read_behavior_payload(
   const SharedControlData & shared_data) const
 {
   if (behavior.kind == BehaviorKind::Damping) {
-    behavior.damping = read_joint_map(node["damping"], behavior_path + ".damping", shared_data);
+    behavior.damping = read_joint_gains(node["damping"], behavior_path + ".damping", shared_data);
     return behavior;
   }
 
@@ -160,11 +161,11 @@ StateBehavior StateBehaviorsConfig::read_posture_behavior(
   const SharedControlData & shared_data) const
 {
   behavior.duration = read_posture_duration(node, behavior_path, behavior.duration);
-  behavior.stiffness = read_joint_map(
+  behavior.stiffness = read_joint_gains(
     node["stiffness"],
     behavior_path + ".stiffness",
     shared_data);
-  behavior.damping = read_joint_map(
+  behavior.damping = read_joint_gains(
     node["damping"],
     behavior_path + ".damping",
     shared_data);
@@ -207,6 +208,22 @@ bool StateBehaviorsConfig::has_policy_location(const YAML::Node & node) const
   return !yaml_node_is_missing(node["asset"]) ||
          (!yaml_node_is_missing(node["policy_path"]) &&
          !yaml_node_is_missing(node["sim2real_yaml_path"]));
+}
+
+std::vector<float> StateBehaviorsConfig::read_joint_gains(
+  const YAML::Node & node,
+  const std::string & path,
+  const SharedControlData & shared_data) const
+{
+  auto gains = read_joint_map(node, path, shared_data);
+  const auto & joint_names = shared_data.joint_map.controller_joint_names;
+  for (std::size_t i = 0; i < gains.size(); ++i) {
+    if (!std::isfinite(gains[i]) || gains[i] < 0.0f) {
+      throw std::runtime_error(
+        path + " must be finite and nonnegative for joint '" + joint_names[i] + "'");
+    }
+  }
+  return gains;
 }
 
 std::vector<float> StateBehaviorsConfig::read_joint_map(

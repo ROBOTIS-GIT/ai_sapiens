@@ -27,6 +27,8 @@
 namespace ai_sapiens_sim2real
 {
 
+class StateBehaviorsConfig;
+
 enum class ModeConditionTrigger
 {
   Level,
@@ -59,9 +61,11 @@ public:
     std::string initial_state_name,
     std::unordered_map<std::string, ModeState> states);
 
-  static StateMachineConfig from_yaml(const YAML::Node & config);
+  static StateMachineConfig from_yaml(
+    const YAML::Node & config, const StateBehaviorsConfig & behaviors);
 
   const std::string & initial_state_name() const;
+  const std::string & damping_state_name() const {return damping_state_name_;}
   const ModeState * find_state(const std::string & state_name) const;
   const ModeState & require_state(const std::string & state_name) const;
   bool has_state(const std::string & state_name) const;
@@ -100,7 +104,10 @@ private:
   std::string read_optional_string(const YAML::Node & node) const;
   bool read_optional_bool(const YAML::Node & node) const;
 
+  std::string default_damping_state(const StateBehaviorsConfig & behaviors) const;
+
   std::string initial_state_name_;
+  std::string damping_state_name_;
   std::unordered_map<std::string, ModeState> states_;
 };
 

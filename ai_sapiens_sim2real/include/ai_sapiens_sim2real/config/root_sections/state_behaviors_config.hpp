@@ -51,6 +51,7 @@ public:
     const YAML::Node & config,
     const SharedControlData & shared_data);
 
+  const StateBehavior * find_behavior(const std::string & behavior_name) const;
   const StateBehavior & require_behavior(const std::string & behavior_name) const;
   bool has_behavior(const std::string & behavior_name) const;
 
@@ -84,6 +85,10 @@ private:
     const YAML::Node & node,
     const std::string & behavior_path) const;
   bool has_policy_location(const YAML::Node & node) const;
+  std::vector<float> read_joint_gains(
+    const YAML::Node & node,
+    const std::string & path,
+    const SharedControlData & shared_data) const;
   std::vector<float> read_joint_map(
     const YAML::Node & node,
     const std::string & path,
@@ -99,7 +104,6 @@ private:
   StateBehavior parse_behavior_kind(const std::string & kind) const;
   std::string supported_behavior_kind_names() const;
 
-  const StateBehavior * find_behavior(const std::string & behavior_name) const;
 
   std::unordered_map<std::string, StateBehavior> behaviors_;
 };

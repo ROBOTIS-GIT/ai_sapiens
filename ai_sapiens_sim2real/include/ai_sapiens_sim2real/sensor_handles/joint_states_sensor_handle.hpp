@@ -19,6 +19,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -29,6 +30,8 @@
 
 #include "ai_sapiens_sim2real/interfaces/sensor_handle_base.hpp"
 #include "ai_sapiens_sim2real/shared_control_data.hpp"
+#include "ai_sapiens_sim2real/sensor_handles/input_gap_monitor.hpp"
+#include "ai_sapiens_sim2real/sensor_handles/joint_states_diagnostics.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -74,7 +77,9 @@ public:
     ModeRequests * requests,
     double timeout_seconds,
     const std::vector<std::string> & joint_names,
-    const std::string & topic = "/joint_states");
+    const std::string & topic = "/joint_states",
+    const rclcpp::SubscriptionOptions & subscription_options = {},
+    double expected_rate_hz = 1000.0);
 
   void update(const rclcpp::Time & /*time*/) override;
 
@@ -98,24 +103,25 @@ public:
 private:
   // ROS callback parses JointState into model joint order and writes the RT buffer.
   void callback(const sensor_msgs::msg::JointState::SharedPtr msg);
-  size_t parse_joint_state_message(
-    const sensor_msgs::msg::JointState & msg,
-    JointStatesData * data,
-    std::vector<std::string> * missing_joints) const;
-  void log_incomplete_joint_state(
-    size_t complete_joints_found,
-    const std::vector<std::string> & missing_joints) const;
-  std::string build_missing_joint_summary(const std::vector<std::string> & missing_joints) const;
+  void update_joint_mapping(const std::vector<std::string> & names);
+  size_t parse_joint_state_message(const sensor_msgs::msg::JointState & msg);
   void log_stale_once(std::chrono::steady_clock::duration elapsed) const;
-  void mark_ready_once();
 
   rclcpp::Node::SharedPtr node_;
   SensorData * sensors_;
   ModeRequests * requests_;
   std::string topic_;
+  std::unique_ptr<InputGapMonitor> input_gap_monitor_;
 
   std::vector<std::string> joint_names_;
   size_t num_joints_;
+  // Input callback only: reuse storage while the incoming name order is unchanged.
+  JointStatesData callback_data_;
+  std::vector<std::string> cached_message_names_;
+  std::vector<size_t> message_indices_;
+  std::vector<JointSampleStatus> joint_status_;
+  std::unique_ptr<JointStatesDiagnostics> diagnostics_;
+
   // Subscription callback writes buffer_; update() copies it into SharedControlData.
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr subscription_;
   realtime_tools::RealtimeBuffer<JointStatesData> buffer_;

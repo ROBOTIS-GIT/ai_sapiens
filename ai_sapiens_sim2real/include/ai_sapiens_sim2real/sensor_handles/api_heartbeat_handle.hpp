@@ -46,7 +46,8 @@ public:
     rclcpp::Node::SharedPtr node,
     ApiInput * api,
     const std::string & topic,
-    double timeout_seconds);
+    double timeout_seconds,
+    const rclcpp::SubscriptionOptions & subscription_options = {});
 
   void update(const rclcpp::Time & /*time*/) override;
 
@@ -58,6 +59,7 @@ public:
   }
 
 private:
+  void on_heartbeat(ai_sapiens_interfaces::msg::ApiHeartbeat::SharedPtr msg);
   void log_stale_heartbeat_once(
     const ApiHeartbeatSnapshot & snapshot,
     std::chrono::steady_clock::time_point now);
