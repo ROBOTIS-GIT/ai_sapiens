@@ -16,10 +16,11 @@
 
 #include "ai_sapiens_sim2real/control_loop.hpp"
 
+#include <rcutils/error_handling.h>
+
 #include <array>
 #include <cstring>
 
-#include <rcutils/error_handling.h>
 #include <realtime_tools/lock_free_queue.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
 
