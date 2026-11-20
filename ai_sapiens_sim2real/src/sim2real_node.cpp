@@ -16,7 +16,11 @@
 
 #include "ai_sapiens_sim2real/sim2real_node.hpp"
 
+#include <exception>
+#include <future>
 #include <stdexcept>
+
+#include <rcpputils/scope_exit.hpp>
 
 #include "ai_sapiens_sim2real/exception_diagnostics.hpp"
 #include "ai_sapiens_sim2real/mode_runtime/node_executor.hpp"
@@ -311,25 +315,46 @@ void Sim2RealNode::add_joint_command_output()
 
 void Sim2RealNode::run_control_loop_until_shutdown()
 {
+  std::future<void> rt_completion;
+  std::exception_ptr executor_failure;
+  const char * operation = "Input executor startup";
   try {
     input_executor_.start();
-    control_loop_->start();
-    RCLCPP_INFO(node_->get_logger(), "Control loop started; input executor is separate.");
+    operation = "Node executor setup";
     NodeExecutor executor(node_);
     auto diagnostics_timer = node_->create_wall_timer(std::chrono::milliseconds(20), [this]() {
           control_loop_->flush_diagnostics();
     });
+
+    operation = "Control loop startup";
+    control_loop_->start();
+    rt_completion = std::async(std::launch::async, [this]() {
+          // Wake the executors before a potentially blocking fatal log.
+          {
+            const auto shutdown_on_exit = rcpputils::make_scope_exit([] {rclcpp::shutdown();});
+            control_loop_->wait();
+          }
+          control_loop_->log_exit();
+    });
+
+    operation = "Node executor";
     executor.spin();
   } catch (...) {
+    executor_failure = std::current_exception();
     rclcpp::shutdown();
-    log_executor_exception(node_->get_logger(), "Node executor or control loop startup");
-    input_executor_.stop();
-    control_loop_->stop();
-    throw;
+    log_executor_exception(node_->get_logger(), operation);
   }
 
-  input_executor_.stop();
+  if (rt_completion.valid()) {
+    rt_completion.wait();
+  }
   control_loop_->stop();
+  input_executor_.stop();
+
+  if (executor_failure) {
+    std::rethrow_exception(executor_failure);
+  }
+  rt_completion.get();
 
   if (input_executor_.has_failed()) {
     throw std::runtime_error("input executor failed");
