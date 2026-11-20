@@ -23,6 +23,7 @@ void AuthorityPolicy::configure(const AuthorityConfig & config, bool require_api
 {
   warmup_duration_ = std::chrono::duration<double>(
     config.api_entry_warmup_duration.value_or(kDefaultWarmupSeconds));
+  require_neutral_cmd_vel_ = config.api_entry_require_neutral_cmd_vel;
   switch_velocity_threshold_ = config.api_entry_velocity_neutral_threshold.value_or(0.05f);
   require_api_heartbeat_ = require_api_heartbeat;
 }
@@ -61,13 +62,20 @@ const char * AuthorityPolicy::api_entry_rejection_reason(
   if (!is_command_below_switch_threshold(shared_data.teleop.velocity_commands)) {
     return "teleop velocity command is not neutral";
   }
-  if (has_fresh_api_velocity(shared_data.api) &&
-    !is_command_below_switch_threshold(shared_data.api.velocity_commands))
-  {
+  if (cmd_vel_blocks_api_entry(shared_data.api)) {
     return "api velocity command is not neutral";
   }
 
   return nullptr;
+}
+
+bool AuthorityPolicy::cmd_vel_blocks_api_entry(const ApiInput & api) const
+{
+  if (!require_neutral_cmd_vel_) {
+    return false;
+  }
+
+  return has_fresh_api_velocity(api) && !is_command_below_switch_threshold(api.velocity_commands);
 }
 
 bool AuthorityPolicy::is_command_below_switch_threshold(const Eigen::Vector3f & command) const

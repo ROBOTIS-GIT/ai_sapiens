@@ -127,6 +127,9 @@ AuthorityConfig read_authority_config(const YAML::Node & document)
   if (api_entry["warmup_duration"]) {
     config.api_entry_warmup_duration = api_entry["warmup_duration"].as<double>();
   }
+  if (api_entry["require_neutral_cmd_vel"]) {
+    config.api_entry_require_neutral_cmd_vel = api_entry["require_neutral_cmd_vel"].as<bool>();
+  }
   if (api_entry["velocity_neutral_threshold"]) {
     config.api_entry_velocity_neutral_threshold =
       api_entry["velocity_neutral_threshold"].as<float>();

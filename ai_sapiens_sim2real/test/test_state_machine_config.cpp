@@ -190,6 +190,7 @@ teleop_conditions:
 authority:
   api_entry:
     warmup_duration: 2.5
+    require_neutral_cmd_vel: false
     velocity_neutral_threshold: 0.2
     allowed_from_states: [Damping, Velocity]
   default_velocity_state: Velocity
@@ -218,6 +219,7 @@ state_behaviors:
   ASSERT_TRUE(authority_config.api_entry_warmup_duration);
   ASSERT_TRUE(authority_config.api_entry_velocity_neutral_threshold);
   EXPECT_DOUBLE_EQ(*authority_config.api_entry_warmup_duration, 2.5);
+  EXPECT_FALSE(authority_config.api_entry_require_neutral_cmd_vel);
   EXPECT_FLOAT_EQ(*authority_config.api_entry_velocity_neutral_threshold, 0.2f);
   EXPECT_EQ(
     authority_config.api_entry_allowed_from_states,

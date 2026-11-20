@@ -39,6 +39,7 @@ mimic_defaults:
 authority:
   api_entry:
     warmup_duration: 1.0
+    require_neutral_cmd_vel: true
     velocity_neutral_threshold: 0.05
     allowed_from_states:
       - Damping

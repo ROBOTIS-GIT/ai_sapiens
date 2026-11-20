@@ -595,6 +595,58 @@ TEST(ModeController, FreshNonNeutralApiCommandBlocksEntryButExpiredCommandDoesNo
   EXPECT_TRUE(data.mode.velocity_commands.isZero());
 }
 
+TEST(AuthorityRuntime, OptionalCmdVelNeutralCheckPreservesTeleopAndWarmupGuards)
+{
+  using ai_sapiens_sim2real::Authority;
+  using ai_sapiens_sim2real::VelocitySource;
+
+  ai_sapiens_sim2real::AuthorityConfig config;
+  config.api_entry_require_neutral_cmd_vel = false;
+  ai_sapiens_sim2real::AuthorityRuntime runtime;
+  runtime.configure(config, true);
+
+  ai_sapiens_sim2real::SharedControlData data;
+  data.teleop.api_mode_requested = true;
+  data.api.heartbeat_received.store(true);
+  data.api.heartbeat_stale.store(false);
+  data.api.velocity_commands.x() = 0.3F;
+  data.api.velocity_received_at = std::chrono::steady_clock::now() - std::chrono::milliseconds(10);
+
+  data.teleop.is_velocity_command_valid = false;
+  EXPECT_STREQ(
+    runtime.api_entry_rejection_reason(data, true), "teleop velocity command is unavailable");
+  data.teleop.is_velocity_command_valid = true;
+  data.teleop.velocity_commands.x() = 0.2F;
+  EXPECT_STREQ(
+    runtime.api_entry_rejection_reason(data, true), "teleop velocity command is not neutral");
+
+  data.teleop.velocity_commands.setZero();
+  ASSERT_EQ(runtime.api_entry_rejection_reason(data, true), nullptr);
+  runtime.begin_warmup();
+  EXPECT_EQ(runtime.velocity_source(Authority::Api, data), VelocitySource::Zero);
+  data.api.velocity_received_at = std::chrono::steady_clock::now();
+  EXPECT_EQ(runtime.velocity_source(Authority::ApiWarmup, data), VelocitySource::Zero);
+  EXPECT_EQ(runtime.velocity_source(Authority::Api, data), VelocitySource::Api);
+}
+
+TEST(ModeController, AppliesFreshCmdVelOnFirstApiTickAfterWarmup)
+{
+  ModeControllerFixture fixture;
+  fixture.release_startup_gate();
+  fixture.set_api_heartbeat_valid(true);
+  auto & data = fixture.shared_data_;
+  data.teleop.api_mode_requested = true;
+  fixture.update_controller();
+  ASSERT_STREQ(fixture.controller_->status_snapshot().authority, "API_WARMUP");
+  EXPECT_TRUE(data.mode.velocity_commands.isZero());
+
+  data.api.velocity_commands << 0.8F, -0.4F, 0.6F;
+  data.api.velocity_received_at = std::chrono::steady_clock::now();
+  fixture.update_controller();
+  ASSERT_STREQ(fixture.controller_->status_snapshot().authority, "API");
+  EXPECT_TRUE(data.mode.velocity_commands.isApprox(data.api.velocity_commands));
+}
+
 TEST(ModeController, StickOverrideSurvivesInvalidInputUntilValidNeutral)
 {
   ModeControllerFixture fixture;

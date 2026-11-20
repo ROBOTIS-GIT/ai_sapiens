@@ -106,7 +106,8 @@ API entry requires all of the following:
 - a valid, advancing API heartbeat when `require_api_heartbeat` is true (default);
 - an active state listed in `authority.api_entry.allowed_from_states`;
 - teleop velocity within `velocity_neutral_threshold`;
-- the latest `/cmd_vel` is absent, has expired, or commands zero velocity (within the configured tolerance);
+- when `authority.api_entry.require_neutral_cmd_vel` is true (default), any fresh
+  `/cmd_vel` must also be within `velocity_neutral_threshold`;
 - completion of the configured warmup duration.
 
 Holding the switch high after a rejected entry does not retry. Toggle it off
