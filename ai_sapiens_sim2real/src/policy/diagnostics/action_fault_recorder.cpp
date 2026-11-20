@@ -47,7 +47,8 @@ size_t snapshot_bytes(const FaultSnapshot & snapshot)
   size_t bytes = sizeof(snapshot) +
     snapshot.processed_action.size() * sizeof(float) +
     snapshot.validation.joints.size() * sizeof(JointActionCheck) +
-    snapshot.error.size();
+    snapshot.error.size() + snapshot.context.state.size() +
+    snapshot.context.behavior.size() + snapshot.context.motion_file.size();
   for (const auto & call : snapshot.calls) {
     bytes += sizeof(call) + call.output.size() * sizeof(float);
     for (const auto & [name, values] : call.inputs) {
@@ -170,6 +171,12 @@ void emit_snapshot(
       << YAML::Key << "consecutive_failures" << YAML::Value << snapshot.consecutive_failures
       << YAML::Key << "inference_error" << YAML::Value << snapshot.error
       << YAML::Key << "processed_action" << YAML::Value << YAML::Flow << snapshot.processed_action;
+  out << YAML::Key << "active_state" << YAML::Value << snapshot.context.state
+      << YAML::Key << "behavior" << YAML::Value << snapshot.context.behavior;
+  if (snapshot.context.motion_frame) {
+    out << YAML::Key << "motion_file" << YAML::Value << snapshot.context.motion_file
+        << YAML::Key << "motion_frame_zero_based" << YAML::Value << *snapshot.context.motion_frame;
+  }
   emit_action_validation(out, snapshot.validation);
   out << YAML::Key << "onnx_calls" << YAML::Value << YAML::BeginSeq;
   for (const auto & call : snapshot.calls) {
@@ -217,7 +224,12 @@ std::string format_record_summary(const ActionFaultRecord & record)
   diagnostics << "ACTION DIAGNOSTICS | " << action_outcome_label(s.outcome) << " | incident=" <<
     record.incident
               << " attempt=" << record.attempt << "\nPolicy: " << m.state
-              << "\nlimit=" << m.action_limit << " rad, change_limit=" << m.action_change_limit
+              << "\nActive state: " << s.context.state << "\nBehavior: " << s.context.behavior;
+  if (s.context.motion_frame) {
+    diagnostics << "\nMotion: " << s.context.motion_file
+                << "\nFrame (zero-based): " << *s.context.motion_frame;
+  }
+  diagnostics << "\nlimit=" << m.action_limit << " rad, change_limit=" << m.action_change_limit
               << " rad (" << boundary_check_label(s.validation.boundary_check)
               << "), AND |raw action| >= " << m.raw_action_boundary << ", dt=" << m.step_dt
               << " s"
