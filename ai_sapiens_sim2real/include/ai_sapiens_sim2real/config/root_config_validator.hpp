@@ -56,7 +56,7 @@ private:
   void validate_state_machine_links() const;
   void validate_authority_links() const;
 
-  void require_initial_state_is_non_abstract() const;
+  void require_damping_state() const;
 
   void require_states_have_known_behaviors() const;
 
@@ -115,7 +115,7 @@ private:
   void require_known_selector(
     const std::string & selector_name,
     const std::string & path) const;
-  void require_existing_non_abstract_state(
+  const ModeState & require_existing_non_abstract_state(
     const std::string & state_name,
     const std::string & path) const;
   void require_abstract_state(

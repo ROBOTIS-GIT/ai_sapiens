@@ -56,7 +56,7 @@ Startup intentionally validates configuration before waiting for live sensors:
 This ordering makes a malformed root config, missing asset, invalid policy
 config, or ONNX loading failure visible before sensor startup waits.
 
-The mode runtime starts in the configured initial state, normally `Damping`.
+The mode runtime starts in `state_machine.initial`, which is `Damping` in the K1 configuration.
 Even after inputs are ready, the startup gate holds that state until the
 teleop input matches either `DampingRequested` or `ReadyPoseRequested`.
 
@@ -122,7 +122,7 @@ requirement disabled, heartbeat status still reports the actual signal.
 
 `ModeController::decide()` applies the system-wide priority below; the failsafe
 checks themselves live in `failsafe_reason()` and the authority arbitration in
-`compute_authority_change()`. The first matching condition wins:
+`compute_authority_change()`. The first matching condition wins.
 
 1. teleop input timeout;
 2. teleop Damping input;
@@ -133,9 +133,12 @@ checks themselves live in `failsafe_reason()` and the authority arbitration in
 7. authority transition;
 8. velocity source and behavior-state request.
 
-Every failsafe in the first five entries selects the configured initial state,
-which is expected to be Damping. Action-limit and bad-orientation checks apply
-only while a policy behavior is active.
+The first five entries select `state_machine.damping_state`, a concrete state with
+a `kind: damping` behavior. An RT exception triggers one emergency command with
+that same behavior's damping gains. When the field is omitted, the initial
+state is used if it runs a damping behavior. Otherwise the configuration must
+contain exactly one concrete damping state.
+Action-limit and bad-orientation checks apply only while a policy behavior is active.
 
 ## Configuration
 

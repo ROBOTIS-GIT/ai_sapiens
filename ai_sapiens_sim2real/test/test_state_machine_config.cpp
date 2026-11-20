@@ -52,7 +52,7 @@ struct TestStateMachineConfig
     state_behaviors = StateBehaviorsConfig::from_yaml(node, shared_data);
     teleop_conditions = TeleopConditionsConfig::from_yaml(node);
     selectors = SelectorsConfig::from_yaml(node);
-    state_machine = StateMachineConfig::from_yaml(node);
+    state_machine = StateMachineConfig::from_yaml(node, state_behaviors);
     RootConfigValidator(
       state_machine,
       state_behaviors,
@@ -223,6 +223,54 @@ state_behaviors:
     authority_config.api_entry_allowed_from_states,
     std::vector<std::string>({"Damping", "Velocity"}));
   EXPECT_EQ(authority_config.default_velocity_state, "Velocity");
+}
+
+TEST(RootConfig, RejectsInvalidGainsInStateBehaviors)
+{
+  SharedControlData shared_data;
+  shared_data.joint_map.controller_joint_names = {"hip", "knee"};
+  const auto config =
+    YAML::Load(
+    R"(
+state_behaviors:
+  damping:
+    kind: damping
+    damping: {values: [[3.0, 3.0]]}
+  ready_pose:
+    kind: posture
+    stiffness: {hip: 0.0, knee: 100.0}
+    damping: {values: [2.0, 4.0]}
+    target_position: {values: [-0.2, 0.4]}
+)");
+  ASSERT_NO_THROW(StateBehaviorsConfig::from_yaml(config, shared_data));
+
+  struct InvalidGain
+  {
+    const char * behavior;
+    const char * field;
+    const char * yaml;
+  };
+  for (const auto & gain : {
+    InvalidGain{"damping", "damping", "{values: [[3.0, -1.0]]}"},
+    InvalidGain{"ready_pose", "stiffness", "{knee: -1.0, hip: 0.0}"},
+    InvalidGain{"ready_pose", "damping", "{values: [2.0, -1.0]}"},
+    InvalidGain{"damping", "damping", "{values: [[3.0, .nan]]}"},
+    InvalidGain{"ready_pose", "stiffness", "{knee: .inf, hip: 0.0}"},
+    InvalidGain{"ready_pose", "damping", "{values: [2.0, -.inf]}"},
+  })
+  {
+    auto invalid = YAML::Clone(config);
+    invalid["state_behaviors"][gain.behavior][gain.field] = YAML::Load(gain.yaml);
+    const auto path = std::string("state_behaviors.") + gain.behavior + "." + gain.field;
+    SCOPED_TRACE(path);
+    try {
+      StateBehaviorsConfig::from_yaml(invalid, shared_data);
+      FAIL() << "Expected invalid gain to be rejected";
+    } catch (const std::runtime_error & error) {
+      EXPECT_NE(std::string(error.what()).find(path), std::string::npos) << error.what();
+      EXPECT_NE(std::string(error.what()).find("knee"), std::string::npos) << error.what();
+    }
+  }
 }
 
 TEST(RootConfig, TeleopVelocityTimeoutDefaultsToInputTimeout)
@@ -460,6 +508,33 @@ state_behaviors:
   auto runtime = make_runtime(config);
   EXPECT_TRUE(runtime.is_mimic_state("Squat"));
   EXPECT_FALSE(runtime.is_mimic_state("Velocity"));
+}
+
+TEST(StateMachineConfigValidation, ResolvesDampingIndependentlyOfInitialState)
+{
+  auto yaml = YAML::Load(root_config_with_authority(""));
+  auto machine = yaml["state_machine"];
+  machine["initial"] = "Velocity";
+  const auto config = load_config(YAML::Dump(yaml));
+  EXPECT_EQ(config.state_machine.initial_state_name(), "Velocity");
+  EXPECT_EQ(config.state_machine.damping_state_name(), "Damping");
+
+  machine["states"]["Brake"]["run"] = "damping";
+  EXPECT_THROW(load_config(YAML::Dump(yaml)), std::runtime_error);
+  machine["initial"] = "Brake";
+  EXPECT_EQ(load_config(YAML::Dump(yaml)).state_machine.damping_state_name(), "Brake");
+  machine["damping_state"] = "Damping";
+  EXPECT_EQ(load_config(YAML::Dump(yaml)).state_machine.damping_state_name(), "Damping");
+
+  machine["states"]["Abstract"]["abstract"] = true;
+  for (const auto * invalid : {"Velocity", "Missing", "Abstract"}) {
+    machine["damping_state"] = invalid;
+    EXPECT_THROW(load_config(YAML::Dump(yaml)), std::runtime_error);
+  }
+
+  machine["damping_state"] = "Damping";
+  machine["initial"] = "Abstract";
+  EXPECT_THROW(load_config(YAML::Dump(yaml)), std::runtime_error);
 }
 
 TEST(StateMachineConfigValidation, RejectsSelectorTargetMissingState)

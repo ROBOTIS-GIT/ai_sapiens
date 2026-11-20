@@ -1059,25 +1059,22 @@ void ModeController::enter_requested_mode(const StateRequest & request)
   }
 }
 
-// Keeps the active behavior's damping gains: every behavior fills
-// output_->command.damping, so zeroing stiffness/feedforward and mirroring measured
-// positions turns the last published command into a viscous brake.
 void ModeController::apply_emergency_damping()
 {
-  output_->position_limits.assign(controller_joint_count_, std::nullopt);
-  std::fill(output_->feedforward.begin(), output_->feedforward.end(), 0.0f);
-  std::fill(output_->command.stiffness.begin(), output_->command.stiffness.end(), 0.0f);
-  run_damping();
+  set_damping_command(behavior_for_state(mode_state_machine_.damping_state_name()));
 }
 
 void ModeController::enter_damping_state(const StateRequest & request)
 {
-  const auto & behavior = behavior_for_state(request.name);
-
   mode_->active_policy_name.clear();
   requests_->damping = false;
   requests_->action_limit_exceeded = false;
 
+  set_damping_command(behavior_for_state(request.name));
+}
+
+void ModeController::set_damping_command(const StateBehavior & behavior)
+{
   output_->position_limits.assign(controller_joint_count_, std::nullopt);
   std::fill(output_->feedforward.begin(), output_->feedforward.end(), 0.0f);
   std::fill(output_->command.stiffness.begin(), output_->command.stiffness.end(), 0.0f);

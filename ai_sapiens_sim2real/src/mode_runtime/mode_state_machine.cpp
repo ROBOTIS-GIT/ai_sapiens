@@ -98,6 +98,11 @@ const std::string & ModeStateMachine::initial_state_name() const
   return require_state_machine().initial_state_name();
 }
 
+const std::string & ModeStateMachine::damping_state_name() const
+{
+  return require_state_machine().damping_state_name();
+}
+
 const ModeState * ModeStateMachine::find_state(const std::string & state_name) const
 {
   return require_state_machine().find_state(state_name);

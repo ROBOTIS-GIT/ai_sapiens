@@ -33,7 +33,8 @@ constexpr uint16_t kVelocityInputCode = 3U;
 constexpr uint16_t kMimicInputCode = 4U;
 constexpr uint16_t kMimicSquatSelectorCode = 200U;
 
-std::filesystem::path write_root_config(bool prefer_teleop = true)
+std::filesystem::path write_root_config(
+  bool prefer_teleop = true, const std::string & initial = "Damping")
 {
   static int index = 0;
   const auto path = std::filesystem::temp_directory_path() /
@@ -64,7 +65,7 @@ selectors:
 authority:
 )";
   file << "  teleop_overrides_cmd_vel: " << std::boolalpha << prefer_teleop;
-  file              <<
+  file <<
     R"(
   api_entry:
     warmup_duration: 0.0
@@ -72,7 +73,10 @@ authority:
     allowed_from_states: [Damping, ReadyPose, Velocity]
   default_velocity_state: Velocity
 state_machine:
-  initial: Damping
+)";
+  file << "  initial: " << initial << '\n';
+  file              <<
+    R"(  damping_state: Damping
   states:
     Damping:
       run: damping
@@ -114,7 +118,7 @@ state_behaviors:
   damping:
     kind: damping
     damping:
-      values: [0.0]
+      values: [3.5]
   ready_pose:
     kind: posture
     duration: 0.01
@@ -144,10 +148,12 @@ state_behaviors:
 class ModeControllerFixture
 {
 public:
-  explicit ModeControllerFixture(bool require_heartbeat = true, bool prefer_teleop = true)
+  explicit ModeControllerFixture(
+    bool require_heartbeat = true, bool prefer_teleop = true,
+    const std::string & initial = "Damping")
   {
     root_config_ =
-      std::make_unique<ai_sapiens_sim2real::RootConfig>(write_root_config(prefer_teleop));
+      std::make_unique<ai_sapiens_sim2real::RootConfig>(write_root_config(prefer_teleop, initial));
 
     shared_data_.joint_map.controller_joint_names = {"joint"};
     shared_data_.resize(1U, 1U);
@@ -439,6 +445,51 @@ TEST(ModeController, DampingRequestOverridesTeleopTransition)
   const auto status = fixture.controller_->status_snapshot();
   EXPECT_EQ(status.active_state, "Damping");
   EXPECT_STREQ(status.last_transition_reason, "damping_request");
+}
+
+TEST(ModeController, EmergencyCommandUsesConfiguredGainsWithoutChangingState)
+{
+  ModeControllerFixture fixture;
+  fixture.release_startup_gate();
+  auto & data = fixture.shared_data_;
+  ASSERT_EQ(data.mode.active_state_name, "ReadyPose");
+  ASSERT_FLOAT_EQ(data.output.command.damping[0], 1.0f);
+  data.sensors.joint_pos[0] = 1.25f;
+  data.output.feedforward[0] = 2.0f;
+  data.output.position_limits[0] = std::make_pair(-0.5f, 0.5f);
+  const auto transitions = data.mode.transition_count;
+
+  fixture.controller_->apply_emergency_damping();
+
+  EXPECT_EQ(data.mode.active_state_name, "ReadyPose");
+  EXPECT_EQ(data.mode.transition_count, transitions);
+  EXPECT_FLOAT_EQ(data.output.command.stiffness[0], 0.0f);
+  EXPECT_FLOAT_EQ(data.output.command.damping[0], 3.5f);
+  EXPECT_FLOAT_EQ(data.output.command.position[0], 1.25f);
+  EXPECT_FLOAT_EQ(data.output.feedforward[0], 0.0f);
+  EXPECT_FALSE(data.output.position_limits[0]);
+  EXPECT_FALSE(data.output.has_published_command);
+}
+
+TEST(ModeController, ReadyPoseStartupUsesDampingGainsForEmergencyAndFailsafe)
+{
+  ModeControllerFixture fixture(true, true, "ReadyPose");
+  auto & data = fixture.shared_data_;
+  ASSERT_EQ(data.mode.active_state_name, "ReadyPose");
+  fixture.controller_->reset();
+  ASSERT_EQ(data.mode.active_state_name, "ReadyPose");
+  ASSERT_FLOAT_EQ(data.output.command.stiffness[0], 1.0f);
+
+  fixture.controller_->apply_emergency_damping();
+  EXPECT_EQ(data.mode.active_state_name, "ReadyPose");
+  EXPECT_FLOAT_EQ(data.output.command.stiffness[0], 0.0f);
+  EXPECT_FLOAT_EQ(data.output.command.damping[0], 3.5f);
+
+  data.requests.damping = true;
+  fixture.update_controller();
+  EXPECT_EQ(data.mode.active_state_name, "Damping");
+  EXPECT_FLOAT_EQ(data.output.command.stiffness[0], 0.0f);
+  EXPECT_FLOAT_EQ(data.output.command.damping[0], 3.5f);
 }
 
 TEST(ModeController, TeleopLossOverridesTheActiveState)

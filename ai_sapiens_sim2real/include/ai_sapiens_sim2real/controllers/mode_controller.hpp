@@ -248,8 +248,8 @@ private:
   StateRequest make_damping_state_request(TransitionReason reason) const
   {
     return {
-      mode_state_machine_.initial_state_name(),
-      behavior_kind_for_state(mode_state_machine_.initial_state_name()),
+      mode_state_machine_.damping_state_name(),
+      BehaviorKind::Damping,
       reason};
   }
 
@@ -304,6 +304,7 @@ private:
   void record_transition_reason(TransitionReason reason);
   void mark_transition_log_pending();
 
+  void set_damping_command(const StateBehavior & behavior);
   void run_damping();
   void run_posture();
 
