@@ -540,3 +540,6 @@ doc/
 
 ## GurumDDS
 *.ar
+
+# K1 rev2 visual assets for MuJoCo
+!ai_sapiens_description/meshes/k1_rev2/visual/obj/*.obj
