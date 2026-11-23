@@ -53,6 +53,20 @@ public:
     buffer_.initRT(initial);
   }
 
+  // Apply execution options before the plugin creates its subscriptions.
+  void configure_with_subscription_options(
+    const rclcpp::Node::SharedPtr & node, const YAML::Node & config,
+    const rclcpp::SubscriptionOptions & options)
+  {
+    subscription_options_ = options;
+    configure(node, config);
+  }
+
+  const rclcpp::SubscriptionOptions & subscription_options() const
+  {
+    return subscription_options_;
+  }
+
   virtual ~TeleopInputPluginBase() = default;
 
   /**
@@ -110,6 +124,7 @@ protected:
   }
 
 private:
+  rclcpp::SubscriptionOptions subscription_options_;
   realtime_tools::RealtimeBuffer<TeleopInputCommand> buffer_;
   std::atomic<bool> received_{false};
 };

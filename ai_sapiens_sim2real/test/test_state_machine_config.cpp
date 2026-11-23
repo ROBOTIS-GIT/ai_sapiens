@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "ai_sapiens_sim2real/config/root_config.hpp"
+#include "ai_sapiens_sim2real/config/config_utils.hpp"
 #include "ai_sapiens_sim2real/config/root_config_validator.hpp"
 #include "ai_sapiens_sim2real/config/root_sections/state_machine_config.hpp"
 #include "ai_sapiens_sim2real/mode_runtime/mode_state_machine.hpp"
@@ -51,7 +52,7 @@ struct TestStateMachineConfig
     state_behaviors = StateBehaviorsConfig::from_yaml(node, shared_data);
     teleop_conditions = TeleopConditionsConfig::from_yaml(node);
     selectors = SelectorsConfig::from_yaml(node);
-    state_machine = StateMachineConfig::from_yaml(node);
+    state_machine = StateMachineConfig::from_yaml(node, state_behaviors);
     RootConfigValidator(
       state_machine,
       state_behaviors,
@@ -189,6 +190,7 @@ teleop_conditions:
 authority:
   api_entry:
     warmup_duration: 2.5
+    require_neutral_cmd_vel: false
     velocity_neutral_threshold: 0.2
     allowed_from_states: [Damping, Velocity]
   default_velocity_state: Velocity
@@ -217,11 +219,60 @@ state_behaviors:
   ASSERT_TRUE(authority_config.api_entry_warmup_duration);
   ASSERT_TRUE(authority_config.api_entry_velocity_neutral_threshold);
   EXPECT_DOUBLE_EQ(*authority_config.api_entry_warmup_duration, 2.5);
+  EXPECT_FALSE(authority_config.api_entry_require_neutral_cmd_vel);
   EXPECT_FLOAT_EQ(*authority_config.api_entry_velocity_neutral_threshold, 0.2f);
   EXPECT_EQ(
     authority_config.api_entry_allowed_from_states,
     std::vector<std::string>({"Damping", "Velocity"}));
   EXPECT_EQ(authority_config.default_velocity_state, "Velocity");
+}
+
+TEST(RootConfig, RejectsInvalidGainsInStateBehaviors)
+{
+  SharedControlData shared_data;
+  shared_data.joint_map.controller_joint_names = {"hip", "knee"};
+  const auto config =
+    YAML::Load(
+    R"(
+state_behaviors:
+  damping:
+    kind: damping
+    damping: {values: [[3.0, 3.0]]}
+  ready_pose:
+    kind: posture
+    stiffness: {hip: 0.0, knee: 100.0}
+    damping: {values: [2.0, 4.0]}
+    target_position: {values: [-0.2, 0.4]}
+)");
+  ASSERT_NO_THROW(StateBehaviorsConfig::from_yaml(config, shared_data));
+
+  struct InvalidGain
+  {
+    const char * behavior;
+    const char * field;
+    const char * yaml;
+  };
+  for (const auto & gain : {
+    InvalidGain{"damping", "damping", "{values: [[3.0, -1.0]]}"},
+    InvalidGain{"ready_pose", "stiffness", "{knee: -1.0, hip: 0.0}"},
+    InvalidGain{"ready_pose", "damping", "{values: [2.0, -1.0]}"},
+    InvalidGain{"damping", "damping", "{values: [[3.0, .nan]]}"},
+    InvalidGain{"ready_pose", "stiffness", "{knee: .inf, hip: 0.0}"},
+    InvalidGain{"ready_pose", "damping", "{values: [2.0, -.inf]}"},
+  })
+  {
+    auto invalid = YAML::Clone(config);
+    invalid["state_behaviors"][gain.behavior][gain.field] = YAML::Load(gain.yaml);
+    const auto path = std::string("state_behaviors.") + gain.behavior + "." + gain.field;
+    SCOPED_TRACE(path);
+    try {
+      StateBehaviorsConfig::from_yaml(invalid, shared_data);
+      FAIL() << "Expected invalid gain to be rejected";
+    } catch (const std::runtime_error & error) {
+      EXPECT_NE(std::string(error.what()).find(path), std::string::npos) << error.what();
+      EXPECT_NE(std::string(error.what()).find("knee"), std::string::npos) << error.what();
+    }
+  }
 }
 
 TEST(RootConfig, TeleopVelocityTimeoutDefaultsToInputTimeout)
@@ -461,6 +512,33 @@ state_behaviors:
   EXPECT_FALSE(runtime.is_mimic_state("Velocity"));
 }
 
+TEST(StateMachineConfigValidation, ResolvesDampingIndependentlyOfInitialState)
+{
+  auto yaml = YAML::Load(root_config_with_authority(""));
+  auto machine = yaml["state_machine"];
+  machine["initial"] = "Velocity";
+  const auto config = load_config(YAML::Dump(yaml));
+  EXPECT_EQ(config.state_machine.initial_state_name(), "Velocity");
+  EXPECT_EQ(config.state_machine.damping_state_name(), "Damping");
+
+  machine["states"]["Brake"]["run"] = "damping";
+  EXPECT_THROW(load_config(YAML::Dump(yaml)), std::runtime_error);
+  machine["initial"] = "Brake";
+  EXPECT_EQ(load_config(YAML::Dump(yaml)).state_machine.damping_state_name(), "Brake");
+  machine["damping_state"] = "Damping";
+  EXPECT_EQ(load_config(YAML::Dump(yaml)).state_machine.damping_state_name(), "Damping");
+
+  machine["states"]["Abstract"]["abstract"] = true;
+  for (const auto * invalid : {"Velocity", "Missing", "Abstract"}) {
+    machine["damping_state"] = invalid;
+    EXPECT_THROW(load_config(YAML::Dump(yaml)), std::runtime_error);
+  }
+
+  machine["damping_state"] = "Damping";
+  machine["initial"] = "Abstract";
+  EXPECT_THROW(load_config(YAML::Dump(yaml)), std::runtime_error);
+}
+
 TEST(StateMachineConfigValidation, RejectsSelectorTargetMissingState)
 {
   EXPECT_THROW(load_config(
@@ -583,4 +661,45 @@ TEST(RootConfig, RejectsInvalidActionTransitionOptions)
     EXPECT_THROW(RootConfig(write_temp_config(base +
       "\npolicy_action_transition: " + value + "\n")), std::runtime_error);
   }
+}
+
+TEST(RootConfig, MissingAssetReportsFieldLineAndEachCandidate)
+{
+  const auto yaml = root_config_with_teleop_timeouts("") +
+    "\npolicy_asset_roots: [missing_assets_a, missing_assets_b]\n";
+  const auto path = write_temp_config(yaml);
+  const RootConfig config(path);
+  try {
+    config.policy_behaviors();
+    FAIL() << "Expected missing asset error";
+  } catch (const ai_sapiens_sim2real::YamlConfigError & e) {
+    const std::string message = e.what();
+    EXPECT_NE(message.find("Configuration error (root config)"), std::string::npos);
+    EXPECT_NE(message.find("File: " + path.string()), std::string::npos);
+    EXPECT_NE(message.find("Field: state_behaviors.velocity_policy.asset (line "),
+      std::string::npos);
+    EXPECT_NE(message.find("Asset directory not found: test/velocity"), std::string::npos);
+    for (const auto * root : {"missing_assets_a", "missing_assets_b"}) {
+      EXPECT_NE(message.find("\n    - " +
+        (path.parent_path() / root / "test/velocity").string()), std::string::npos);
+    }
+  }
+  std::filesystem::remove(path);
+}
+
+TEST(RootConfig, NestedYamlErrorKeepsTheOriginalFileAndParserLocation)
+{
+  const auto path = write_temp_config("broken: [\n");
+  try {
+    ai_sapiens_sim2real::with_yaml_file_context("outer.yaml", "outer", [&] {
+        return ai_sapiens_sim2real::load_yaml_file(path, "policy config");
+    });
+    FAIL() << "Expected YAML syntax error";
+  } catch (const ai_sapiens_sim2real::YamlConfigError & e) {
+    const std::string message = e.what();
+    EXPECT_NE(message.find("File: " + path.string()), std::string::npos);
+    EXPECT_NE(message.find("line"), std::string::npos);
+    EXPECT_EQ(message.find("outer.yaml"), std::string::npos);
+  }
+  std::filesystem::remove(path);
 }

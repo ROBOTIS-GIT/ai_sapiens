@@ -26,7 +26,9 @@ namespace ai_sapiens_sim2real
 
 struct AuthorityConfig
 {
+  bool teleop_overrides_cmd_vel{true};
   std::optional<double> api_entry_warmup_duration;
+  bool api_entry_require_neutral_cmd_vel{true};
   std::optional<float> api_entry_velocity_neutral_threshold;
   std::vector<std::string> api_entry_allowed_from_states;
   std::string default_velocity_state;

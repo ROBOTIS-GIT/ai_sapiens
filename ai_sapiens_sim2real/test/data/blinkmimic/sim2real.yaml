@@ -1,0 +1,82 @@
+policy_joints:
+- left_hip_roll_joint
+- right_hip_roll_joint
+step_dt: 0.02
+joint_properties:
+  left_hip_roll_joint:
+    default_position: 0.1
+    stiffness: 10.0
+    damping: 1.0
+    position_limit: null
+  right_hip_roll_joint:
+    default_position: -0.2
+    stiffness: 10.0
+    damping: 1.0
+    position_limit: null
+commands: {}
+actions:
+  joint_pos:
+    scale: [0.5, 0.5]
+    offset: default_position
+    clip: null
+observations:
+  blinkmimic:
+    schema: cyclo.blinkmimic.csv.v1
+    input_name: observations
+    normalization_in_onnx: true
+    reference_skip_in_onnx: false
+    imu_frame: pelvis
+    motion_fps: 50
+    reference_velocity: central_difference
+    history:
+      layout: frame_major
+      terms:
+        joint_pos_rel:
+          scale: 1.0
+          clip: null
+          history_length: 3
+        joint_vel:
+          scale: 1.0
+          clip: null
+          history_length: 3
+        base_ang_vel:
+          scale: 1.0
+          clip: null
+          history_length: 3
+        projected_gravity:
+          scale: 1.0
+          clip: null
+          history_length: 3
+        last_action:
+          scale: 1.0
+          clip: null
+          history_length: 3
+        reference_orientation:
+          scale: 1.0
+          clip: null
+          history_length: 3
+    motion_goal:
+      frames: 2
+      stride: 1
+      start_offset: 1
+      groups:
+      - layout: frame_major
+        terms:
+          future_root_displacement:
+            scale: 1.0
+            clip: null
+          future_root_orientation:
+            scale: 1.0
+            clip: null
+          future_root_linear_velocity:
+            scale: 1.0
+            clip: null
+          future_root_angular_velocity:
+            scale: 1.0
+            clip: null
+          future_joint_pos:
+            scale: 1.0
+            clip: null
+          future_joint_vel:
+            scale: 0.1
+            clip: null

@@ -1,0 +1,53 @@
+gait_phase:
+  params:
+    periods:
+    - 0.8
+    - 1.16
+    - 0.8
+    - 0.65
+    forward_thresholds:
+    - 1.6
+    - 2.4
+    swing_ratios:
+    - 0.4
+    - 0.36
+    - 0.6
+    - 0.6
+    transition_tau: 0.25
+    offsets:
+    - 0.0
+    - 0.5
+    update: integrated_free_running
+    reset_phase: 0.0
+    stand_command_norm_plus_yaw_threshold: 0.05
+    stand_mode_priority: true
+    observation_order:
+    - sin_left
+    - cos_left
+    - sin_right
+    - cos_right
+    - swing_left
+    - swing_right
+    low_speed_priority: true
+    low_planar_max_inclusive: 0.4
+    low_yaw_max_inclusive: 0.4
+    low_lateral_max_exclusive: 0.3
+    range_order:
+    - march_low
+    - walk
+    - fast
+    - run
+    forward_threshold_inclusive:
+    - false
+    - true
+  clip:
+  - -1.0
+  - 1.0
+  scale:
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  history_length: 5

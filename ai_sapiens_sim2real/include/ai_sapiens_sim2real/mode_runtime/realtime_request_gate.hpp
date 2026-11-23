@@ -47,7 +47,8 @@ class RealtimeRequestGate
 public:
   void init(const RequestT & empty_request = RequestT{})
   {
-    buffer_.initRT(empty_request);
+    buffer_.initRT(PendingRequest{empty_request, epoch()});
+    state_.store(SlotState::Available, std::memory_order_release);
   }
 
   // Revocation counter, bumped by discard(); see try_accept().
@@ -61,12 +62,29 @@ public:
   bool try_accept(const RequestT & request, uint64_t expected_epoch)
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (epoch_.load(std::memory_order_acquire) != expected_epoch || busy()) {
+    if (epoch() != expected_epoch || !reserve_slot()) {
       return false;
     }
 
-    buffer_.writeFromNonRT(request);
-    in_flight_.store(true, std::memory_order_release);
+    if (epoch() != expected_epoch) {
+      release_slot();
+      return false;
+    }
+
+    try {
+      buffer_.writeFromNonRT(PendingRequest{request, expected_epoch});
+    } catch (...) {
+      release_slot();
+      throw;
+    }
+
+    state_.store(SlotState::Ready, std::memory_order_release);
+
+    if (epoch() != expected_epoch) {
+      release_slot();
+      return false;
+    }
+
     return true;
   }
 
@@ -74,49 +92,84 @@ public:
   // it and free the slot later via consume(). nullopt if none is pending.
   std::optional<RequestT> peek()
   {
-    if (!in_flight_.load(std::memory_order_acquire)) {
-      return std::nullopt;
-    }
-
-    const auto * request = buffer_.readFromRT();
+    const auto * request = ready_request();
     if (request == nullptr) {
       return std::nullopt;
     }
 
-    return *request;
+    return request->request;
   }
 
   // Takes the in-flight request and frees the slot. nullopt if none is pending.
   std::optional<RequestT> consume()
   {
-    if (!in_flight_.exchange(false, std::memory_order_acq_rel)) {
-      return std::nullopt;
-    }
-
-    const auto * request = buffer_.readFromRT();
+    const auto * request = ready_request();
     if (request == nullptr) {
       return std::nullopt;
     }
 
-    return *request;
+    auto consumed_request = request->request;
+    release_slot();
+    return consumed_request;
   }
 
   // Drops the in-flight request and bumps the epoch. Lock-free for the RT path.
   void discard()
   {
-    in_flight_.store(false, std::memory_order_release);
     epoch_.fetch_add(1, std::memory_order_acq_rel);
+    release_slot();
   }
 
   bool busy() const
   {
-    return in_flight_.load(std::memory_order_acquire);
+    return state_.load(std::memory_order_acquire) != SlotState::Available;
   }
 
 private:
+  enum class SlotState : uint8_t
+  {
+    Available,
+    Writing,
+    Ready,
+  };
+
+  struct PendingRequest
+  {
+    RequestT request;
+    uint64_t epoch;
+  };
+
+  bool reserve_slot()
+  {
+    auto expected = SlotState::Available;
+    return state_.compare_exchange_strong(
+      expected, SlotState::Writing,
+      std::memory_order_acq_rel, std::memory_order_acquire);
+  }
+
+  void release_slot()
+  {
+    state_.store(SlotState::Available, std::memory_order_release);
+  }
+
+  const PendingRequest * ready_request()
+  {
+    if (state_.load(std::memory_order_acquire) != SlotState::Ready) {
+      return nullptr;
+    }
+
+    const auto * request = buffer_.readFromRT();
+    if (request == nullptr || request->epoch != epoch()) {
+      release_slot();
+      return nullptr;
+    }
+
+    return request;
+  }
+
   // Non-RT callbacks write buffer_; RT update consumes at most one request.
-  realtime_tools::RealtimeBuffer<RequestT> buffer_;
-  std::atomic<bool> in_flight_{false};
+  realtime_tools::RealtimeBuffer<PendingRequest> buffer_;
+  std::atomic<SlotState> state_{SlotState::Available};
   std::atomic<uint64_t> epoch_{0};
 
   // Serializes concurrent try_accept calls; the RT consume()/discard() paths

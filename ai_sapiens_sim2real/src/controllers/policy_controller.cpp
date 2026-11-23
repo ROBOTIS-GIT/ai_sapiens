@@ -16,9 +16,8 @@
 
 #include "ai_sapiens_sim2real/controllers/policy_controller.hpp"
 
-#include <vector>
-
 #include "ai_sapiens_sim2real/config/root_config.hpp"
+#include "ai_sapiens_sim2real/policy/diagnostics/action_fault_recorder.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -31,22 +30,36 @@ PolicyController::PolicyController(
   teleop_(&shared_data->teleop),
   policy_(&shared_data->policy),
   output_(&shared_data->output),
-  transition_config_(root_config.policy_action_transition()),
   command_transition_(shared_data->joint_map.controller_joint_names.size())
 {
   if (shared_data->joint_map.controller_joint_names.empty()) {
     throw std::runtime_error("PolicyController requires initialized controller joint order");
   }
 
-  load_policies(shared_data, root_config);
-  if (runtimes_.empty()) {
+  initialize_fault_recorder();
+  runtimes_ = load_policy_runtimes(node_, shared_data, root_config, fault_recorder_);
+
+  if (runtimes_.behaviors.empty()) {
     throw std::runtime_error("PolicyController requires at least one policy runtime");
   }
 
   RCLCPP_INFO(
     node_->get_logger(),
     "[PolicyController] initialized %zu policy runtime(s)",
-    runtimes_.size());
+    runtimes_.instances.size());
+}
+
+void PolicyController::initialize_fault_recorder()
+{
+  try {
+    ActionFaultRecorder::Options options;
+    std::string directory;
+    node_->get_parameter_or("action_fault_directory", directory, std::string{});
+    options.directory = directory;
+    fault_recorder_ = std::make_shared<ActionFaultRecorder>(options, node_->get_logger());
+  } catch (const std::exception & e) {
+    RCLCPP_ERROR(node_->get_logger(), "Action fault file recording unavailable: %s", e.what());
+  }
 }
 
 void PolicyController::update(
@@ -55,6 +68,7 @@ void PolicyController::update(
   const rclcpp::Duration & period)
 {
   if (decision.active_behavior_kind != BehaviorKind::Policy) {
+    active_runtime_ = nullptr;
     // Posture states (including ReadyPose) publish position targets and gains
     // that can seed policy entry. Damping remains an immediate safety mode.
     can_blend_from_previous_ = decision.active_behavior_kind == BehaviorKind::Posture;
@@ -67,8 +81,9 @@ void PolicyController::update(
     return;
   }
 
-  auto * runtime = active_runtime(decision.active_policy_name);
-  if (!runtime) {
+  auto * entry = active_runtime_entry(decision.active_policy_name);
+  if (!entry) {
+    active_runtime_ = nullptr;
     RCLCPP_WARN_THROTTLE(
       node_->get_logger(),
       *node_->get_clock(),
@@ -79,21 +94,30 @@ void PolicyController::update(
     return;
   }
 
+  auto & runtime = *entry->runtime;
+
   // The mode controller bumps mode.transition_count on every committed
-  // transition; if one happened since our last enter, the active runtime
-  // must start a fresh policy episode before it can update.
+  // transition. A compatible reference switch may continue the current episode.
   if (entered_transition_count_ != decision.transition_count) {
-    enter_policy(*runtime);
+    if (entry->select_reference) {entry->select_reference();}
+
+    if (!entry->continues_episode(active_runtime_)) {
+      enter_policy(runtime, entry->action_transition);
+    }
+
+    runtime.set_active_behavior(decision.active_state_name, decision.active_policy_name);
+    active_runtime_ = &runtime;
     entered_transition_count_ = decision.transition_count;
   }
 
-  update_policy(*runtime, period);
+  update_policy(runtime, period);
 }
 
-void PolicyController::enter_policy(PolicyRuntime & runtime)
+void PolicyController::enter_policy(
+  PolicyRuntime & runtime, const ActionTransitionConfig & transition)
 {
-  const double duration = can_blend_from_previous_ && transition_config_.enabled ?
-    transition_config_.duration : 0.0;
+  const double duration = can_blend_from_previous_ && transition.enabled ?
+    transition.duration : 0.0;
   const auto & source = output_->has_published_command ?
     output_->last_published : output_->command;
   command_transition_.begin(
@@ -108,9 +132,17 @@ void PolicyController::update_policy(PolicyRuntime & runtime, const rclcpp::Dura
   command_transition_.update(period.seconds(), result, runtime.target_command(), output_->command);
 }
 
+void PolicyController::flush_diagnostics()
+{
+  for (const auto & runtime : runtimes_.instances) {
+    runtime->flush_diagnostics();
+  }
+}
+
 void PolicyController::reset()
 {
-  for (auto & [_, runtime] : runtimes_) {
+  active_runtime_ = nullptr;
+  for (const auto & runtime : runtimes_.instances) {
     runtime->reset();
   }
 
@@ -125,72 +157,12 @@ std::string PolicyController::get_name() const
   return "policy_controller";
 }
 
-void PolicyController::load_policies(
-  SharedControlData * shared_data, const RootConfig & root_config)
+LoadedPolicyRuntimes::Entry * PolicyController::active_runtime_entry(
+  const std::string & policy_name)
 {
-  const auto & controller_joints = shared_data->joint_map.controller_joint_names;
-  const auto behaviors = root_config.policy_behaviors();
-
-  // Resolve every root behavior and parse every nested sim2real.yaml before
-  // opening the first ONNX model. A YAML error in a later behavior must not be
-  // hidden behind an earlier model load or reported as part of ONNX startup.
-  std::vector<Sim2RealConfig> sim2real_configs;
-  sim2real_configs.reserve(behaviors.size());
-  for (const auto & behavior : behaviors) {
-    sim2real_configs.emplace_back(behavior.sim2real_config_path);
-  }
-
-  RCLCPP_INFO(
-    node_->get_logger(),
-    "[PolicyController] preflighted %zu policy configuration(s)",
-    behaviors.size());
-
-  for (std::size_t i = 0; i < behaviors.size(); ++i) {
-    const auto & behavior = behaviors[i];
-    const auto & sim2real_config = sim2real_configs[i];
-    // A mimic behavior drives a MimicPolicyRuntime; otherwise a plain policy.
-    // Both drive the act stage through the same PolicyRuntime interface.
-    std::unique_ptr<PolicyRuntime> runtime;
-    if (behavior.mimic) {
-      runtime = MimicPolicyRuntime::create(
-        node_,
-        behavior.name,
-        behavior.policy_path.string(),
-        sim2real_config,
-        *behavior.mimic,
-        controller_joints,
-        shared_data);
-    } else {
-      runtime = std::make_unique<PolicyRuntime>(
-        node_,
-        behavior.name,
-        behavior.policy_path.string(),
-        sim2real_config,
-        controller_joints,
-        shared_data);
-    }
-
-    register_runtime(shared_data, behavior.name, std::move(runtime));
-  }
-}
-
-void PolicyController::register_runtime(
-  SharedControlData * shared_data,
-  const std::string & state_name,
-  std::unique_ptr<PolicyRuntime> runtime)
-{
-  if (shared_data->policy.input.size() < runtime->observation_size()) {
-    shared_data->resize_observation(runtime->observation_size());
-  }
-
-  runtimes_.emplace(state_name, std::move(runtime));
-}
-
-PolicyRuntime * PolicyController::active_runtime(const std::string & policy_name)
-{
-  const auto it = runtimes_.find(policy_name);
-  if (it != runtimes_.end()) {
-    return it->second.get();
+  const auto it = runtimes_.behaviors.find(policy_name);
+  if (it != runtimes_.behaviors.end()) {
+    return &it->second;
   }
 
   return nullptr;

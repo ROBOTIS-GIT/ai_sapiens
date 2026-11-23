@@ -24,21 +24,23 @@ namespace ai_sapiens_sim2real
 ModeController::ModeController(
   rclcpp::Node::SharedPtr node,
   const RootConfig & root_config,
-  SharedControlData * shared_data)
+  SharedControlData * shared_data, bool require_api_heartbeat)
 : node_(node),
   state_(shared_data),
   mode_(&shared_data->mode),
   requests_(&shared_data->requests),
-  output_(&shared_data->output)
+  output_(&shared_data->output),
+  entry_validator_(PolicyEntryValidator::from_config(root_config))
 {
   service_request_gate_.init();
   initialize_joint_counts();
-  configure_mode_runtime(root_config);
+  configure_mode_runtime(root_config, require_api_heartbeat);
   enter_initial_state();
 }
 
 void ModeController::update(const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
+  update_entry_retry_gate();
   const Decision decision = decide();
   apply(decision);
   run_active_mode();
@@ -87,19 +89,25 @@ void ModeController::apply_state_request(const StateRequest & requested)
     return;
   }
 
-  if (is_transition_allowed(requested)) {
+  const bool manual_policy_request =
+    requested.reason == TransitionReason::TeleopInputCondition &&
+    requested.behavior_kind == BehaviorKind::Policy;
+
+  if (manual_policy_request && entry_retry_gate_.blocked()) {
+    return;
+  }
+
+  const auto entry = evaluate_state_entry(requested);
+  if (entry.allowed()) {
     enter_state(requested);
     return;
   }
 
-  RCLCPP_WARN_THROTTLE(
-    node_->get_logger(),
-    *node_->get_clock(),
-    1000,
-    "[ModeController] rejected transition active(%s) requested(%s) reason(%s)",
-    mode_->active_state_name.c_str(),
-    requested.name.c_str(),
-    transition_reason_name(requested.reason));
+  if (manual_policy_request) {
+    entry_retry_gate_.reject(make_current_teleop_input().input_code);
+  }
+
+  log_entry_rejection(requested, entry);
 }
 
 void ModeController::run_active_mode()
@@ -247,6 +255,10 @@ bool ModeController::is_startup_teleop_input_safe(
 // No writes -- the flag clears and authority effects live in apply_failsafe().
 std::optional<ModeController::TransitionReason> ModeController::failsafe_reason() const
 {
+  if (output_->is_command_publish_fault_latched) {
+    return TransitionReason::CommandPublishFault;
+  }
+
   if (is_teleop_input_unavailable()) {
     return TransitionReason::TeleopInputTimeout;
   }
@@ -286,6 +298,7 @@ void ModeController::apply_failsafe(TransitionReason reason)
   // re-entry then requires a fresh API switch edge. Other failsafes just drop
   // any pending service request.
   const bool should_revoke_api_authority =
+    reason == TransitionReason::CommandPublishFault ||
     reason == TransitionReason::TeleopInputDamping ||
     reason == TransitionReason::TeleopInputTimeout;
   if (should_revoke_api_authority) {
@@ -367,18 +380,10 @@ void ModeController::clear_pending_service_request()
   service_request_gate_.discard();
 }
 
-// Select the velocity command owner for this tick. Manual uses teleop, full API
-// uses /cmd_vel, and API warmup holds zero. zero_velocity suppresses the
-// operator stick for one tick when API control is lost.
 VelocitySource ModeController::select_velocity_source(
   Authority authority, bool zero_velocity) const
 {
-  if (zero_velocity || authority == Authority::ApiWarmup) {
-    return VelocitySource::Zero;
-  }
-
-  return authority_.can_accept_api_velocity(authority) ?
-         VelocitySource::Api : VelocitySource::Teleop;
+  return zero_velocity ? VelocitySource::Zero : authority_.velocity_source(authority, *state_);
 }
 
 void ModeController::apply_velocity_source(VelocitySource source)
@@ -419,6 +424,8 @@ const char * ModeController::transition_reason_name(TransitionReason reason)
       return "teleop_input_damping";
     case TransitionReason::DampingRequest:
       return "damping_request";
+    case TransitionReason::CommandPublishFault:
+      return "command_publish_fault";
     case TransitionReason::ActionLimit:
       return "action_limit";
     case TransitionReason::BadOrientation:
@@ -438,12 +445,25 @@ const char * ModeController::transition_reason_name(TransitionReason reason)
   return "unknown";
 }
 
+const char * ModeController::transition_source_suffix(TransitionReason reason)
+{
+  switch (reason) {
+    case TransitionReason::ApiAuthorityReleased:
+      return " source(teleop_input)";
+    case TransitionReason::ApiAuthorityLost:
+      return " source(heartbeat)";
+    default:
+      return "";
+  }
+}
+
 bool ModeController::is_failsafe_transition_reason(TransitionReason reason)
 {
   switch (reason) {
     case TransitionReason::TeleopInputTimeout:
     case TransitionReason::TeleopInputDamping:
     case TransitionReason::DampingRequest:
+    case TransitionReason::CommandPublishFault:
     case TransitionReason::ActionLimit:
     case TransitionReason::BadOrientation:
       return true;
@@ -461,7 +481,9 @@ void ModeController::initialize_joint_counts()
   }
 }
 
-void ModeController::configure_mode_runtime(const RootConfig & root_config)
+void ModeController::configure_mode_runtime(
+  const RootConfig & root_config,
+  bool require_api_heartbeat)
 {
   mode_state_machine_.reset(
     root_config.state_machine_config(),
@@ -470,13 +492,7 @@ void ModeController::configure_mode_runtime(const RootConfig & root_config)
     root_config.selectors_config());
   authority_config_ = root_config.authority_config();
 
-  if (const auto warmup = authority_config_.api_entry_warmup_duration) {
-    authority_.set_warmup_duration(*warmup);
-  }
-
-  if (const auto threshold = authority_config_.api_entry_velocity_neutral_threshold) {
-    authority_.set_switch_velocity_threshold(*threshold);
-  }
+  authority_.configure(authority_config_, require_api_heartbeat);
 }
 
 void ModeController::enter_initial_state()
@@ -508,10 +524,11 @@ ModeController::ModeRequestResult ModeController::set_mode_by_name(
   const bool can_accept_service_request =
     authority == Authority::Api &&
     state_->teleop.api_mode_requested &&
-    is_api_heartbeat_valid();
+    authority_.heartbeat_allows_api(*state_);
   if (!can_accept_service_request) {
     result.message =
-      "service requests require active API authority, a held API switch, and a valid heartbeat";
+      "service requests require active API authority, a held API switch, "
+      "and the configured heartbeat condition";
     return result;
   }
 
@@ -564,9 +581,10 @@ void ModeController::flush_transition_log()
 
   RCLCPP_INFO(
     node_->get_logger(),
-    "[ModeController] %s reason(%s)",
+    "[ModeController] %s reason(%s)%s",
     state->name.c_str(),
-    reason_name);
+    reason_name,
+    transition_source_suffix(reason));
 }
 
 ModeController::ModeStatusSnapshot ModeController::status_snapshot() const
@@ -575,7 +593,6 @@ ModeController::ModeStatusSnapshot ModeController::status_snapshot() const
   const auto authority = current_authority();
   return ModeStatusSnapshot{
     active_state,
-    available_service_state_names(),
     authority_name(authority),
     is_teleop_input_available(),
     is_api_heartbeat_valid(),
@@ -588,7 +605,7 @@ bool ModeController::is_api_request_available() const
 {
   return current_authority() == Authority::Api &&
          state_->teleop.api_mode_requested &&
-         is_api_heartbeat_valid() &&
+         authority_.heartbeat_allows_api(*state_) &&
          !service_request_gate_.busy();
 }
 
@@ -653,15 +670,6 @@ std::vector<float> ModeController::make_controller_ordered_joint_positions() con
   }
 
   return controller_values;
-}
-
-void ModeController::copy_controller_positions_to_output(
-  const std::vector<float> & controller_values)
-{
-  for (size_t i = 0; i < controller_joint_count_; ++i) {
-    output_->command.position[i] = controller_values[i];
-    output_->last_published.position[i] = controller_values[i];
-  }
 }
 
 const StateBehavior & ModeController::behavior_for_state(const std::string & state_name) const
@@ -735,7 +743,7 @@ ModeController::AuthorityChange ModeController::compute_warmup_entry_change() co
 // release so stale API control takes the conservative zero-velocity handoff.
 ModeController::AuthorityChange ModeController::compute_api_authority_change() const
 {
-  if (!is_api_heartbeat_valid()) {
+  if (!authority_.heartbeat_allows_api(*state_)) {
     return compute_api_loss_change();
   }
 
@@ -912,10 +920,11 @@ void ModeController::set_authority(Authority mode, TransitionReason reason)
 
   RCLCPP_INFO(
     node_->get_logger(),
-    "[ModeController] authority %s -> %s reason(%s)",
+    "[ModeController] authority %s -> %s reason(%s)%s",
     authority_name(authority_.current()),
     authority_name(mode),
-    transition_reason_name(reason));
+    transition_reason_name(reason),
+    transition_source_suffix(reason));
   authority_.set_current(mode, *mode_);
   record_transition_reason(reason);
 }
@@ -955,9 +964,39 @@ bool ModeController::is_orientation_unsafe() const
   return std::abs(std::acos(z)) > limit_angle;
 }
 
-bool ModeController::is_transition_allowed(const StateRequest & request) const
+void ModeController::update_entry_retry_gate()
 {
-  return is_transition_allowed(current_behavior_kind_, request.behavior_kind);
+  const auto input = make_current_teleop_input();
+  entry_retry_gate_.observe(input.available, input.input_code);
+}
+
+PolicyEntryResult ModeController::evaluate_state_entry(const StateRequest & request) const
+{
+  if (!is_transition_allowed(current_behavior_kind_, request.behavior_kind)) {
+    return {EntryRejection::TransitionNotAllowed};
+  }
+
+  return entry_validator_.evaluate(
+    behavior_for_state(request.name),
+    state_->sensors.orientation, state_->sensors.is_imu_usable);
+}
+
+void ModeController::log_entry_rejection(
+  const StateRequest & request, const PolicyEntryResult & result) const
+{
+  if (result.reason == EntryRejection::TiltMismatch) {
+    RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 1000,
+      "[ModeController] entry rejected: active=%s requested=%s reason=%s "
+      "gravity_error=%.1f deg limit=%.1f deg source=%s",
+      mode_->active_state_name.c_str(), request.name.c_str(), entry_rejection_name(result.reason),
+      result.tilt_error_deg, result.tilt_limit_deg, transition_reason_name(request.reason));
+    return;
+  }
+
+  RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 1000,
+    "[ModeController] entry rejected: active=%s requested=%s reason=%s source=%s",
+    mode_->active_state_name.c_str(), request.name.c_str(), entry_rejection_name(result.reason),
+    transition_reason_name(request.reason));
 }
 
 bool ModeController::is_transition_allowed(BehaviorKind from, BehaviorKind to) const
@@ -1018,25 +1057,22 @@ void ModeController::enter_requested_mode(const StateRequest & request)
   }
 }
 
-// Keeps the active behavior's damping gains: every behavior fills
-// output_->command.damping, so zeroing stiffness/feedforward and mirroring measured
-// positions turns the last published command into a viscous brake.
 void ModeController::apply_emergency_damping()
 {
-  output_->position_limits.assign(controller_joint_count_, std::nullopt);
-  std::fill(output_->feedforward.begin(), output_->feedforward.end(), 0.0f);
-  std::fill(output_->command.stiffness.begin(), output_->command.stiffness.end(), 0.0f);
-  run_damping();
+  set_damping_command(behavior_for_state(mode_state_machine_.damping_state_name()));
 }
 
 void ModeController::enter_damping_state(const StateRequest & request)
 {
-  const auto & behavior = behavior_for_state(request.name);
-
   mode_->active_policy_name.clear();
   requests_->damping = false;
   requests_->action_limit_exceeded = false;
 
+  set_damping_command(behavior_for_state(request.name));
+}
+
+void ModeController::set_damping_command(const StateBehavior & behavior)
+{
   output_->position_limits.assign(controller_joint_count_, std::nullopt);
   std::fill(output_->feedforward.begin(), output_->feedforward.end(), 0.0f);
   std::fill(output_->command.stiffness.begin(), output_->command.stiffness.end(), 0.0f);
@@ -1059,7 +1095,6 @@ void ModeController::enter_posture_state(const StateRequest & request)
   active_posture_duration_ = behavior.duration;
   active_posture_target_ = behavior.target_position;
   posture_start_controller_ = make_controller_ordered_joint_positions();
-  posture_target_.assign(controller_joint_count_, 0.0f);
   posture_start_time_ = std::chrono::steady_clock::now();
 
   run_posture();
@@ -1088,7 +1123,6 @@ void ModeController::run_damping()
 {
   for (Eigen::Index i = 0; i < state_->sensors.joint_pos.size(); ++i) {
     output_->command.position[static_cast<size_t>(i)] = state_->sensors.joint_pos[i];
-    output_->last_published.position[static_cast<size_t>(i)] = state_->sensors.joint_pos[i];
   }
 }
 
@@ -1100,12 +1134,10 @@ void ModeController::run_posture()
   const float alpha = static_cast<float>(std::clamp(posture_phase, 0.0, 1.0));
 
   for (size_t i = 0; i < controller_joint_count_; ++i) {
-    posture_target_[i] =
+    output_->command.position[i] =
       posture_start_controller_[i] + alpha *
       (active_posture_target_[i] - posture_start_controller_[i]);
   }
-
-  copy_controller_positions_to_output(posture_target_);
 }
 
 }  // namespace ai_sapiens_sim2real

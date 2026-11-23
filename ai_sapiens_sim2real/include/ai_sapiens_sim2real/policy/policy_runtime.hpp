@@ -34,8 +34,10 @@
 #include <yaml-cpp/yaml.h>  // NOLINT(build/include_order)
 
 #include "ai_sapiens_sim2real/policy/action_pipeline.hpp"
+#include "ai_sapiens_sim2real/policy/diagnostics/action_fault_record.hpp"
+#include "ai_sapiens_sim2real/policy/policy_action_result.hpp"
 #include "ai_sapiens_sim2real/policy/gait_clock.hpp"
-#include "ai_sapiens_sim2real/policy/motion_reference.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/motion_reference.hpp"
 #include "ai_sapiens_sim2real/observation/observation_manager.hpp"
 #include "ai_sapiens_sim2real/config/sim2real_config.hpp"
 #include "ai_sapiens_sim2real/shared_control_data.hpp"
@@ -44,6 +46,8 @@ namespace ai_sapiens_sim2real
 {
 
 class OnnxInference;
+class ActionFaultRecorder;
+class PolicyDiagnostics;
 
 /**
  * @brief A policy state: observe, run inference, and produce a validated target
@@ -51,7 +55,7 @@ class OnnxInference;
  *
  * This base is the whole behavior for a plain `kind: policy` state. The
  * per-tick flow lives here once (enter/update are template methods);
- * MimicPolicyRuntime extends it through the on_enter()/prepare_observation() hooks to play
+ * MimicPolicyRuntime extends it through the on_enter()/update_reference_state() hooks to play
  * a reference motion. The base knows nothing about motion beyond handing the
  * observation manager an optional reference motion, since some observation
  * terms read one.
@@ -66,12 +70,17 @@ public:
     const Sim2RealConfig & sim2real_config,
     const std::vector<std::string> & controller_joint_names,
     SharedControlData * shared_data,
-    const MotionReference * reference_motion = nullptr);
+    const MotionReference * reference_motion = nullptr,
+    std::unique_ptr<PolicyObservation> observations = nullptr);
   virtual ~PolicyRuntime();
+
+  void set_fault_recorder(std::shared_ptr<ActionFaultRecorder> recorder);
+  void set_active_behavior(const std::string & state, const std::string & behavior);
 
   void reset();
   void enter();
   PolicyUpdateResult update(const rclcpp::Duration & period);
+  void flush_diagnostics();
   const JointCommand & target_command() const {return target_command_;}
   const std::vector<size_t> & controlled_joints() const
   {
@@ -88,13 +97,15 @@ public:
   }
 
 protected:
-  // Per-tick hooks split around inference. prepare_observation() runs before it:
-  // the base advances the gait phase, mimic seeks the motion (returning false to
-  // skip inference once the window ends). advance_clocks() runs after, advancing
-  // episode_time so the next tick infers one step later. on_enter() handles
-  // per-kind entry.
   virtual void on_enter();
-  virtual bool prepare_observation();
+  void set_diagnostic_motion(const std::string & motion_file, size_t frame);
+
+  // Update the reference consumed by observation terms: gait phase in the base,
+  // motion cursor in Mimic. Does not compute observations or append history.
+  // False means the reference has ended; skip observation, inference, and clock advance.
+  virtual bool update_reference_state();
+
+  // Advance episode_time after an inference attempt, including rejected actions.
   virtual void advance_clocks();
 
   // State the hooks read; writes still go only through the owned output block,
@@ -122,24 +133,32 @@ private:
     const SharedControlData * shared_data,
     const MotionReference * reference_motion);
   void validate_observation_size(size_t observation_size) const;
+  size_t initialize_observations(
+    const Sim2RealConfig & config, const MotionReference * reference_motion);
+  void initialize_target_command();
   void log_ready(size_t observation_size) const;
+  void initialize_diagnostics(const std::vector<std::string> & controller_joints);
 
   // Entry steps, each at the same level so enter() reads as one sequence.
   void install_joint_properties() const;
   void install_velocity_command_ranges() const;
   void reset_episode_state();
+  void seed_action_reference();
 
   // RT update helpers keep PolicyRuntime::update at one abstraction level.
   bool advance_policy_tick(const rclcpp::Duration & period);
   // Applies the active policy's velocity-command range before observation.
   void resolve_active_velocity_command();
+  // Resolve commands and update the reference in the order required by the clock.
+  bool update_observation_sources();
+  // Build the scaled/clipped observation and append its history after sources are ready.
   void compute_observation();
-  std::optional<std::vector<float>> run_policy_inference();
-  PolicyUpdateResult accept_action(
-    const std::vector<float> & raw_action,
-    const std::vector<float> & processed_action);
-  void log_action_limit_once(size_t policy_index, float raw_value, float processed_value);
-  void handle_inference_failure(const char * reason);
+  std::vector<float> run_policy_inference();
+  PolicyActionResult evaluate_policy_action();
+  PolicyActionDecision apply_action(const PolicyActionResult & action);
+  void validate_action_dimensions(const PolicyActionResult & action) const;
+  void commit_action(const PolicyActionResult & action);
+  PolicyActionOutcome reject_action(PolicyActionStatus status);
 
   rclcpp::Node::SharedPtr node_;
   BehaviorOutput * output_;
@@ -154,9 +173,12 @@ private:
   JointProperties joint_properties_;
   ActionPipeline action_pipeline_;
   JointCommand target_command_;
+  std::vector<float> action_reference_;
 
   std::unique_ptr<OnnxInference> inference_;
-  std::unique_ptr<ObservationManager> obs_manager_;
+  std::unique_ptr<PolicyDiagnostics> diagnostics_;
+  FaultExecutionContext diagnostic_context_;
+  std::unique_ptr<PolicyObservation> obs_manager_;
   // Set only when this policy declares a gait_phase observation.
   std::optional<GaitClock> gait_clock_;
   std::string onnx_input_name_;
@@ -166,14 +188,12 @@ private:
   AxisRanges velocity_command_ranges_;
   double step_dt_{0.02};
   double accumulated_period_{0.02};
-  bool action_limit_logged_{false};
-  static constexpr float kAbsActionLimitRad = 2.0f * 3.14159265f;
-  // A transient inference failure holds the previous action for one policy
-  // step; after this many consecutive failures the runtime requests the
-  // damping failsafe, so a persistent fault runs on a stale action for at
-  // most ~kMaxConsecutiveInferenceFailures * step_dt_.
-  static constexpr size_t kMaxConsecutiveInferenceFailures = 3;
-  size_t consecutive_inference_failures_{0};
+  bool is_reference_mimic_{false};
+  const ActionSafetyLimits action_safety_limits_;
+  // Initial failure plus five retries on subsequent policy ticks. Only an
+  // accepted action resets the shared budget for invalid actions and exceptions.
+  static constexpr size_t kMaxConsecutiveActionFailures = 6;
+  size_t consecutive_action_failures_{0};
 };
 
 }  // namespace ai_sapiens_sim2real

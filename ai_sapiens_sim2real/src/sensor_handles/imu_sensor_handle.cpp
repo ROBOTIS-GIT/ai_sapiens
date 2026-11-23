@@ -16,7 +16,11 @@
 
 #include "ai_sapiens_sim2real/sensor_handles/imu_sensor_handle.hpp"
 
+#include <cmath>
 #include <stdexcept>
+
+#include "ai_sapiens_sim2real/exception_diagnostics.hpp"
+#include "ai_sapiens_sim2real/sensor_handles/sensor_input_validation.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -26,15 +30,17 @@ ImuSensorHandle::ImuSensorHandle(
   SensorData * sensors,
   ModeRequests * requests,
   double timeout_seconds,
-  const std::string & topic)
+  const std::string & topic,
+  const rclcpp::SubscriptionOptions & subscription_options,
+  double expected_rate_hz)
 : node_(node)
   , sensors_(sensors)
   , requests_(requests)
   , topic_(topic)
   , timeout_(std::chrono::duration<double>(timeout_seconds))
 {
-  if (timeout_seconds <= 0.0) {
-    throw std::runtime_error("IMU sensor watchdog timeout must be positive");
+  if (!std::isfinite(timeout_seconds) || timeout_seconds <= 0.0) {
+    throw std::runtime_error("IMU sensor watchdog timeout must be finite and positive");
   }
 
   // Start the watchdog after startup.
@@ -42,32 +48,47 @@ ImuSensorHandle::ImuSensorHandle(
   initial_data.received_at = std::chrono::steady_clock::now();
   buffer_.initRT(initial_data);
 
+  input_gap_monitor_ = std::make_unique<InputGapMonitor>(
+    node_, topic_, expected_rate_hz,
+    subscription_options.callback_group);
+
   // Create subscription
   subscription_ = node_->create_subscription<sensor_msgs::msg::Imu>(
     topic,
     10,
-    std::bind(&ImuSensorHandle::callback, this, std::placeholders::_1));
+    CALLBACK_WITH_EXCEPTION_LOG(this, ImuSensorHandle::callback), subscription_options);
 
   RCLCPP_INFO(node_->get_logger(), "[ImuSensorHandle] subscribed to %s", topic.c_str());
 }
 
 void ImuSensorHandle::update(const rclcpp::Time & /*time*/)
 {
-  // Read from RealtimeBuffer (non-blocking)
-  ImuData * data = buffer_.readFromRT();
+  const ImuData & data = *buffer_.readFromRT();
+  apply_valid_sample(data);
+  update_failsafe(data);
+}
 
-  // Copy to the shared sensor block.
-  sensors_->angular_velocity = data->angular_velocity;
-  sensors_->orientation = data->orientation;
+void ImuSensorHandle::apply_valid_sample(const ImuData & data)
+{
+  if (!data.is_valid) {
+    return;
+  }
 
-  // Compute projected gravity from orientation
+  sensors_->angular_velocity = data.angular_velocity;
+  sensors_->orientation = data.orientation;
   sensors_->compute_projected_gravity();
+}
 
-  const auto elapsed = std::chrono::steady_clock::now() - data->received_at;
+void ImuSensorHandle::update_failsafe(const ImuData & data)
+{
+  const auto elapsed = std::chrono::steady_clock::now() - data.received_at;
+
   if (elapsed > timeout_) {
     log_stale_once(elapsed);
     stale_latched_ = true;
   }
+
+  sensors_->is_imu_usable = data.is_valid && !stale_latched_;
   if (stale_latched_) {
     requests_->damping = true;
   }
@@ -80,30 +101,28 @@ std::string ImuSensorHandle::get_name() const
 
 void ImuSensorHandle::callback(const sensor_msgs::msg::Imu::SharedPtr msg)
 {
-  ImuData data;
+  input_gap_monitor_->received_raw();
 
-  // Extract angular velocity
-  data.angular_velocity.x() = static_cast<float>(msg->angular_velocity.x);
-  data.angular_velocity.y() = static_cast<float>(msg->angular_velocity.y);
-  data.angular_velocity.z() = static_cast<float>(msg->angular_velocity.z);
+  const auto & gyro = msg->angular_velocity;
+  const Eigen::Vector3d angular_velocity(gyro.x, gyro.y, gyro.z);
+  const auto & q = msg->orientation;
+  const Eigen::Quaterniond orientation(q.w, q.x, q.y, q.z);
 
-  // Extract orientation (ROS: x,y,z,w -> Eigen: w,x,y,z)
-  data.orientation = Eigen::Quaternionf(
-          static_cast<float>(msg->orientation.w),
-          static_cast<float>(msg->orientation.x),
-          static_cast<float>(msg->orientation.y),
-          static_cast<float>(msg->orientation.z)
-  );
-
-  // Handle zero quaternion (not initialized)
-  if (data.orientation.coeffs().isZero()) {
-    data.orientation = Eigen::Quaternionf::Identity();
+  if (!valid_imu_sample(orientation, angular_velocity, msg->orientation_covariance[0] != -1.0,
+    msg->angular_velocity_covariance[0] != -1.0))
+  {
+    RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 1000,
+      "Ignoring invalid IMU orientation/angular velocity (topic=%s)", topic_.c_str());
+    return;
   }
 
+  ImuData data;
+  data.angular_velocity = angular_velocity.cast<float>();
+  data.orientation = orientation.cast<float>().normalized();
+  data.is_valid = true;
   data.received_at = std::chrono::steady_clock::now();
-
-  // Write to buffer (thread-safe)
   buffer_.writeFromNonRT(data);
+  input_gap_monitor_->received_accepted();
   received_once_.store(true);
 }
 
@@ -115,7 +134,7 @@ void ImuSensorHandle::log_stale_once(std::chrono::steady_clock::duration elapsed
 
   RCLCPP_ERROR(
     node_->get_logger(),
-    "Damping failsafe latched: no IMU message for %.3fs; exceeded %.3fs timeout (topic=%s)",
+    "Damping failsafe latched: no valid IMU message for %.3fs; exceeded %.3fs timeout (topic=%s)",
     std::chrono::duration<double>(elapsed).count(),
     timeout_.count(),
     topic_.c_str());

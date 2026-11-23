@@ -2,6 +2,31 @@
 Changelog for package ai_sapiens_sim2real
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.5.0 (2026-11-23)
+------------------
+* Added adaptive phase clocks with low-speed activation.
+* Added frame-major observation history support.
+* Added Mimic entry-posture validation to reject unsafe motion transitions and
+  unified motion playback across Mimic policies.
+* Added per-policy action transition settings.
+* Added action limit, non-finite output, and inference-error detection with
+  bounded retries, observation-history recovery, and asynchronous diagnostic
+  capture.
+* Expanded RadioMaster policy selection to 200 entries and improved policy and
+  asset configuration error messages.
+* Isolated sensor and teleoperation callbacks in a dedicated input executor,
+  added early input-gap diagnostics, and cached joint-state mappings.
+* Added BlinkMimic and SuperMimic deployment with shared-policy loading and
+  configuration-driven observations.
+* Added configurable API heartbeat enforcement, session-scoped command
+  velocity expiry, optional neutral-entry checks, and manual velocity override.
+* Hardened sensor validation, executor exception reporting, joint-command
+  publication recovery, and emergency damping.
+* Improved realtime service request safety.
+* Improved policy fault diagnostics.
+* Added external policy asset discovery and the K1 natural walking policy.
+* Contributors: Kiwoong Park, Woojin Wie
+
 0.4.0 (2026-11-19)
 ------------------
 * None
