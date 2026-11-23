@@ -18,11 +18,9 @@
 #define AI_SAPIENS_SIM2REAL__CONTROLLERS__POLICY_CONTROLLER_HPP_
 
 #include <algorithm>
-#include <filesystem>
 #include <memory>
 #include <stdexcept>
 #include <string>
-#include <unordered_map>
 #include <utility>
 
 #include <rclcpp/rclcpp.hpp>
@@ -31,15 +29,14 @@
 #include "ai_sapiens_sim2real/interfaces/controller_base.hpp"
 #include "ai_sapiens_sim2real/command_transition.hpp"
 #include "ai_sapiens_sim2real/config/action_transition_config.hpp"
-#include "ai_sapiens_sim2real/policy/mimic/mimic_policy_runtime.hpp"
+#include "ai_sapiens_sim2real/policy/policy_runtime_loader.hpp"
 #include "ai_sapiens_sim2real/policy/policy_runtime.hpp"
 #include "ai_sapiens_sim2real/config/sim2real_config.hpp"
+#include "ai_sapiens_sim2real/config/root_config.hpp"
 #include "ai_sapiens_sim2real/shared_control_data.hpp"
 
 namespace ai_sapiens_sim2real
 {
-
-class RootConfig;
 
 class PolicyController : public ControllerBase
 {
@@ -59,24 +56,10 @@ public:
   std::string get_name() const override;
 
 private:
-  struct RuntimeEntry
-  {
-    std::unique_ptr<PolicyRuntime> runtime;
-    ActionTransitionConfig action_transition;
-  };
-
   void initialize_fault_recorder();
 
-  // Startup loading: create one runtime per resolved policy behavior.
-  void load_policies(SharedControlData * shared_data, const RootConfig & root_config);
-  void register_runtime(
-    SharedControlData * shared_data,
-    const std::string & state_name,
-    std::unique_ptr<PolicyRuntime> runtime,
-    const ActionTransitionConfig & action_transition);
-
   // Runtime lookup follows the active mode's policy name.
-  RuntimeEntry * active_runtime_entry(const std::string & policy_name);
+  LoadedPolicyRuntimes::Entry * active_runtime_entry(const std::string & policy_name);
 
   void enter_policy(PolicyRuntime & runtime, const ActionTransitionConfig & transition);
   void update_policy(PolicyRuntime & runtime, const rclcpp::Duration & period);
@@ -93,7 +76,8 @@ private:
 
   // Stored by base pointer so mimic policies keep their derived behavior; the
   // active state's policy name selects which runtime drives the act stage.
-  std::unordered_map<std::string, RuntimeEntry> runtimes_;
+  LoadedPolicyRuntimes runtimes_;
+  PolicyRuntime * active_runtime_{nullptr};  // Non-owning; cleared outside policy modes.
   // SharedControlData::mode.transition_count value at our last runtime enter.
   uint64_t entered_transition_count_{0};
   // True after a posture or policy command; false at startup/reset or in damping.

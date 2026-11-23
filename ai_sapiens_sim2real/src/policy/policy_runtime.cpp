@@ -51,7 +51,8 @@ PolicyRuntime::PolicyRuntime(
   const Sim2RealConfig & sim2real_config,
   const std::vector<std::string> & controller_joint_names,
   SharedControlData * shared_data,
-  const MotionReference * reference_motion)
+  const MotionReference * reference_motion,
+  std::unique_ptr<PolicyObservation> observations)
 : sensors_(&shared_data->sensors)
   , policy_(&shared_data->policy)
   , requests_(&shared_data->requests)
@@ -64,6 +65,7 @@ PolicyRuntime::PolicyRuntime(
   , model_path_(std::move(model_path))
   , sim2real_config_path_(sim2real_config.path())
 {
+  obs_manager_ = std::move(observations);
   is_reference_mimic_ = reference_motion != nullptr;
   load_sim2real_config(sim2real_config, controller_joint_names);
   log_joint_coverage(controller_joint_names);
@@ -72,11 +74,24 @@ PolicyRuntime::PolicyRuntime(
   const size_t observation_size = initialize_observations(sim2real_config, reference_motion);
   initialize_target_command();
   initialize_diagnostics(controller_joint_names);
+  set_active_behavior(state_name_, state_name_);
 
   log_ready(observation_size);
 }
 
 PolicyRuntime::~PolicyRuntime() = default;
+
+void PolicyRuntime::set_active_behavior(const std::string & state, const std::string & behavior)
+{
+  diagnostic_context_.state = state;
+  diagnostic_context_.behavior = behavior;
+}
+
+void PolicyRuntime::set_diagnostic_motion(const std::string & motion_file, size_t frame)
+{
+  diagnostic_context_.motion_file = motion_file;
+  diagnostic_context_.motion_frame = frame;
+}
 
 size_t PolicyRuntime::initialize_observations(
   const Sim2RealConfig & config, const MotionReference * reference_motion)
@@ -236,9 +251,7 @@ PolicyUpdateResult PolicyRuntime::update(const rclcpp::Duration & period)
     return PolicyUpdateResult::TargetUnavailable;
   }
 
-  compute_observation();
-
-  diagnostics_->begin_capture(policy_->episode_time, shared_data_->sensors);
+  diagnostics_->begin_capture(policy_->episode_time, shared_data_->sensors, diagnostic_context_);
   const auto action = evaluate_policy_action();
   const auto decision = apply_action(action);
   diagnostics_->finish_capture(action, shared_data_->sensors, decision);
@@ -326,6 +339,7 @@ PolicyActionResult PolicyRuntime::evaluate_policy_action()
   PolicyActionResult result;
 
   try {
+    compute_observation();
     result.raw = run_policy_inference();
     result.processed = action_pipeline_.process(result.raw);
     validate_action_dimensions(result);
@@ -509,11 +523,15 @@ size_t PolicyRuntime::create_observation_manager(
   const SharedControlData * shared_data,
   const MotionReference * reference_motion)
 {
-  obs_manager_ = std::make_unique<ObservationManager>(
-    sim2real_config.observations(),
-    shared_data,
-    joint_context_,
-    reference_motion);
+  if (!obs_manager_) {
+    obs_manager_ = std::make_unique<ObservationManager>(
+      sim2real_config.observations(), shared_data, joint_context_, reference_motion);
+  }
+
+  const auto expected_name = obs_manager_->input_name();
+  if (!expected_name.empty() && expected_name != onnx_input_name_) {
+    throw std::runtime_error("Policy observation input name does not match ONNX: " + expected_name);
+  }
   return obs_manager_->get_observation_size();
 }
 

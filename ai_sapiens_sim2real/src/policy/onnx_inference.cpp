@@ -48,7 +48,11 @@ void OnnxInference::load_input_metadata(const std::string & model_path)
   // Get input information.
   for (size_t i = 0; i < session_->GetInputCount(); ++i) {
     Ort::TypeInfo input_type = session_->GetInputTypeInfo(i);
-    const auto input_shape = input_type.GetTensorTypeAndShapeInfo().GetShape();
+    const auto tensor_info = input_type.GetTensorTypeAndShapeInfo();
+    if (tensor_info.GetElementType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT) {
+      throw std::runtime_error("ONNX policy input must be float32: " + model_path);
+    }
+    const auto input_shape = tensor_info.GetShape();
     input_shapes_.push_back(input_shape);
     normalized_input_shapes_.push_back(normalize_policy_shape(input_shape,
         "input " + std::to_string(i)));
@@ -75,7 +79,11 @@ void OnnxInference::load_output_metadata(const std::string & model_path)
 
   // Get output information.
   Ort::TypeInfo output_type = session_->GetOutputTypeInfo(0);
-  output_shape_ = output_type.GetTensorTypeAndShapeInfo().GetShape();
+  const auto tensor_info = output_type.GetTensorTypeAndShapeInfo();
+  if (tensor_info.GetElementType() != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT) {
+    throw std::runtime_error("ONNX policy output must be float32: " + model_path);
+  }
+  output_shape_ = tensor_info.GetShape();
   normalized_output_shape_ = normalize_policy_shape(output_shape_, "output");
   output_size_ = tensor_size(normalized_output_shape_, "output");
   auto output_name = session_->GetOutputNameAllocated(0, allocator_);

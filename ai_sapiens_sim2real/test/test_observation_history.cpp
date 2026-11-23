@@ -175,3 +175,54 @@ TEST(ObservationHistory, RejectedSamplesAreReplacedWithoutRescalingInEitherLayou
     }
   }
 }
+
+TEST(ObservationHistory, FailedComputationRejectsOnlyTermsUpdatedThisTick)
+{
+  for (const bool gym : {false, true}) {
+    for (int throwing_term = 0; throwing_term < 3; ++throwing_term) {
+      SCOPED_TRACE(::testing::Message() << "gym=" << gym << " throwing=" << throwing_term);
+      YAML::Node config;
+      config["use_gym_history"] = gym;
+      for (int i = 0; i < 3; ++i) {
+        const auto name = "retry_term_" + std::to_string(i);
+        ObservationRegistry::register_observation(name,
+          [](const ObservationContext & context, const YAML::Node & params) {
+            if (params["throws"].as<bool>() && context.shared.sensors.joint_vel.size() == 0) {
+              throw std::runtime_error("Missing sensor sample");
+            }
+            return std::vector<float>{context.shared.mode.velocity_commands.x()};
+          });
+        config[name]["history_length"] = 3;
+        config[name]["params"]["throws"] = i == throwing_term;
+      }
+      SharedControlData shared;
+      shared.resize(1, 1);
+      ObservationManager manager(config, &shared, PolicyJointContext{}, nullptr);
+      for (float value : {1.f, 2.f}) {
+        shared.mode.velocity_commands.x() = value;
+        manager.compute();
+      }
+
+      shared.sensors.joint_vel.resize(0);
+      shared.mode.velocity_commands.x() = 99.f;
+      for (int failure = 0; failure < 2; ++failure) {
+        EXPECT_THROW(manager.compute(), std::runtime_error);
+        manager.reject_latest();
+        manager.reject_latest();
+      }
+      shared.sensors.joint_vel = Eigen::VectorXf::Zero(1);
+      shared.mode.velocity_commands.x() = 3.f;
+      const auto recovered = manager.compute();
+      const auto layout = manager.layout();
+      for (int i = 0; i < 3; ++i) {
+        const auto & slice = layout[i];
+        EXPECT_FLOAT_EQ(recovered[slice.offset], i < throwing_term ? 2.f : 1.f);
+        EXPECT_FLOAT_EQ(recovered[slice.offset + slice.frame_stride], 2.f);
+        EXPECT_FLOAT_EQ(recovered[slice.offset + 2 * slice.frame_stride], 3.f);
+      }
+      manager.reset();
+      manager.reject_latest();
+      EXPECT_EQ(manager.compute(), std::vector<float>(9, 3.f));
+    }
+  }
+}
