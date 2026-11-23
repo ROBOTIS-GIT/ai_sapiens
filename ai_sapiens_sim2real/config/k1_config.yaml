@@ -109,7 +109,7 @@ state_machine:
         - when: MimicRequested
           select: mimic_selector
     Velocity:
-      run: velocity_policy
+      run: velocity_walk_natural
       transitions:
         - when: DampingRequested
           to: Damping
@@ -198,6 +198,10 @@ state_behaviors:
   velocity_policy:
     kind: policy
     asset: locomotion/velocity/walk_default
+
+  velocity_walk_natural:
+    kind: policy
+    asset: locomotion/velocity/walk_natural
 
   mimic_squat:
     kind: mimic
