@@ -17,10 +17,13 @@
 #ifndef AI_SAPIENS_SIM2REAL__POLICY__DIAGNOSTICS__POLICY_DIAGNOSTICS_HPP_
 #define AI_SAPIENS_SIM2REAL__POLICY__DIAGNOSTICS__POLICY_DIAGNOSTICS_HPP_
 
+#include <atomic>
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include <rclcpp/logger.hpp>
 
 #include "ai_sapiens_sim2real/policy/diagnostics/policy_fault_capture.hpp"
 #include "ai_sapiens_sim2real/policy/policy_action_result.hpp"
@@ -44,6 +47,7 @@ public:
   void finish_capture(
     const PolicyActionResult & result, const SensorData & sensors,
     const PolicyActionDecision & decision) noexcept;
+  void flush_diagnostics();
 
 private:
   void log_result(
@@ -56,6 +60,7 @@ private:
   rclcpp::Logger logger_;
   std::unique_ptr<PolicyFaultCapture> capture_;
   std::optional<SensorData> previous_sensors_;
+  std::atomic<bool> report_error_pending_{false};
   double sensor_interval_{0.0};
   std::string active_state_;
 };

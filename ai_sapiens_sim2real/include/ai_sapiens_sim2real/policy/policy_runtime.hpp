@@ -80,6 +80,7 @@ public:
   void reset();
   void enter();
   PolicyUpdateResult update(const rclcpp::Duration & period);
+  void flush_diagnostics();
   const JointCommand & target_command() const {return target_command_;}
   const std::vector<size_t> & controlled_joints() const
   {

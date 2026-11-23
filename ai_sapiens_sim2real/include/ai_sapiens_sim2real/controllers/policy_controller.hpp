@@ -52,6 +52,7 @@ public:
     const ModeDecision & decision,
     const rclcpp::Time & /*time*/,
     const rclcpp::Duration & period);
+  void flush_diagnostics();
   void reset() override;
   std::string get_name() const override;
 

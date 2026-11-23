@@ -19,11 +19,14 @@
 #include <limits>
 #include <memory>
 #include <sstream>
+#include <utility>
 
 #include "ai_sapiens_sim2real/command_transition.hpp"
 #include "ai_sapiens_sim2real/policy/diagnostics/action_fault_diagnostics.hpp"
 #include "ai_sapiens_sim2real/policy/diagnostics/action_fault_recorder.hpp"
+#include "ai_sapiens_sim2real/policy/diagnostics/policy_diagnostics.hpp"
 #include "ai_sapiens_sim2real/policy/policy_runtime.hpp"
+#include "ros_log_capture.hpp"
 
 using ai_sapiens_sim2real::ActionFaultRecorder;
 using ai_sapiens_sim2real::ActionPipeline;
@@ -32,7 +35,9 @@ using ai_sapiens_sim2real::ActionRejection;
 using ai_sapiens_sim2real::ActionSafetyLimits;
 using ai_sapiens_sim2real::BoundaryCheckState;
 using ai_sapiens_sim2real::CommandTransition;
+using ai_sapiens_sim2real::FaultPolicyMetadata;
 using ai_sapiens_sim2real::MotionReference;
+using ai_sapiens_sim2real::PolicyDiagnostics;
 using ai_sapiens_sim2real::PolicyRuntime;
 using ai_sapiens_sim2real::PolicyUpdateResult;
 using ai_sapiens_sim2real::SensorData;
@@ -41,6 +46,7 @@ using ai_sapiens_sim2real::Sim2RealConfig;
 using ai_sapiens_sim2real::format_action_fault_actions;
 using ai_sapiens_sim2real::format_action_fault_sensors;
 using ai_sapiens_sim2real::validate_action;
+using ai_sapiens_sim2real::test::RosLogCapture;
 
 namespace
 {
@@ -306,6 +312,32 @@ TEST_F(MimicActionFault, CapturesRejectedInputBeforeHistoryRepairAndRecoverySepa
     break;
   }
   EXPECT_TRUE(has_recorded_pair);
+}
+
+TEST(PolicyDiagnostics, DefersCaptureErrorLogUntilFlush)
+{
+  std::string pattern = "/tmp/policy-diagnostics-flush-XXXXXX";
+  ASSERT_NE(::mkdtemp(pattern.data()), nullptr);
+
+  const auto logger = rclcpp::get_logger("deferred_capture_error_test");
+  {
+    ActionFaultRecorder::Options options;
+    options.directory = pattern;
+    auto recorder = std::make_shared<ActionFaultRecorder>(options, logger);
+    FaultPolicyMetadata metadata;
+    metadata.config_path = "/dev/null";
+    PolicyDiagnostics diagnostics(std::move(metadata), logger);
+    diagnostics.set_recorder(std::move(recorder));
+    RosLogCapture logs(logger.get_name());
+
+    diagnostics.capture_output({1.0f});
+    EXPECT_TRUE(logs.take().empty());
+
+    diagnostics.flush_diagnostics();
+    EXPECT_NE(logs.take().find("Observation capture disabled"), std::string::npos);
+  }
+
+  std::filesystem::remove_all(pattern);
 }
 
 TEST(ActionFaultDiagnostics, ConsoleIncludesOnlyInvalidActionsAndJumpRows)

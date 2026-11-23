@@ -233,6 +233,10 @@ void ControlLoop::log_exit() const
 
 void ControlLoop::flush_diagnostics()
 {
+  if (policy_controller_) {
+    policy_controller_->flush_diagnostics();
+  }
+
   for (const auto & publisher : command_publishers_) {
     publisher->flush_diagnostics();
   }

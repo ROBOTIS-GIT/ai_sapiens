@@ -132,6 +132,13 @@ void PolicyController::update_policy(PolicyRuntime & runtime, const rclcpp::Dura
   command_transition_.update(period.seconds(), result, runtime.target_command(), output_->command);
 }
 
+void PolicyController::flush_diagnostics()
+{
+  for (const auto & runtime : runtimes_.instances) {
+    runtime->flush_diagnostics();
+  }
+}
+
 void PolicyController::reset()
 {
   active_runtime_ = nullptr;
