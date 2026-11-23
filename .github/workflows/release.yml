@@ -1,0 +1,29 @@
+name: Release
+
+on:
+  pull_request:
+    branches: [jazzy]
+    types: [opened, synchronize, edited, reopened, ready_for_review, closed]
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    uses: ROBOTIS-GIT/github_workflows/.github/workflows/release.yml@main
+    with:
+      source_branch: main
+      target_branch: jazzy
+
+  discord-notify:
+    needs: release
+    if: needs.release.outputs.published == 'true'
+    permissions:
+      contents: read
+    uses: ROBOTIS-GIT/github_workflows/.github/workflows/discord-notify.yml@main
+    with:
+      version: ${{ needs.release.outputs.version }}
+    secrets:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
