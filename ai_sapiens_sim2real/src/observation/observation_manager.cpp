@@ -37,6 +37,7 @@ ObservationManager::ObservationManager(
 
 void ObservationManager::reset()
 {
+  updated_terms_ = 0;
   const auto context = make_observation_context();
   for (auto & term : terms_) {
     auto obs = term.func(context, term.params);
@@ -53,10 +54,12 @@ std::vector<float> ObservationManager::compute()
 
 void ObservationManager::update_history()
 {
+  updated_terms_ = 0;
   const auto context = make_observation_context();
 
   for (auto & term : terms_) {
     term.add(term.func(context, term.params));
+    ++updated_terms_;
   }
 }
 
@@ -85,9 +88,11 @@ void ObservationManager::assemble_observation()
 
 void ObservationManager::reject_latest()
 {
-  for (auto & term : terms_) {
-    term.reject_latest();
+  // A term may throw before later histories have been updated.
+  for (size_t i = 0; i < updated_terms_; ++i) {
+    terms_[i].reject_latest();
   }
+  updated_terms_ = 0;
 }
 
 std::vector<ObservationSlice> ObservationManager::layout() const

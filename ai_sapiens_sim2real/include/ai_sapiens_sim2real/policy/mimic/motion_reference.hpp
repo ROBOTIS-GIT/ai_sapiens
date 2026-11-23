@@ -44,6 +44,14 @@ public:
 
   void seek(double time);
 
+  size_t num_frames() const {return static_cast<size_t>(num_frames_);}
+
+  Eigen::Vector3f root_position() const
+  {
+    return frames_->root_positions[index_0_] * (1.0f - blend_) +
+           frames_->root_positions[index_1_] * blend_;
+  }
+
   Eigen::VectorXf joint_pos() const
   {
     return frames_->dof_positions[index_0_] * (1.0f - blend_) +

@@ -60,10 +60,17 @@ void PolicyDiagnostics::accumulate_sensor_interval(double period) noexcept
   if (std::isfinite(period) && period > 0.0) {sensor_interval_ += period;}
 }
 
-void PolicyDiagnostics::begin_capture(double episode_time, const SensorData & sensors) noexcept
+void PolicyDiagnostics::begin_capture(
+  double episode_time, const SensorData & sensors, const FaultExecutionContext & context) noexcept
 {
+  try {
+    active_state_ = context.state.empty() ? metadata_->state : context.state;
+  } catch (...) {
+    active_state_.clear();
+  }
+
   if (capture_) {
-    capture_->begin_capture(episode_time, sensors, previous_sensors_, sensor_interval_);
+    capture_->begin_capture(episode_time, sensors, previous_sensors_, sensor_interval_, context);
   }
 }
 
@@ -112,17 +119,19 @@ void PolicyDiagnostics::log_result(
   if (result.status == PolicyActionStatus::InferenceFailed) {
     RCLCPP_WARN(logger_,
       "Policy '%s' inference failed (%zu/%zu consecutive unusable actions): %s",
-      metadata_->state.c_str(), decision.failures, decision.max_failures, result.error.c_str());
+      (active_state_.empty() ? metadata_->state : active_state_).c_str(),
+      decision.failures, decision.max_failures, result.error.c_str());
 
     if (decision.outcome == PolicyActionOutcome::Damping) {
       RCLCPP_ERROR(logger_,
         "Policy '%s' failed to produce a usable action; requesting damping failsafe",
-        metadata_->state.c_str());
+        (active_state_.empty() ? metadata_->state : active_state_).c_str());
     }
   } else if (decision.previous_failures != 0) {
     RCLCPP_INFO(logger_,
       "Policy '%s' recovered after %zu unusable action(s); accepting target and resetting retries",
-      metadata_->state.c_str(), decision.previous_failures);
+      (active_state_.empty() ? metadata_->state : active_state_).c_str(),
+      decision.previous_failures);
   }
 
   if (!path.empty()) {RCLCPP_INFO(logger_, "Inference diagnostics queued: %s", path.c_str());}
