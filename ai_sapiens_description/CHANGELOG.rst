@@ -2,6 +2,10 @@
 Changelog for package ai_sapiens_description
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.5.0 (2026-11-23)
+------------------
+* None
+
 0.4.0 (2026-11-19)
 ------------------
 * Remove the rev2 cap visuals from both URDF DAE and MuJoCo OBJ assets;

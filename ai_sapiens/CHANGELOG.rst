@@ -2,6 +2,24 @@
 Changelog for package ai_sapiens
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.5.0 (2026-11-23)
+------------------
+* Added adaptive phase clocks and low-speed activation.
+* Added frame-major observation history.
+* Added Mimic entry-posture validation.
+* Added per-policy action transitions.
+* Added policy output validation, retry, and recovery.
+* Expanded RadioMaster selection to 200 entries and improved configuration
+  diagnostics.
+* Added a dedicated input executor and input-gap diagnostics.
+* Added BlinkMimic and SuperMimic deployment.
+* Improved API heartbeat and velocity authority handling.
+* Hardened sensor validation, command publication, and emergency damping.
+* Improved realtime service request safety.
+* Improved policy fault diagnostics.
+* Added external Sim2Real asset discovery and the K1 natural walking policy.
+* Contributors: Kiwoong Park, Woojin Wie
+
 0.4.0 (2026-11-19)
 ------------------
 * Added the K1 rev2 model for ROS 2 and MuJoCo. Use ``model:=k1_rev2``
