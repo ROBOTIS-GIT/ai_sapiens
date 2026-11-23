@@ -17,13 +17,13 @@
 #ifndef AI_SAPIENS_SIM2REAL__POLICY__DIAGNOSTICS__POLICY_FAULT_CAPTURE_HPP_
 #define AI_SAPIENS_SIM2REAL__POLICY__DIAGNOSTICS__POLICY_FAULT_CAPTURE_HPP_
 
+#include <atomic>
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 #include <rclcpp/clock.hpp>
-#include <rclcpp/logger.hpp>
 
 #include "ai_sapiens_sim2real/policy/diagnostics/action_fault_record.hpp"
 
@@ -38,8 +38,9 @@ class PolicyFaultCapture
 public:
   PolicyFaultCapture(
     std::shared_ptr<ActionFaultRecorder> recorder,
-    std::shared_ptr<const FaultPolicyMetadata> metadata, rclcpp::Logger logger);
+    std::shared_ptr<const FaultPolicyMetadata> metadata);
   void reset() noexcept;
+  bool take_error() noexcept;
   void begin_capture(
     double episode_time, const SensorData & sensors,
     const std::optional<SensorData> & previous, double interval,
@@ -51,14 +52,21 @@ public:
 
 private:
   void disable() noexcept;
+  void reset_current_snapshot_for_reuse() noexcept;
+  void complete_current_snapshot(
+    const PolicyActionResult & result, const PolicyActionDecision & decision);
+  void store_current_as_previous_accepted();
+  std::string record_incident_attempt(const PolicyActionDecision & decision);
+
   std::shared_ptr<ActionFaultRecorder> recorder_;
   std::shared_ptr<const FaultPolicyMetadata> metadata_;
-  rclcpp::Logger logger_;
   rclcpp::Clock system_clock_{RCL_SYSTEM_TIME};
   FaultSnapshot current_;
   std::optional<FaultSnapshot> previous_accepted_;
+  std::atomic<bool> error_pending_{false};
   uint64_t incident_{0};
   size_t attempt_{0};
+  size_t captured_call_count_{0};
   bool is_enabled_{true};
 };
 }  // namespace ai_sapiens_sim2real

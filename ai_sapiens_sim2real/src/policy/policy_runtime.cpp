@@ -139,6 +139,11 @@ void PolicyRuntime::set_fault_recorder(std::shared_ptr<ActionFaultRecorder> reco
   diagnostics_->set_recorder(std::move(recorder));
 }
 
+void PolicyRuntime::flush_diagnostics()
+{
+  diagnostics_->flush_diagnostics();
+}
+
 void PolicyRuntime::reset()
 {
   diagnostics_->reset();

@@ -42,7 +42,7 @@ void PolicyDiagnostics::set_recorder(std::shared_ptr<ActionFaultRecorder> record
     std::ifstream config(metadata->config_path);
     metadata->config_yaml.assign(std::istreambuf_iterator<char>(config), {});
     capture_ = std::make_unique<PolicyFaultCapture>(
-      std::move(recorder), std::move(metadata), logger_);
+      std::move(recorder), std::move(metadata));
   } catch (const std::exception & e) {
     RCLCPP_ERROR(logger_, "Cannot prepare fault observation capture: %s", e.what());
   }
@@ -103,6 +103,18 @@ void PolicyDiagnostics::finish_capture(
     // Diagnostic allocation/formatting failures must never change control.
     previous_sensors_.reset();
     sensor_interval_ = 0.0;
+    report_error_pending_.store(true, std::memory_order_release);
+  }
+}
+
+void PolicyDiagnostics::flush_diagnostics()
+{
+  if (capture_ && capture_->take_error()) {
+    RCLCPP_ERROR(logger_,
+      "Observation capture disabled after diagnostic capture error; control continues");
+  }
+
+  if (report_error_pending_.exchange(false, std::memory_order_acq_rel)) {
     RCLCPP_ERROR(logger_, "Cannot report policy diagnostics; control continues");
   }
 }
