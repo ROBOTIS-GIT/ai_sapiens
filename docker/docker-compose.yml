@@ -30,6 +30,7 @@ services:
      - DISPLAY=${DISPLAY}
      - QT_X11_NO_MITSHM=1
      - RMW_IMPLEMENTATION=rmw_zenoh_cpp
+     - ZENOH_CONFIG_OVERRIDE=transport/shared_memory/enabled=true
     volumes:
       - /dev:/dev
       - /dev/shm:/dev/shm
