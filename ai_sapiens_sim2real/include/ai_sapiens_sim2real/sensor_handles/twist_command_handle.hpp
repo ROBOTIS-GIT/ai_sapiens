@@ -50,7 +50,8 @@ public:
     rclcpp::Node::SharedPtr node,
     ApiInput * api,
     const AxisRanges * active_velocity_command_ranges,
-    const std::string & topic = "/cmd_vel");
+    const std::string & topic = "/cmd_vel",
+    const rclcpp::SubscriptionOptions & subscription_options = {});
 
   void update(const rclcpp::Time & /*time*/) override;
 
@@ -69,7 +70,12 @@ private:
 
   // Subscription callback writes buffer_; update() selects it when API mode owns velocity.
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr subscription_;
-  realtime_tools::RealtimeBuffer<Eigen::Vector3f> buffer_;
+  struct ReceivedCmdVel
+  {
+    Eigen::Vector3f velocity{Eigen::Vector3f::Zero()};
+    std::chrono::steady_clock::time_point received_at{};
+  };
+  realtime_tools::RealtimeBuffer<ReceivedCmdVel> buffer_;
 };
 
 }  // namespace ai_sapiens_sim2real

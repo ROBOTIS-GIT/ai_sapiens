@@ -29,6 +29,7 @@
 #include "ai_sapiens_sim2real/authority.hpp"
 #include "ai_sapiens_sim2real/joint_command.hpp"
 #include "ai_sapiens_sim2real/config/sim2real_config.hpp"
+#include "ai_sapiens_sim2real/policy/gait_clock.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -61,6 +62,8 @@ struct SensorData
   Eigen::Vector3f angular_velocity{Eigen::Vector3f::Zero()};
   Eigen::Vector3f projected_gravity{0.0f, 0.0f, -1.0f};
   Eigen::Quaternionf orientation{Eigen::Quaternionf::Identity()};
+  bool is_imu_usable{false};
+
   Eigen::VectorXf joint_pos;
   Eigen::VectorXf joint_vel;
 
@@ -77,6 +80,7 @@ struct SensorData
 struct TeleopInput
 {
   Eigen::Vector3f velocity_commands{Eigen::Vector3f::Zero()};
+  bool is_velocity_command_valid{false};
   // Normalized plugin command, rescaled to the active policy range before observation.
   Eigen::Vector3f velocity_command_normalized{Eigen::Vector3f::Zero()};
   std::atomic<bool> received{false};
@@ -87,13 +91,13 @@ struct TeleopInput
   std::chrono::steady_clock::time_point update_time{};
 };
 
-// API command stream. Written by the twist and heartbeat handles; commands
-// are accepted only while the heartbeat remains valid.
+// API command and heartbeat samples published by their input handles.
 struct ApiInput
 {
   Eigen::Vector3f velocity_commands{Eigen::Vector3f::Zero()};
   // Raw command, reclamped to the active policy range at inference time.
   Eigen::Vector3f velocity_command_raw{Eigen::Vector3f::Zero()};
+  std::chrono::steady_clock::time_point velocity_received_at{};
   uint32_t heartbeat_sequence{0};
   std::atomic<bool> heartbeat_received{false};
   std::atomic<bool> heartbeat_stale{true};
@@ -154,6 +158,7 @@ struct BehaviorOutput
   JointCommand command;
   JointCommand last_published;
   bool has_published_command{false};
+  bool is_command_publish_fault_latched{false};
   std::vector<float> feedforward;
   std::vector<float> action_scale;
   std::vector<float> action_offset;
@@ -168,9 +173,9 @@ struct PolicyState
   std::vector<float> input;  // scaled/clipped observation vector fed to ONNX
   Eigen::Quaternionf motion_init_quat{Eigen::Quaternionf::Identity()};
   float episode_time{0.0f};
-  // Gait-phase clock in [0, 1). Advanced by GaitClock once per policy step and
-  // read by the gait_phase observation. Stays 0 for policies without a gait phase.
-  float gait_phase{0.0f};
+  // Raw phase-clock state. Advanced by GaitClock once per policy step and
+  // encoded by observations. The normalized phase stays in [0, 1).
+  PhaseState phase_state;
 };
 
 /**

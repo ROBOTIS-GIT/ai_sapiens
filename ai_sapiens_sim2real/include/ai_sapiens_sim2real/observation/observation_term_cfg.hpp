@@ -99,12 +99,19 @@ struct ObservationTermCfg
       }
     }
 
+    if (!buffer_.empty()) {previous_latest_ = buffer_.back();}
     buffer_.push_back(obs);
 
     // Maintain history length
     while (static_cast<int>(buffer_.size()) > history_length) {
       buffer_.pop_front();
     }
+  }
+
+  // Retain the time slot, using the previous already-scaled/clipped sample.
+  void reject_latest()
+  {
+    if (!buffer_.empty()) {buffer_.back() = previous_latest_;}
   }
 
   /**
@@ -166,6 +173,7 @@ struct ObservationTermCfg
 private:
   /// Circular buffer for history (oldest at front, newest at back).
   std::deque<std::vector<float>> buffer_;
+  std::vector<float> previous_latest_;
 };
 
 }  // namespace ai_sapiens_sim2real

@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "ai_sapiens_sim2real/config/config_utils.hpp"
+#include "ai_sapiens_sim2real/config/root_sections/state_behaviors_config.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -30,11 +31,13 @@ StateMachineConfig::StateMachineConfig(
   std::string initial_state_name,
   std::unordered_map<std::string, ModeState> states)
 : initial_state_name_(std::move(initial_state_name)),
+  damping_state_name_(initial_state_name_),
   states_(std::move(states))
 {
 }
 
-StateMachineConfig StateMachineConfig::from_yaml(const YAML::Node & config)
+StateMachineConfig StateMachineConfig::from_yaml(
+  const YAML::Node & config, const StateBehaviorsConfig & behaviors)
 {
   StateMachineConfig state_machine;
   const auto machine = state_machine.read_state_machine_node(config);
@@ -43,7 +46,33 @@ StateMachineConfig StateMachineConfig::from_yaml(const YAML::Node & config)
     read_required_yaml_string(machine["initial"], "state_machine.initial");
   state_machine.states_ = state_machine.read_state_configs(machine["states"]);
 
+  state_machine.damping_state_name_ = machine["damping_state"].IsDefined() ?
+    read_required_yaml_string(machine["damping_state"], "state_machine.damping_state") :
+    state_machine.default_damping_state(behaviors);
   return state_machine;
+}
+
+std::string StateMachineConfig::default_damping_state(const StateBehaviorsConfig & behaviors) const
+{
+  std::string candidate;
+  size_t count = 0;
+  for (const auto & [name, state] : states_) {
+    const auto * behavior = behaviors.find_behavior(state.run);
+    if (state.abstract || !behavior || behavior->kind != BehaviorKind::Damping) {
+      continue;
+    }
+    if (name == initial_state_name_) {
+      return name;
+    }
+    candidate = name;
+    ++count;
+  }
+  if (count != 1) {
+    throw std::runtime_error(
+      "Set state_machine.damping_state to a concrete damping state: found " +
+      std::to_string(count) + " candidates");
+  }
+  return candidate;
 }
 
 const std::string & StateMachineConfig::initial_state_name() const

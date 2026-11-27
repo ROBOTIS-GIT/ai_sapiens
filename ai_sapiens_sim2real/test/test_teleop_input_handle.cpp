@@ -93,6 +93,7 @@ TEST_F(TeleopInputHandleTest, ZerosStaleVelocityBeforeInputFailsafe)
   handle.update(node_->now());
   EXPECT_FALSE(teleop_.unavailable.load());
   EXPECT_FALSE(requests_.damping);
+  EXPECT_TRUE(teleop_.is_velocity_command_valid);
   EXPECT_TRUE(teleop_.velocity_commands.isApprox(Eigen::Vector3f(0.5F, -0.25F, 0.75F)));
 
   std::this_thread::sleep_for(40ms);
@@ -100,6 +101,21 @@ TEST_F(TeleopInputHandleTest, ZerosStaleVelocityBeforeInputFailsafe)
   EXPECT_FALSE(teleop_.unavailable.load());
   EXPECT_FALSE(requests_.damping);
   EXPECT_TRUE(teleop_.velocity_commands.isZero());
+  EXPECT_FALSE(teleop_.is_velocity_command_valid);
+}
+
+TEST_F(TeleopInputHandleTest, InvalidStickIsDistinctFromValidNeutral)
+{
+  TeleopInputHandle handle(node_, &teleop_, &requests_, &active_ranges_, plugin_, 1.0, 0.2);
+  plugin_->inject_velocity(Eigen::Vector3f(2.0F, 0.0F, 0.0F));
+  handle.update(node_->now());
+  EXPECT_FALSE(teleop_.is_velocity_command_valid);
+  EXPECT_TRUE(teleop_.velocity_command_normalized.isZero());
+
+  plugin_->inject_velocity(Eigen::Vector3f::Zero());
+  handle.update(node_->now());
+  EXPECT_TRUE(teleop_.is_velocity_command_valid);
+  EXPECT_TRUE(teleop_.velocity_command_normalized.isZero());
 }
 
 TEST_F(TeleopInputHandleTest, RejectsVelocityTimeoutLongerThanInputTimeout)

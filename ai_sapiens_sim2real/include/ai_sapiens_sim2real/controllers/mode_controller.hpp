@@ -34,6 +34,8 @@
 #include "ai_sapiens_sim2real/mode_runtime/authority_runtime.hpp"
 #include "ai_sapiens_sim2real/mode_runtime/mode_state_machine.hpp"
 #include "ai_sapiens_sim2real/mode_runtime/realtime_request_gate.hpp"
+#include "ai_sapiens_sim2real/mode_runtime/rejected_request_gate.hpp"
+#include "ai_sapiens_sim2real/policy/policy_entry_validator.hpp"
 #include "ai_sapiens_sim2real/teleop_input/teleop_input_command.hpp"
 #include "ai_sapiens_sim2real/shared_control_data.hpp"
 
@@ -63,7 +65,7 @@ public:
   ModeController(
     rclcpp::Node::SharedPtr node,
     const RootConfig & root_config,
-    SharedControlData * shared_data);
+    SharedControlData * shared_data, bool require_api_heartbeat = true);
 
   void update(const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/);
   void reset() override;
@@ -77,7 +79,6 @@ public:
   struct ModeStatusSnapshot
   {
     std::string active_state;
-    std::vector<std::string> available_states;
     const char * authority{"UNKNOWN"};
     bool teleop_input_valid{false};
     bool api_heartbeat_valid{false};
@@ -118,6 +119,7 @@ private:
     RequestedState,
     TeleopInputTimeout,
     TeleopInputDamping,
+    CommandPublishFault,
     DampingRequest,
     ActionLimit,
     BadOrientation,
@@ -182,11 +184,14 @@ private:
   void apply_state_request(const StateRequest & requested);
   void run_active_mode();
   static const char * transition_reason_name(TransitionReason reason);
+  static const char * transition_source_suffix(TransitionReason reason);
   static bool is_failsafe_transition_reason(TransitionReason reason);
 
   // Startup wiring: load FSM/authority config, enter the initial state.
   void initialize_joint_counts();
-  void configure_mode_runtime(const RootConfig & root_config);
+  void configure_mode_runtime(const RootConfig & root_config, bool require_api_heartbeat);
+  void update_entry_retry_gate();
+  void log_entry_rejection(const StateRequest & request, const PolicyEntryResult & result) const;
   void enter_initial_state();
 
   bool is_api_request_available() const;
@@ -200,7 +205,6 @@ private:
   }
 
   std::vector<float> make_controller_ordered_joint_positions() const;
-  void copy_controller_positions_to_output(const std::vector<float> & controller_values);
 
   const StateBehavior & behavior_for_state(const std::string & state_name) const;
   std::string policy_for_state(const std::string & state_name) const;
@@ -243,8 +247,8 @@ private:
   StateRequest make_damping_state_request(TransitionReason reason) const
   {
     return {
-      mode_state_machine_.initial_state_name(),
-      behavior_kind_for_state(mode_state_machine_.initial_state_name()),
+      mode_state_machine_.damping_state_name(),
+      BehaviorKind::Damping,
       reason};
   }
 
@@ -286,7 +290,7 @@ private:
 
   bool is_mimic_state() const;
   bool is_orientation_unsafe() const;
-  bool is_transition_allowed(const StateRequest & request) const;
+  PolicyEntryResult evaluate_state_entry(const StateRequest & request) const;
   bool is_transition_allowed(BehaviorKind from, BehaviorKind to) const;
 
   // State entry/run paths update SharedControlData without blocking the realtime loop.
@@ -299,6 +303,7 @@ private:
   void record_transition_reason(TransitionReason reason);
   void mark_transition_log_pending();
 
+  void set_damping_command(const StateBehavior & behavior);
   void run_damping();
   void run_posture();
 
@@ -310,6 +315,7 @@ private:
   BehaviorOutput * output_;
 
   ModeStateMachine mode_state_machine_;
+  PolicyEntryValidator entry_validator_;
   AuthorityConfig authority_config_;
   AuthorityRuntime authority_;
   RealtimeRequestGate<StateRequest> service_request_gate_;
@@ -324,6 +330,7 @@ private:
   BehaviorKind current_behavior_kind_{BehaviorKind::Damping};
   std::chrono::steady_clock::time_point state_enter_time_{};
   bool startup_teleop_input_accepted_{false};
+  RejectedRequestGate entry_retry_gate_;
   // API entry fires only on a rising edge of the teleop API request, so entry
   // after boot, a failed attempt, or any manual takeover needs a fresh switch
   // toggle. Starts true so an already-high switch cannot enter API at boot.
@@ -338,7 +345,6 @@ private:
   std::chrono::steady_clock::time_point posture_start_time_{};
   std::vector<float> posture_start_controller_;
   std::vector<float> active_posture_target_;
-  std::vector<float> posture_target_;
 };
 
 }  // namespace ai_sapiens_sim2real

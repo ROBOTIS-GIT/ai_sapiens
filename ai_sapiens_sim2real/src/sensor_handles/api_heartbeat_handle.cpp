@@ -18,6 +18,8 @@
 
 #include <stdexcept>
 
+#include "ai_sapiens_sim2real/exception_diagnostics.hpp"
+
 namespace ai_sapiens_sim2real
 {
 
@@ -25,7 +27,8 @@ ApiHeartbeatHandle::ApiHeartbeatHandle(
   rclcpp::Node::SharedPtr node,
   ApiInput * api,
   const std::string & topic,
-  double timeout_seconds)
+  double timeout_seconds,
+  const rclcpp::SubscriptionOptions & subscription_options)
 : node_(node),
   api_(api),
   topic_(topic),
@@ -41,18 +44,21 @@ ApiHeartbeatHandle::ApiHeartbeatHandle(
   subscription_ = node_->create_subscription<ai_sapiens_interfaces::msg::ApiHeartbeat>(
     topic_,
     10,
-    [this](const ai_sapiens_interfaces::msg::ApiHeartbeat::SharedPtr msg) {
-      ApiHeartbeatSnapshot snapshot;
-      snapshot.sequence = msg->sequence;
-      snapshot.received_at = std::chrono::steady_clock::now();
-      buffer_.writeFromNonRT(snapshot);
-      received_once_.store(true, std::memory_order_release);
-    });
+    CALLBACK_WITH_EXCEPTION_LOG(this, ApiHeartbeatHandle::on_heartbeat), subscription_options);
   RCLCPP_INFO(
     node_->get_logger(),
     "[ApiHeartbeatHandle] topic(%s) timeout(%.3fs)",
     topic_.c_str(),
     timeout_seconds);
+}
+
+void ApiHeartbeatHandle::on_heartbeat(const ai_sapiens_interfaces::msg::ApiHeartbeat::SharedPtr msg)
+{
+  ApiHeartbeatSnapshot snapshot;
+  snapshot.sequence = msg->sequence;
+  snapshot.received_at = std::chrono::steady_clock::now();
+  buffer_.writeFromNonRT(snapshot);
+  received_once_.store(true, std::memory_order_release);
 }
 
 void ApiHeartbeatHandle::update(const rclcpp::Time & /*time*/)

@@ -1,0 +1,370 @@
+policy_joints:
+- left_hip_pitch_joint
+- left_hip_roll_joint
+- left_hip_yaw_joint
+- left_knee_joint
+- left_ankle_pitch_joint
+- left_ankle_roll_joint
+- right_hip_pitch_joint
+- right_hip_roll_joint
+- right_hip_yaw_joint
+- right_knee_joint
+- right_ankle_pitch_joint
+- right_ankle_roll_joint
+- waist_yaw_joint
+- left_shoulder_pitch_joint
+- left_shoulder_roll_joint
+- left_shoulder_yaw_joint
+- left_elbow_joint
+- left_wrist_roll_joint
+- right_shoulder_pitch_joint
+- right_shoulder_roll_joint
+- right_shoulder_yaw_joint
+- right_elbow_joint
+- right_wrist_roll_joint
+step_dt: 0.02
+joint_properties:
+  left_hip_pitch_joint:
+    default_position: -0.3
+    stiffness: 76.45161
+    damping: 4.867061
+    position_limit: null
+  left_hip_roll_joint:
+    default_position: 0.0
+    stiffness: 76.45161
+    damping: 4.867061
+    position_limit: null
+  left_hip_yaw_joint:
+    default_position: 0.0
+    stiffness: 76.45161
+    damping: 4.867061
+    position_limit: null
+  left_knee_joint:
+    default_position: 0.63
+    stiffness: 76.45161
+    damping: 4.867061
+    position_limit: null
+  left_ankle_pitch_joint:
+    default_position: -0.33
+    stiffness: 76.45161
+    damping: 4.867061
+    position_limit: null
+  left_ankle_roll_joint:
+    default_position: 0.0
+    stiffness: 22.30104
+    damping: 1.419728
+    position_limit: null
+  right_hip_pitch_joint:
+    default_position: -0.3
+    stiffness: 76.45161
+    damping: 4.867061
+    position_limit: null
+  right_hip_roll_joint:
+    default_position: 0.0
+    stiffness: 76.45161
+    damping: 4.867061
+    position_limit: null
+  right_hip_yaw_joint:
+    default_position: 0.0
+    stiffness: 76.45161
+    damping: 4.867061
+    position_limit: null
+  right_knee_joint:
+    default_position: 0.63
+    stiffness: 76.45161
+    damping: 4.867061
+    position_limit: null
+  right_ankle_pitch_joint:
+    default_position: -0.33
+    stiffness: 76.45161
+    damping: 4.867061
+    position_limit: null
+  right_ankle_roll_joint:
+    default_position: 0.0
+    stiffness: 22.30104
+    damping: 1.419728
+    position_limit: null
+  waist_yaw_joint:
+    default_position: 0.0
+    stiffness: 76.45161
+    damping: 4.867061
+    position_limit: null
+  left_shoulder_pitch_joint:
+    default_position: 0.2
+    stiffness: 22.30104
+    damping: 1.419728
+    position_limit: null
+  left_shoulder_roll_joint:
+    default_position: 0.2
+    stiffness: 22.30104
+    damping: 1.419728
+    position_limit: null
+  left_shoulder_yaw_joint:
+    default_position: 0.0
+    stiffness: 22.30104
+    damping: 1.419728
+    position_limit: null
+  left_elbow_joint:
+    default_position: 0.95
+    stiffness: 22.30104
+    damping: 1.419728
+    position_limit: null
+  left_wrist_roll_joint:
+    default_position: 0.0
+    stiffness: 22.30104
+    damping: 1.419728
+    position_limit: null
+  right_shoulder_pitch_joint:
+    default_position: 0.2
+    stiffness: 22.30104
+    damping: 1.419728
+    position_limit: null
+  right_shoulder_roll_joint:
+    default_position: -0.2
+    stiffness: 22.30104
+    damping: 1.419728
+    position_limit: null
+  right_shoulder_yaw_joint:
+    default_position: 0.0
+    stiffness: 22.30104
+    damping: 1.419728
+    position_limit: null
+  right_elbow_joint:
+    default_position: 0.95
+    stiffness: 22.30104
+    damping: 1.419728
+    position_limit: null
+  right_wrist_roll_joint:
+    default_position: 0.0
+    stiffness: 22.30104
+    damping: 1.419728
+    position_limit: null
+commands:
+  base_velocity:
+    ranges:
+      lin_vel_x:
+      - -0.8
+      - 1.5
+      lin_vel_y:
+      - -0.5
+      - 0.5
+      ang_vel_z:
+      - -1.8
+      - 1.8
+      heading: null
+actions:
+  joint_pos:
+    clip: null
+    scale:
+    - 0.25
+    - 0.25
+    - 0.25
+    - 0.25
+    - 0.25
+    - 0.25
+    - 0.25
+    - 0.25
+    - 0.25
+    - 0.25
+    - 0.25
+    - 0.25
+    - 0.25
+    - 0.25
+    - 0.25
+    - 0.25
+    - 0.25
+    - 0.25
+    - 0.25
+    - 0.25
+    - 0.25
+    - 0.25
+    - 0.25
+    offset:
+    - -0.3
+    - 0.0
+    - 0.0
+    - 0.63
+    - -0.33
+    - 0.0
+    - -0.3
+    - 0.0
+    - 0.0
+    - 0.63
+    - -0.33
+    - 0.0
+    - 0.0
+    - 0.2
+    - 0.2
+    - 0.0
+    - 0.95
+    - 0.0
+    - 0.2
+    - -0.2
+    - 0.0
+    - 0.95
+    - 0.0
+observations:
+  base_ang_vel:
+    params: {}
+    clip:
+    - -500.0
+    - 500.0
+    scale:
+    - 0.2
+    - 0.2
+    - 0.2
+    history_length: 5
+  projected_gravity:
+    params: {}
+    clip:
+    - -100.0
+    - 100.0
+    scale:
+    - 1.0
+    - 1.0
+    - 1.0
+    history_length: 5
+  velocity_commands:
+    params:
+      command_name: base_velocity
+    clip:
+    - -100.0
+    - 100.0
+    scale:
+    - 1.0
+    - 1.0
+    - 1.0
+    history_length: 5
+  joint_pos:
+    params: {}
+    clip:
+    - -100.0
+    - 100.0
+    scale:
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    history_length: 5
+  joint_vel:
+    params: {}
+    clip:
+    - -2000.0
+    - 2000.0
+    scale:
+    - 0.05
+    - 0.05
+    - 0.05
+    - 0.05
+    - 0.05
+    - 0.05
+    - 0.05
+    - 0.05
+    - 0.05
+    - 0.05
+    - 0.05
+    - 0.05
+    - 0.05
+    - 0.05
+    - 0.05
+    - 0.05
+    - 0.05
+    - 0.05
+    - 0.05
+    - 0.05
+    - 0.05
+    - 0.05
+    - 0.05
+    history_length: 5
+  actions:
+    params: {}
+    clip:
+    - -100.0
+    - 100.0
+    scale:
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    history_length: 5
+  gait_phase:
+    params:
+      periods:
+      - 0.8
+      forward_thresholds: []
+      swing_ratios:
+      - 0.4
+      transition_tau: 0.25
+      offsets:
+      - 0.0
+      - 0.5
+      update: integrated_free_running
+      reset_phase: 0.0
+      stand_command_norm_plus_yaw_threshold: 0.05
+      stand_mode_priority: true
+      observation_order:
+      - sin_left
+      - cos_left
+      - sin_right
+      - cos_right
+      - swing_left
+      - swing_right
+      activation_region:
+        kind: low_only_smoothstep
+        planar_max: 0.4
+        yaw_max: 0.4
+        lateral_max: 0.3
+        planar_fade_width: 0.05
+        yaw_fade_width: 0.05
+        lateral_fade_width: 0.05
+        moving_fade_width: 0.01
+        activation_rise_tau: 0.25
+    clip:
+    - -1.0
+    - 1.0
+    scale:
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.0
+    history_length: 5

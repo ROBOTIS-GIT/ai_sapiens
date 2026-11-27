@@ -16,14 +16,21 @@
 
 #include "ai_sapiens_sim2real/sim2real_node.hpp"
 
+#include <exception>
+#include <future>
 #include <stdexcept>
 
+#include <rcpputils/scope_exit.hpp>
+
+#include "ai_sapiens_sim2real/exception_diagnostics.hpp"
+#include "ai_sapiens_sim2real/mode_runtime/node_executor.hpp"
 #include "ai_sapiens_sim2real/command_publishers/joint_command_publisher.hpp"
 #include "ai_sapiens_sim2real/controllers/mode_controller.hpp"
 #include "ai_sapiens_sim2real/controllers/policy_controller.hpp"
 #include "ai_sapiens_sim2real/sensor_handles/imu_sensor_handle.hpp"
 #include "ai_sapiens_sim2real/sensor_handles/joint_states_sensor_handle.hpp"
 #include "ai_sapiens_sim2real/config/root_config.hpp"
+#include "ai_sapiens_sim2real/config/config_utils.hpp"
 
 namespace ai_sapiens_sim2real
 {
@@ -37,7 +44,7 @@ namespace ai_sapiens_sim2real
 // JointCommandPublisher -> publishes the final joint command
 
 Sim2RealNode::Sim2RealNode()
-: node_(std::make_shared<rclcpp::Node>("ai_sapiens_sim2real_node"))
+: node_(std::make_shared<rclcpp::Node>("ai_sapiens_sim2real_node")), input_executor_(node_)
 {
   declare_node_parameters();
 }
@@ -49,8 +56,14 @@ int Sim2RealNode::run()
     log_startup_options();
     configure();
     run_control_loop_until_shutdown();
+  } catch (const YamlConfigError & e) {
+    RCLCPP_ERROR(node_->get_logger(), "%s", e.what());
+    return 1;
   } catch (const std::exception & e) {
     RCLCPP_ERROR(node_->get_logger(), "Error: %s", e.what());
+    return 1;
+  } catch (...) {
+    RCLCPP_FATAL(node_->get_logger(), "Sim2RealNode::run failed: unknown exception");
     return 1;
   }
 
@@ -64,6 +77,12 @@ void Sim2RealNode::declare_node_parameters()
   node_->declare_parameter<std::string>("joint_states_topic", "/joint_states");
   node_->declare_parameter<double>("imu_timeout", 0.5);
   node_->declare_parameter<double>("joint_states_timeout", 0.5);
+
+  rcl_interfaces::msg::ParameterDescriptor input_rate_descriptor;
+  input_rate_descriptor.read_only = true;
+  node_->declare_parameter<double>("imu_expected_rate_hz", 1000.0, input_rate_descriptor);
+  node_->declare_parameter<double>("joint_states_expected_rate_hz", 1000.0, input_rate_descriptor);
+
   node_->declare_parameter<int>("thread_priority", 50);
   node_->declare_parameter<bool>("lock_memory", true);
   node_->declare_parameter<double>("wait_for_ready_timeout", 30.0);
@@ -71,6 +90,9 @@ void Sim2RealNode::declare_node_parameters()
   node_->declare_parameter<bool>("status_log_enabled", false);
   node_->declare_parameter<bool>("detailed_status_log", false);
   node_->declare_parameter<bool>("debug_publish_enabled", false);
+  rcl_interfaces::msg::ParameterDescriptor diagnostics_descriptor;
+  diagnostics_descriptor.read_only = true;
+  node_->declare_parameter<std::string>("action_fault_directory", "", diagnostics_descriptor);
   node_->declare_parameter<double>("debug_publish_rate", 50.0);
   node_->declare_parameter<std::string>(
     "joint_command_topic", "/joint_group_impedance_controller/commands");
@@ -78,6 +100,7 @@ void Sim2RealNode::declare_node_parameters()
   node_->declare_parameter<bool>("enforce_position_limits", false);
   node_->declare_parameter<std::string>(
     "api_heartbeat_topic", "/ai_sapiens/api_heartbeat");
+  node_->declare_parameter<bool>("require_api_heartbeat", true);
   node_->declare_parameter<double>("api_heartbeat_timeout", 0.2);
   node_->declare_parameter<std::string>("cmd_vel_topic", "/cmd_vel");
   node_->declare_parameter<std::string>("teleop_input_plugin", "");
@@ -101,6 +124,9 @@ NodeOptions Sim2RealNode::read_node_options() const
   options.joint_states_topic = node_->get_parameter("joint_states_topic").as_string();
   options.imu_timeout = node_->get_parameter("imu_timeout").as_double();
   options.joint_states_timeout = node_->get_parameter("joint_states_timeout").as_double();
+  options.imu_expected_rate_hz = node_->get_parameter("imu_expected_rate_hz").as_double();
+  options.joint_states_expected_rate_hz =
+    node_->get_parameter("joint_states_expected_rate_hz").as_double();
   options.thread_priority = node_->get_parameter("thread_priority").as_int();
   options.lock_memory = node_->get_parameter("lock_memory").as_bool();
   options.wait_timeout = node_->get_parameter("wait_for_ready_timeout").as_double();
@@ -113,6 +139,7 @@ NodeOptions Sim2RealNode::read_node_options() const
   options.command_publisher_enabled =
     node_->get_parameter("command_publisher_enabled").as_bool();
   options.enforce_position_limits = node_->get_parameter("enforce_position_limits").as_bool();
+  options.require_api_heartbeat = node_->get_parameter("require_api_heartbeat").as_bool();
   options.api_heartbeat_topic =
     node_->get_parameter("api_heartbeat_topic").as_string();
   options.api_heartbeat_timeout =
@@ -208,7 +235,7 @@ void Sim2RealNode::add_robot_feedback_inputs()
       &shared_data_->sensors,
       &shared_data_->requests,
       options_.imu_timeout,
-      options_.imu_topic),
+      options_.imu_topic, input_executor_.subscription_options(), options_.imu_expected_rate_hz),
     true);
   control_loop_->add_sensor_handle(
     std::make_shared<JointStatesSensorHandle>(
@@ -217,7 +244,8 @@ void Sim2RealNode::add_robot_feedback_inputs()
       &shared_data_->requests,
       options_.joint_states_timeout,
       runtime_config_.controller_joints,
-      options_.joint_states_topic),
+      options_.joint_states_topic, input_executor_.subscription_options(),
+      options_.joint_states_expected_rate_hz),
     true);
 }
 
@@ -236,13 +264,14 @@ void Sim2RealNode::add_operator_command_inputs()
   }
 
   operator_command_inputs_ =
-    add_operator_command_input_handles(control_loop_, node_, shared_data_, input_options);
+    add_operator_command_input_handles(
+    control_loop_, node_, shared_data_, input_options, input_executor_.subscription_options());
 }
 
 void Sim2RealNode::wait_for_teleop_input()
 {
   if (!wait_for_teleop_input_sample(
-      node_, operator_command_inputs_.teleop_input_plugin, options_.wait_timeout))
+      node_, operator_command_inputs_.teleop_input_plugin, options_.wait_timeout, input_executor_))
   {
     throw std::runtime_error("timed out waiting for teleop input plugin sample");
   }
@@ -250,7 +279,8 @@ void Sim2RealNode::wait_for_teleop_input()
 
 void Sim2RealNode::add_mode_controller()
 {
-  mode_controller_ = std::make_shared<ModeController>(node_, *root_config_, shared_data_);
+  mode_controller_ = std::make_shared<ModeController>(
+    node_, *root_config_, shared_data_, options_.require_api_heartbeat);
   control_loop_->set_mode_controller(mode_controller_);
 }
 
@@ -285,12 +315,50 @@ void Sim2RealNode::add_joint_command_output()
 
 void Sim2RealNode::run_control_loop_until_shutdown()
 {
-  control_loop_->start();
+  std::future<void> rt_completion;
+  std::exception_ptr executor_failure;
+  const char * operation = "Input executor startup";
+  try {
+    input_executor_.start();
+    operation = "Node executor setup";
+    NodeExecutor executor(node_);
+    auto diagnostics_timer = node_->create_wall_timer(std::chrono::milliseconds(20), [this]() {
+          control_loop_->flush_diagnostics();
+    });
 
-  RCLCPP_INFO(node_->get_logger(), "Control loop started. Spinning...");
-  rclcpp::spin(node_);
+    operation = "Control loop startup";
+    control_loop_->start();
+    rt_completion = std::async(std::launch::async, [this]() {
+          // Wake the executors before a potentially blocking fatal log.
+          {
+            const auto shutdown_on_exit = rcpputils::make_scope_exit([] {rclcpp::shutdown();});
+            control_loop_->wait();
+          }
+          control_loop_->log_exit();
+    });
 
+    operation = "Node executor";
+    executor.spin();
+  } catch (...) {
+    executor_failure = std::current_exception();
+    rclcpp::shutdown();
+    log_executor_exception(node_->get_logger(), operation);
+  }
+
+  if (rt_completion.valid()) {
+    rt_completion.wait();
+  }
   control_loop_->stop();
+  input_executor_.stop();
+
+  if (executor_failure) {
+    std::rethrow_exception(executor_failure);
+  }
+  rt_completion.get();
+
+  if (input_executor_.has_failed()) {
+    throw std::runtime_error("input executor failed");
+  }
 
   // Propagate RT-thread aborts as process failures.
   if (control_loop_->faulted()) {

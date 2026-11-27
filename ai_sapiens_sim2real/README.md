@@ -56,7 +56,7 @@ Startup intentionally validates configuration before waiting for live sensors:
 This ordering makes a malformed root config, missing asset, invalid policy
 config, or ONNX loading failure visible before sensor startup waits.
 
-The mode runtime starts in the configured initial state, normally `Damping`.
+The mode runtime starts in `state_machine.initial`, which is `Damping` in the K1 configuration.
 Even after inputs are ready, the startup gate holds that state until the
 teleop input matches either `DampingRequested` or `ReadyPoseRequested`.
 
@@ -94,41 +94,53 @@ states can provide inherited transitions but cannot become active.
 | `API_WARMUP` | Zero velocity | Holds the current state |
 | `API` | `/cmd_vel` | Mode request service |
 
+By default, moving the teleop stick beyond the neutral threshold overrides
+`/cmd_vel` on all axes. Centering the stick returns control to `/cmd_vel`.
+Set `authority.teleop_overrides_cmd_vel: false` to use only `/cmd_vel` in API mode.
+When using `/cmd_vel`, velocity stays zero until a command received during or
+after warmup is available. Each command expires one second after receipt.
+
 API entry requires all of the following:
 
 - a fresh rising edge of the configured API switch;
-- a valid, advancing API heartbeat;
+- a valid, advancing API heartbeat when `require_api_heartbeat` is true (default);
 - an active state listed in `authority.api_entry.allowed_from_states`;
 - teleop velocity within `velocity_neutral_threshold`;
-- commanded API velocity within `velocity_neutral_threshold`;
+- when `authority.api_entry.require_neutral_cmd_vel` is true (default), any fresh
+  `/cmd_vel` must also be within `velocity_neutral_threshold`;
 - completion of the configured warmup duration.
 
 Holding the switch high after a rejected entry does not retry. Toggle it off
-and on after correcting the rejection. During an API session, heartbeat loss
+and on after correcting the rejection. When heartbeat is required, heartbeat loss
 takes priority over a normal switch release and performs the conservative
 manual handoff.
 
 `ApiHeartbeat.sequence` must keep advancing. Repeated messages with an
-unchanged sequence become stale even if they continue arriving.
+unchanged sequence become stale even if they continue arriving. With the
+requirement disabled, heartbeat status still reports the actual signal.
 
 ## Decision and safety priority
 
 `ModeController::decide()` applies the system-wide priority below; the failsafe
 checks themselves live in `failsafe_reason()` and the authority arbitration in
-`compute_authority_change()`. The first matching condition wins:
+`compute_authority_change()`. The first matching condition wins.
 
-1. teleop input timeout;
-2. teleop Damping input;
-3. internal Damping request;
-4. policy action-limit violation;
-5. bad orientation;
-6. startup gate;
-7. authority transition;
-8. velocity source and behavior-state request.
+1. joint command publication failure (11 consecutive failures)
+2. teleop input timeout
+3. teleop Damping input
+4. internal Damping request
+5. policy action-limit violation
+6. bad orientation
+7. startup gate
+8. authority transition
+9. velocity source and behavior-state request.
 
-Every failsafe in the first five entries selects the configured initial state,
-which is expected to be Damping. Action-limit and bad-orientation checks apply
-only while a policy behavior is active.
+The first six entries select `state_machine.damping_state`, a concrete state with
+a `kind: damping` behavior. An RT exception triggers one emergency command with
+that same behavior's damping gains. When the field is omitted, the initial
+state is used if it runs a damping behavior. Otherwise the configuration must
+contain exactly one concrete damping state.
+Action-limit and bad-orientation checks apply only while a policy behavior is active.
 
 ## Configuration
 
@@ -236,6 +248,7 @@ Useful launch arguments include:
 | `enforce_position_limits` | `false` | Applies active-policy position limits. |
 | `thread_priority` | `50` | Requested FIFO realtime priority. |
 | `lock_memory` | `true` | Requests memory locking for the RT thread. |
+| `require_api_heartbeat` | `true` | Require an advancing heartbeat for API authority. |
 | `api_heartbeat_topic` | `/ai_sapiens/api_heartbeat` | API heartbeat input. |
 | `api_heartbeat_timeout` | `0.2` | Advancing-sequence watchdog timeout. |
 | `cmd_vel_topic` | `/cmd_vel` | API velocity command input. |
@@ -267,7 +280,7 @@ Default runtime interfaces are:
 | Service | `/ai_sapiens/list_modes` | `ai_sapiens_interfaces/srv/ListModes` |
 
 The mode request service accepts requests only under full `API` authority while
-the API switch is held and the heartbeat is valid. `ListModes` reports all
+the API switch is held and the configured heartbeat condition is satisfied. `ListModes` reports all
 concrete states and the subset currently available to the service.
 
 AI Sapiens-specific messages and services are defined in the shared

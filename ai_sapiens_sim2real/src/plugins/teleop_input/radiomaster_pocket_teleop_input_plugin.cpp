@@ -23,6 +23,8 @@
 
 #include <pluginlib/class_list_macros.hpp>
 
+#include "ai_sapiens_sim2real/exception_diagnostics.hpp"
+
 namespace ai_sapiens_sim2real
 {
 namespace
@@ -102,16 +104,23 @@ void RadiomasterPocketTeleopInputPlugin::configure(
 {
   node_ = node;
   read_config(config);
+  input_gap_monitor_ = std::make_unique<InputGapMonitor>(
+    node_, topic_, read_double(config, "expected_publish_rate_hz", 100.0),
+    subscription_options().callback_group);
 
   subscription_ = node_->create_subscription<RcStatus>(
-    topic_,
-    10,
-    [this](const RcStatus::SharedPtr msg) {
-      warn_if_hardware_error(*msg);
-      handle_raw_message(*msg);
-    });
+    topic_, 10,
+    CALLBACK_WITH_EXCEPTION_LOG(this, RadiomasterPocketTeleopInputPlugin::on_rc_status),
+    subscription_options());
 
   RCLCPP_INFO(node_->get_logger(), "[%s] topic(%s)", name().c_str(), topic_.c_str());
+}
+
+void RadiomasterPocketTeleopInputPlugin::on_rc_status(const RcStatus::SharedPtr msg)
+{
+  input_gap_monitor_->received_raw();
+  warn_if_hardware_error(*msg);
+  handle_raw_message(*msg);
 }
 
 std::string RadiomasterPocketTeleopInputPlugin::name() const
@@ -179,6 +188,7 @@ void RadiomasterPocketTeleopInputPlugin::on_stale_message(
 void RadiomasterPocketTeleopInputPlugin::on_message_accepted(
   const RcStatus & msg)
 {
+  input_gap_monitor_->received_accepted();
   has_last_realtime_tick_ = true;
   last_realtime_tick_ = msg.realtime_tick;
 }

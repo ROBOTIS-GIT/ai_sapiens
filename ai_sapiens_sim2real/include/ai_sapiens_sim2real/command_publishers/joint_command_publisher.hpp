@@ -17,12 +17,14 @@
 #ifndef AI_SAPIENS_SIM2REAL__COMMAND_PUBLISHERS__JOINT_COMMAND_PUBLISHER_HPP_
 #define AI_SAPIENS_SIM2REAL__COMMAND_PUBLISHERS__JOINT_COMMAND_PUBLISHER_HPP_
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
 #include <rclcpp/rclcpp.hpp>
 
 #include "ai_sapiens_interfaces/msg/joint_impedance_command.hpp"
+#include "ai_sapiens_sim2real/command_publishers/command_publish_diagnostics.hpp"
 #include "ai_sapiens_sim2real/interfaces/command_publisher_base.hpp"
 #include "ai_sapiens_sim2real/shared_control_data.hpp"
 
@@ -55,7 +57,8 @@ public:
     bool enforce_position_limits = false,
     bool enabled = true);
 
-  void publish(const rclcpp::Time & time) override;
+  void publish(const rclcpp::Time & time, CommandPublishMode mode) override;
+  void flush_diagnostics() override;
   std::string get_name() const override;
   bool is_enabled() const override
   {
@@ -69,6 +72,14 @@ public:
   void set_enabled(bool enabled);
 
 private:
+  void update_message(const rclcpp::Time & time);
+  bool try_publish(CommandPublishMode mode);
+  void record_publish_success(CommandPublishMode mode);
+  void record_publish_failure(CommandPublishMode mode, CommandPublishError error);
+
+  static constexpr unsigned int kMaxRetries = 10;
+  std::uint64_t consecutive_failures_{0};
+  CommandPublishDiagnostics diagnostics_;
   rclcpp::Node::SharedPtr node_;
   BehaviorOutput * output_;
 

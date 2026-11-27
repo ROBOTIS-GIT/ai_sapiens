@@ -35,6 +35,17 @@ namespace ai_sapiens_sim2real
 std::string make_path_list_string(const std::vector<std::filesystem::path> & paths);
 YAML::Node load_yaml_file(const std::filesystem::path & path, const std::string & context);
 
+class YamlConfigError : public std::runtime_error
+{
+public:
+  YamlConfigError(
+    const std::filesystem::path & path, const std::string & context,
+    const std::string & reason)
+  : std::runtime_error(
+      "Configuration error (" + context + ")\n  File: " +
+      path.lexically_normal().string() + "\n  " + reason) {}
+};
+
 // Runs func, re-throwing any exception with the YAML file path prepended so
 // errors point at the offending file.
 template<typename Func>
@@ -45,10 +56,12 @@ decltype(auto) with_yaml_file_context(
 {
   try {
     return std::forward<Func>(func)();
+  } catch (const YamlConfigError &) {
+    throw;
   } catch (const YAML::Exception & e) {
-    throw std::runtime_error(context + " in YAML file '" + path.string() + "': " + e.what());
+    throw YamlConfigError(path, context, e.what());
   } catch (const std::exception & e) {
-    throw std::runtime_error(context + " in YAML file '" + path.string() + "': " + e.what());
+    throw YamlConfigError(path, context, e.what());
   }
 }
 

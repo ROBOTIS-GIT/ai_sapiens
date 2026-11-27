@@ -14,8 +14,8 @@
 //
 // Author: Kiwoong Park
 
-#ifndef AI_SAPIENS_SIM2REAL__POLICY__MIMIC_POLICY_RUNTIME_HPP_
-#define AI_SAPIENS_SIM2REAL__POLICY__MIMIC_POLICY_RUNTIME_HPP_
+#ifndef AI_SAPIENS_SIM2REAL__POLICY__MIMIC__MIMIC_POLICY_RUNTIME_HPP_
+#define AI_SAPIENS_SIM2REAL__POLICY__MIMIC__MIMIC_POLICY_RUNTIME_HPP_
 
 #include <limits>
 #include <memory>
@@ -26,8 +26,8 @@
 #include <rclcpp/rclcpp.hpp>
 
 #include "ai_sapiens_sim2real/config/mimic_behavior.hpp"
-#include "ai_sapiens_sim2real/policy/motion_playback.hpp"
-#include "ai_sapiens_sim2real/policy/motion_reference.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/motion_playback.hpp"
+#include "ai_sapiens_sim2real/policy/mimic/motion_reference.hpp"
 #include "ai_sapiens_sim2real/policy/policy_runtime.hpp"
 #include "ai_sapiens_sim2real/shared_control_data.hpp"
 
@@ -67,14 +67,14 @@ public:
 
 protected:
   void on_enter() override;
-  bool prepare_observation() override;
+  bool update_reference_state() override;
 
 private:
   // Loads the reference motion and clamps the playback window to its duration.
   static MotionPlayback load_playback(
     const MimicBehavior & mimic,
-    const std::vector<std::string> & controller_joint_names);
-  static Eigen::Quaternionf yaw_quaternion(const Eigen::Quaternionf & q);
+    double step_dt);
+  static void configure_playback_window(MotionPlayback & playback, const MimicBehavior & mimic);
 
   // Outlives the runtime, so the reference-motion pointer the base handed to
   // its observation manager stays valid for the runtime's lifetime.
@@ -85,4 +85,4 @@ private:
 
 }  // namespace ai_sapiens_sim2real
 
-#endif  // AI_SAPIENS_SIM2REAL__POLICY__MIMIC_POLICY_RUNTIME_HPP_
+#endif  // AI_SAPIENS_SIM2REAL__POLICY__MIMIC__MIMIC_POLICY_RUNTIME_HPP_

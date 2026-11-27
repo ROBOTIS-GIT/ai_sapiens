@@ -2,6 +2,10 @@
 Changelog for package ai_sapiens_bringup
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.5.0 (2026-11-23)
+------------------
+* None
+
 0.4.0 (2026-11-19)
 ------------------
 * Added ``model:=k1_rev2`` selection to the hardware and MuJoCo K1

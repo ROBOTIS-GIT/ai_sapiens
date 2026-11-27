@@ -26,6 +26,7 @@
 #include <yaml-cpp/yaml.h>  // NOLINT(build/include_order)
 
 #include "ai_sapiens_sim2real/observation/observation_term_cfg.hpp"
+#include "ai_sapiens_sim2real/observation/policy_observation.hpp"
 #include "ai_sapiens_sim2real/observation/observations.hpp"
 #include "ai_sapiens_sim2real/shared_control_data.hpp"
 
@@ -38,7 +39,7 @@ namespace ai_sapiens_sim2real
  * Parses sim2real.yaml observations section, creates ObservationTermCfg for each,
  * and computes the full observation vector in YAML order with clip/scale/history.
  */
-class ObservationManager
+class ObservationManager : public PolicyObservation
 {
 public:
   /**
@@ -59,7 +60,7 @@ public:
    *
    * Should be called when entering active state.
    */
-  void reset();
+  void reset() override;
 
   /**
    * @brief Compute full observation vector.
@@ -69,13 +70,17 @@ public:
    *
    * @return Concatenated observation vector
    */
-  std::vector<float> compute();
+  std::vector<float> compute() override;
+
+  // Replace only the rejected time slot; preserve the failed tensor for diagnostics.
+  void reject_latest() override;
+  std::vector<ObservationSlice> layout() const override;
 
   /**
    * @brief Get total observation size.
    * @return Total number of floats in observation vector
    */
-  size_t get_observation_size() const;
+  size_t get_observation_size() const override;
 
   /**
    * @brief Get number of observation terms.
@@ -93,7 +98,11 @@ public:
   std::vector<std::string> get_term_names() const;
 
 private:
-  // Config parsing creates ordered terms; compute() reuses obs_buffer_ in that order.
+  void update_history();
+  void assemble_observation();
+  void validate_history_layout() const;
+
+  // Config parsing preserves the YAML order of observation terms.
   void parse_config(const YAML::Node & obs_config);
   ObservationTermCfg parse_observation_term(
     const std::string & term_name,
@@ -115,8 +124,11 @@ private:
   const SharedControlData * shared_data_;
   PolicyJointContext joint_context_;
   const MotionReference * reference_motion_;
+  // False: term histories; true: complete frames, oldest first.
+  bool use_gym_history_{false};
   std::vector<ObservationTermCfg> terms_;
   std::vector<float> obs_buffer_;
+  size_t updated_terms_{0};
 };
 
 }  // namespace ai_sapiens_sim2real
